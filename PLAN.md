@@ -26,29 +26,54 @@ chosen).
   build, ratings update (Elo-style), repeat until a stopping condition
   is met, surface the ranked shortlist (not just a single "winner").
 
-## Phase 1 — EDHREC data ingestion (not started)
+## Phase 1 — EDHREC data ingestion ✅ done
 
-- `commander_picker/edhrec_client.py`: fetch EDHREC's JSON data.
-  EDHREC has no official public API, but its own frontend consumes
-  JSON documents (commander lists per color combo, per theme/archetype
-  pages, individual commander pages with average-deck data) served
-  from a predictable JSON backend. Exact endpoint shapes need to be
-  confirmed once this environment actually has network access to
-  edhrec.com (same class of gap the sibling synergy project hit with
-  Scryfall in its dev sandbox) — build the client against captured
-  sample responses first, verify live once reachable.
-- Cache raw JSON responses locally (`data/edhrec/*.json`) with a
-  freshness window (e.g. 24h, `--force` to bypass), same pattern as
-  `commander-synergy`'s `bulk_data.py`. Fetch by color-combo page and
-  by theme/archetype page rather than one commander at a time, to
-  minimize request count.
-- Be a polite client: identifying user agent, no parallel hammering,
-  cache-first. This is scraping a public site's data endpoints, not an
-  official API — keep request volume low and cached.
-- Load cached JSON into `data/commanders.db` (SQLite): one row per
-  commander — name, color_identity, num_decks, themes (list), salt
-  score, price, image_url, edhrec_url.
-- CLI: `commander-picker update-data`.
+- `commander_picker/colors.py`: color-identity ↔ EDHREC URL slug
+  mapping for all 32 combos (colorless, 5 mono, 10 guilds, 10
+  shards/wedges via standard Magic terminology — high confidence;
+  4-color/5-color fall back to literal color letters — lower
+  confidence, flagged in the module docstring).
+- `commander_picker/themes.py`: curated list of ~18 EDHREC
+  archetype/theme page slugs (tokens, aristocrats,
+  plus-1-plus-1-counters, voltron, stax, ...).
+- `commander_picker/edhrec_client.py`: fetches EDHREC's JSON pages —
+  one per color-identity combo (`json.edhrec.com/pages/commanders/<slug>.json`)
+  and one per theme (`.../pages/themes/<slug>.json`) — and caches them
+  under `data/edhrec/` with a 24h freshness window (`--force` to
+  bypass), same pattern as `commander-synergy`'s `bulk_data.py`. Polite
+  client: identifying user agent, small delay between live fetches,
+  cache-first.
+- `commander_picker/db.py`: parses cached pages into
+  `data/commanders.db` (SQLite) — `commanders` table (name,
+  color_identity, num_decks, salt, edhrec_url, image_url/price
+  columns present but unpopulated until Phase 5) plus a
+  `commander_themes` junction table built by unioning which theme
+  pages each commander name appeared on. Parsing logic
+  (`_cardviews_from_page`, `_cardview_to_record`) is isolated in small
+  functions specifically so it's a local fix once the real EDHREC
+  shape is confirmed.
+- CLI: `commander-picker update-data [--force] [--colors ...] [--themes ...]`,
+  `list-colors`, `list-themes`.
+- Tests: `tests/test_colors.py`, `test_edhrec_client.py` (mocked
+  `requests`), `test_db.py` — all offline against hand-built fixtures
+  in `tests/fixtures/`. 16/16 passing. Also manually verified the full
+  `update-data` pipeline end-to-end against the fixtures (fetch →
+  cache → SQLite → query).
+
+**Known gap:** this dev sandbox's egress policy blocks edhrec.com (403
+via the proxy — confirmed, same class of restriction the sibling
+synergy project hit with Scryfall), so `update-data` has never
+actually reached live EDHREC in this environment. The URL templates
+and the assumed `container.json_dict.cardlists[].cardviews[]` response
+shape (fields: `name`, `sanitized`, `url`, `label`, `num_decks`,
+`salt`, `colors`) are a best-effort guess from public knowledge, not a
+captured live response. Whoever runs this with real network access
+should run `commander-picker update-data` once, sanity-check
+`data/commanders.db` (row count, spot-check a few well-known
+commanders' deck counts against edhrec.com directly), and fix up the
+URL templates / parser in `db.py` if the real shape differs — the CLI
+now fails cleanly with a clear error message rather than a raw
+traceback if fetching breaks, so this should be easy to spot.
 
 ## Phase 2 — Filtering & candidate pools (not started)
 

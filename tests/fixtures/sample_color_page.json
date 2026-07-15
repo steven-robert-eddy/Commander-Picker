@@ -1,0 +1,51 @@
+{
+  "_comment": "Hand-built sample matching commander_picker/edhrec_client.py's ASSUMED (unverified) EDHREC JSON shape, for offline tests. Not a real captured response.",
+  "container": {
+    "json_dict": {
+      "cardlists": [
+        {
+          "tag": "topcommanders",
+          "header": "Top Commanders",
+          "cardviews": [
+            {
+              "name": "Korvold, Fae-Cursed King",
+              "sanitized": "korvold-fae-cursed-king",
+              "url": "/cards/korvold-fae-cursed-king",
+              "label": "6,543 decks",
+              "num_decks": 6543,
+              "salt": 1.72,
+              "colors": ["B", "G", "R"]
+            },
+            {
+              "name": "Ob Nixilis, the Adversary",
+              "sanitized": "ob-nixilis-the-adversary",
+              "url": "/cards/ob-nixilis-the-adversary",
+              "label": "3,210 decks",
+              "num_decks": 3210,
+              "salt": 0.95,
+              "colors": ["B", "R"]
+            },
+            {
+              "name": "Rakdos, Lord of Riots",
+              "sanitized": "rakdos-lord-of-riots",
+              "url": "/cards/rakdos-lord-of-riots",
+              "label": "8,921 decks",
+              "num_decks": 8921,
+              "salt": 0.61,
+              "colors": ["B", "R"]
+            },
+            {
+              "name": "Obscura Interceptor",
+              "sanitized": "obscura-interceptor",
+              "url": "/cards/obscura-interceptor",
+              "label": "412 decks",
+              "num_decks": 412,
+              "salt": 0.22,
+              "colors": ["B", "R"]
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

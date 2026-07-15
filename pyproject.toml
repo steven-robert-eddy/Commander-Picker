@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "commander-picker"
+version = "0.1.0"
+description = "Pick your next EDH/Commander build from EDHREC data via an Elo-style swipe picker."
+requires-python = ">=3.9"
+dependencies = [
+    "requests>=2.31",
+    "fastapi>=0.110",
+    "uvicorn>=0.27",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=7", "httpx>=0.27"]
+
+[project.scripts]
+commander-picker = "commander_picker.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["commander_picker*"]
+
+[tool.setuptools.package-data]
+"commander_picker.web" = ["static/*.html", "static/*.js", "static/*.css"]

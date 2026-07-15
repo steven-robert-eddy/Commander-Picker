@@ -1,0 +1,13 @@
+__pycache__/
+*.pyc
+.venv/
+*.egg-info/
+build/
+dist/
+
+# Cached EDHREC pages and derived DB — regenerated via `commander-picker update-data`
+data/edhrec/*.json
+data/*.db
+data/edhrec_meta.json
+!data/.gitkeep
+!data/edhrec/.gitkeep

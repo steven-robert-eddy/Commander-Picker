@@ -1,0 +1,33 @@
+{
+  "_comment": "Hand-built sample matching commander_picker/edhrec_client.py's ASSUMED (unverified) EDHREC JSON shape, for offline tests. Not a real captured response.",
+  "container": {
+    "json_dict": {
+      "cardlists": [
+        {
+          "tag": "topcommanders",
+          "header": "Top Commanders",
+          "cardviews": [
+            {
+              "name": "Ob Nixilis, the Adversary",
+              "sanitized": "ob-nixilis-the-adversary",
+              "url": "/cards/ob-nixilis-the-adversary",
+              "label": "3,210 decks",
+              "num_decks": 3210,
+              "salt": 0.95,
+              "colors": ["B", "R"]
+            },
+            {
+              "name": "Obscura Interceptor",
+              "sanitized": "obscura-interceptor",
+              "url": "/cards/obscura-interceptor",
+              "label": "412 decks",
+              "num_decks": 412,
+              "salt": 0.22,
+              "colors": ["B", "R"]
+            }
+          ]
+        }
+      ]
+    }
+  }
+}
