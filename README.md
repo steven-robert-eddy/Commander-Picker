@@ -8,18 +8,19 @@ ratings to narrow the pool to a ranked shortlist.
 
 ## Status
 
-Phase 1 (EDHREC data ingestion) is done: fetch + cache EDHREC pages,
-load them into a local SQLite DB. Phases 2–5 (filtering, the picker
-engine, and the web UI) are not started yet — see `PLAN.md`.
+Phase 1 (EDHREC data ingestion) and Phase 2 (filtering / candidate
+pools) are done and live-verified — a real `update-data` run pulls
+3,797+ commanders with correct color identities, deck counts, and
+theme tags. Phases 3–5 (the Elo-style picker engine and the web UI)
+are not started yet — see `PLAN.md`.
 
 **Known gap:** this dev sandbox's egress policy blocks edhrec.com
-(403), so `update-data` has never actually been run against live data
-in this environment — only verified offline against hand-built test
-fixtures (`tests/fixtures/`). The exact EDHREC JSON response shape
-assumed by `edhrec_client.py` / `db.py` is a best-effort guess and
-needs a live sanity check once this (or another) environment can
-actually reach edhrec.com. See the docstrings in those two files for
-what to check and fix up if the real shape differs.
+(403) — `update-data` was verified by the project owner running it
+from their own machine and sharing back real captured responses
+rather than in this environment directly. If you're picking this up
+in a similarly restricted sandbox, the same approach applies: get
+someone with real network access to run `update-data` and sanity
+check `data/commanders.db`.
 
 ## Setup
 
@@ -63,20 +64,45 @@ commander-picker list-themes
 Both `data/edhrec/*.json` and `data/commanders.db` are gitignored —
 regenerated locally rather than committed.
 
+## Filtering a candidate pool
+
+Once `data/commanders.db` exists, preview a filtered pool before
+running a picker session against it:
+
+```bash
+commander-picker pool --colors BRG --color-mode subset --max-decks 10000 --themes tokens,aristocrats
+```
+
+- `--colors` — allowed colors, e.g. `BRG` (default: no color filter).
+- `--color-mode` — `subset` (commander's identity fits within
+  `--colors`, the default) or `exact` (identity must match exactly).
+- `--max-decks` / `--min-decks` — deck-count range (default: max
+  10,000, no minimum) — this is the "underbuilt commander" filter.
+- `--themes` — comma-separated theme slugs to filter by.
+- `--themes-mode` — `any` (OR, default) or `all` (AND) across
+  `--themes`.
+- `--pool-size` / `--min-pool-size` — bounds on the returned pool
+  (default: up to 40, error below 4). When more than `--pool-size`
+  commanders match, a random sample is taken rather than always the
+  highest deck counts within the filtered range — the point is
+  variety, not always seeing the same top-of-range commanders.
+
 ## Project layout
 
 ```
 commander_picker/
   colors.py         # color-identity <-> EDHREC URL slug mapping (32 combos)
   themes.py         # known EDHREC archetype/theme page slugs
-  edhrec_client.py  # fetch + cache EDHREC color/theme pages
+  edhrec_client.py  # fetch + cache EDHREC color/theme pages, with pagination
   db.py             # parse cached pages into data/commanders.db (SQLite)
+  pool.py           # filter commanders.db into a bounded candidate pool
   cli.py            # `commander-picker` command-line entry point
 tests/
-  fixtures/          # hand-built sample EDHREC pages for offline tests
+  fixtures/          # hand-built/captured sample EDHREC pages for offline tests
   test_colors.py
   test_edhrec_client.py
   test_db.py
+  test_pool.py
 PLAN.md              # phased project plan + progress notes
 ```
 

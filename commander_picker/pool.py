@@ -1,0 +1,132 @@
+"""Build a filtered candidate pool of commanders for the picker.
+
+Reads from ``data/commanders.db`` (built by ``db.py`` / `update-data`)
+and narrows it down by color identity, deck-count range, and theme
+tags into a bounded pool ready to hand to the picker engine (Phase 3).
+"""
+
+from __future__ import annotations
+
+import random
+import sqlite3
+from dataclasses import dataclass
+
+from commander_picker.colors import WUBRG
+
+DEFAULT_MAX_DECKS = 10_000
+DEFAULT_MIN_POOL_SIZE = 4
+DEFAULT_MAX_POOL_SIZE = 40
+
+
+class PoolTooSmallError(RuntimeError):
+    pass
+
+
+@dataclass
+class Commander:
+    name: str
+    color_identity: str
+    num_decks: int
+    edhrec_url: str | None
+    themes: tuple[str, ...]
+    salt: float | None = None
+    image_url: str | None = None  # not populated until Phase 5
+    price: float | None = None  # not populated until Phase 5
+
+
+@dataclass
+class PoolFilters:
+    colors: str | None = None  # e.g. "BRG" -- allowed colors; None = no color filter
+    color_mode: str = "subset"  # "subset" (commander's colors must fit within `colors`) or "exact"
+    max_decks: int | None = DEFAULT_MAX_DECKS
+    min_decks: int | None = None
+    themes: tuple[str, ...] = ()
+    themes_mode: str = "any"  # "any" (OR) or "all" (AND)
+    # max_price is deliberately not a field here yet -- price is
+    # unpopulated (always NULL) until Phase 5, so a real filter would
+    # silently exclude every commander. Add it once price is populated.
+
+
+def _color_identity_matches(color_identity: str, allowed: set[str], mode: str) -> bool:
+    ci = set(color_identity)
+    if mode == "exact":
+        return ci == allowed
+    return ci <= allowed
+
+
+def _load_themes_by_commander(conn: sqlite3.Connection) -> dict[str, set[str]]:
+    themes_by_commander: dict[str, set[str]] = {}
+    for row in conn.execute("SELECT commander_name, theme FROM commander_themes"):
+        themes_by_commander.setdefault(row["commander_name"], set()).add(row["theme"])
+    return themes_by_commander
+
+
+def build_pool(
+    conn: sqlite3.Connection,
+    filters: PoolFilters,
+    max_pool_size: int = DEFAULT_MAX_POOL_SIZE,
+    min_pool_size: int = DEFAULT_MIN_POOL_SIZE,
+    rng: random.Random | None = None,
+) -> list[Commander]:
+    """Filter commanders.db down to a bounded candidate pool.
+
+    Raises PoolTooSmallError if the filtered set (before size capping)
+    has fewer than min_pool_size candidates -- callers should loosen
+    filters rather than hand the picker an unusably small pool.
+
+    When the filtered set exceeds max_pool_size, a random sample is
+    taken rather than always truncating to the most-built candidates
+    -- the whole point is variety across the "under 10k" range, not
+    always showing the same highest-deck-count commanders within it.
+    """
+    allowed_colors = set(filters.colors.upper()) if filters.colors else set(WUBRG)
+    wanted_themes = set(filters.themes)
+    # Always loaded, not just when filtering by theme -- Commander.themes
+    # is informational output regardless of whether themes were filtered on.
+    themes_by_commander = _load_themes_by_commander(conn)
+
+    candidates = []
+    for row in conn.execute(
+        "SELECT name, color_identity, num_decks, edhrec_url, salt, image_url, price FROM commanders"
+    ):
+        if not _color_identity_matches(row["color_identity"], allowed_colors, filters.color_mode):
+            continue
+        if filters.max_decks is not None and row["num_decks"] > filters.max_decks:
+            continue
+        if filters.min_decks is not None and row["num_decks"] < filters.min_decks:
+            continue
+
+        commander_themes = themes_by_commander.get(row["name"], set())
+        if wanted_themes:
+            matches = (
+                wanted_themes <= commander_themes
+                if filters.themes_mode == "all"
+                else bool(wanted_themes & commander_themes)
+            )
+            if not matches:
+                continue
+
+        candidates.append(
+            Commander(
+                name=row["name"],
+                color_identity=row["color_identity"],
+                num_decks=row["num_decks"],
+                edhrec_url=row["edhrec_url"],
+                themes=tuple(sorted(commander_themes)),
+                salt=row["salt"],
+                image_url=row["image_url"],
+                price=row["price"],
+            )
+        )
+
+    if len(candidates) < min_pool_size:
+        raise PoolTooSmallError(
+            f"Only {len(candidates)} commander(s) match these filters "
+            f"(need at least {min_pool_size}). Try loosening colors/deck-count/themes."
+        )
+
+    if len(candidates) > max_pool_size:
+        rng = rng or random.Random()
+        candidates = rng.sample(candidates, max_pool_size)
+
+    return candidates

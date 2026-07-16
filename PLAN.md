@@ -178,17 +178,43 @@ data before writing the fix rather than guessing blind. `data/commanders.db`
 built from a full live run has 3,797 real commanders with correct
 color identities, deck counts, and theme tags.
 
-## Phase 2 — Filtering & candidate pools (not started)
+## Phase 2 — Filtering & candidate pools ✅ done
 
-- Query layer over `commanders.db`: filter by color identity (exact or
-  subset), max/min deck count, one or more archetype tags, optional
-  price ceiling.
-- `build_pool(filters) -> list[Commander]` — the candidate set handed
-  to the picker engine. Enforce a sane pool size (min/max) so the
-  picker has enough signal without being unwieldy (e.g. 8–40
-  candidates).
-- CLI: `commander-picker pool --colors ... --max-decks 10000 --theme tokens`
-  to preview a filtered pool before running a picker session.
+- `commander_picker/pool.py`: `build_pool(conn, filters, max_pool_size,
+  min_pool_size, rng) -> list[Commander]`.
+- `PoolFilters`: `colors` (e.g. `"BRG"`, `None` = no color filter),
+  `color_mode` (`"subset"` — commander's identity must fit within
+  `colors`, the useful default for "I want to stay in these colors";
+  or `"exact"`), `max_decks` (default 10,000), `min_decks`, `themes`
+  (tuple of theme slugs), `themes_mode` (`"any"`/OR or `"all"`/AND).
+  `max_price` deliberately not a field yet — `price` is unpopulated
+  (always `NULL`) until Phase 5, so a real filter would silently
+  exclude every commander.
+- Pool size is bounded: raises `PoolTooSmallError` below
+  `min_pool_size` (default 4, so callers loosen filters instead of
+  handing the picker an unusably small set) and **random-samples**
+  down to `max_pool_size` (default 40) when there are more matches —
+  not a truncation to the highest deck counts, since the whole point
+  is variety across the "under 10k" range rather than always seeing
+  the same top-of-range commanders. `rng` is injectable for
+  deterministic tests.
+- `Commander.themes` is always populated from `commander_themes`
+  regardless of whether the caller filtered by theme — caught by a
+  test that would otherwise have silently shipped with themes blanked
+  out on every non-theme-filtered query (an over-eager "skip the join
+  when no theme filter" optimization broke correctness; removed).
+- CLI: `commander-picker pool --colors BRG --color-mode subset
+  --max-decks 10000 --min-decks 0 --themes tokens,aristocrats
+  --themes-mode any --pool-size 40 --min-pool-size 4` — prints the
+  matching pool sorted by deck count, or a clear error if too few
+  match.
+- Tests: `tests/test_pool.py`, 12 cases against an in-memory SQLite DB
+  built directly (not via EDHREC fixtures, for precise control over
+  the color/deck-count/theme combinations under test) — color
+  subset/exact, deck-count range, theme any/all, pool-too-small,
+  random size-capping, and the themes-always-populated regression.
+  Also manually verified the CLI end-to-end against a real
+  fixture-built DB.
 
 ## Phase 3 — Picker engine: Elo-style swipe/rank feed (not started)
 
