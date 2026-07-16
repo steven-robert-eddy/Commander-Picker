@@ -160,10 +160,23 @@ called from `_fetch_page` before caching):
   third page all below the floor) — correctly merged 200 entries and
   dropped the sub-floor page entirely.
 
-Not yet re-verified against a full live run (the user's last full
-`update-data` predates this fix) — next step is re-running it and
-checking the "under 10k" population is meaningfully larger than the
-2,443 seen before this fix.
+**Live-verified 2026-07-16**: user re-ran `update-data --force` with
+this fix. Total commanders went from 2,667 → 3,797 (+42%), under-10k
+population from 2,443 → 3,573, under-1k → 2,241. No color-page
+failures. Matches the expected shape from the real Rakdos sample
+(crossing the 50-deck floor around rank ~190, vs. the old 100-entry
+cap) — pagination is working correctly against live data, not just
+the offline tests.
+
+## Phase 1 status: done, fully live-verified
+
+Every piece of the ingestion pipeline — color-identity slugs, color
+page parsing, theme/tag page URL + parsing, and pagination — has now
+been confirmed against real EDHREC responses (not just guessed or
+offline-tested), each time by asking the user to fetch/paste real
+data before writing the fix rather than guessing blind. `data/commanders.db`
+built from a full live run has 3,797 real commanders with correct
+color identities, deck counts, and theme tags.
 
 ## Phase 2 — Filtering & candidate pools (not started)
 
