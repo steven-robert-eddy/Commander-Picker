@@ -8,11 +8,12 @@ ratings to narrow the pool to a ranked shortlist.
 
 ## Status
 
-Phase 1 (EDHREC data ingestion) and Phase 2 (filtering / candidate
-pools) are done and live-verified — a real `update-data` run pulls
-3,797+ commanders with correct color identities, deck counts, and
-theme tags. Phases 3–5 (the Elo-style picker engine and the web UI)
-are not started yet — see `PLAN.md`.
+Phases 1–3 are done: EDHREC data ingestion (live-verified — a real
+`update-data` run pulls 3,797+ commanders with correct color
+identities, deck counts, and theme tags), filtering / candidate pools,
+and the Elo-style swipe picker itself, playable from the terminal.
+Phases 4–5 (the web UI and polish) are not started yet — see
+`PLAN.md`.
 
 **Known gap:** this dev sandbox's egress policy blocks edhrec.com
 (403) — `update-data` was verified by the project owner running it
@@ -87,6 +88,36 @@ commander-picker pool --colors BRG --color-mode subset --max-decks 10000 --theme
   highest deck counts within the filtered range — the point is
   variety, not always seeing the same top-of-range commanders.
 
+## Playing a picker session
+
+Once you have a filtered pool you like, start an interactive session:
+
+```bash
+commander-picker play --colors BRG --themes tokens
+```
+
+Each round shows two candidates; type `1` or `2` to pick your
+favorite, `f` to finish early and see the final ranking, or `q` to
+pause (the session stays saved and resumable). Ratings update via a
+standard Elo formula after each pick. A suggested round count (roughly
+`pool_size * log2(pool_size)`) is shown as guidance, not a hard
+cutoff — keep going past it for finer-grained results, or stop
+whenever you're satisfied.
+
+```bash
+commander-picker sessions                 # list all sessions (active + finished)
+commander-picker resume <session-id>       # continue a paused session
+commander-picker results <session-id>      # show current/final ranking without playing
+```
+
+`play` accepts the same filter flags as `pool` (`--colors`,
+`--color-mode`, `--max-decks`, `--min-decks`, `--themes`,
+`--themes-mode`, `--pool-size`, `--min-pool-size`).
+
+Sessions live in `data/sessions.db` — a separate file from
+`commanders.db`, so re-running `update-data` never wipes your
+in-progress or past picker sessions. Also gitignored.
+
 ## Project layout
 
 ```
@@ -96,6 +127,8 @@ commander_picker/
   edhrec_client.py  # fetch + cache EDHREC color/theme pages, with pagination
   db.py             # parse cached pages into data/commanders.db (SQLite)
   pool.py           # filter commanders.db into a bounded candidate pool
+  elo.py            # Elo rating math + pairing selection (no DB dependency)
+  sessions.py       # persist picker sessions in data/sessions.db
   cli.py            # `commander-picker` command-line entry point
 tests/
   fixtures/          # hand-built/captured sample EDHREC pages for offline tests
@@ -103,6 +136,8 @@ tests/
   test_edhrec_client.py
   test_db.py
   test_pool.py
+  test_elo.py
+  test_sessions.py
 PLAN.md              # phased project plan + progress notes
 ```
 

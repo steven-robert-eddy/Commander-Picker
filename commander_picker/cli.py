@@ -3,7 +3,7 @@ from __future__ import annotations
 import argparse
 import sys
 
-from commander_picker import db, edhrec_client, pool
+from commander_picker import db, edhrec_client, pool, sessions
 from commander_picker.colors import all_slugs
 from commander_picker.themes import THEME_SLUGS
 
@@ -47,15 +47,7 @@ def _cmd_update_data(args: argparse.Namespace) -> int:
 
 
 def _cmd_pool(args: argparse.Namespace) -> int:
-    themes = tuple(args.themes.split(",")) if args.themes else ()
-    filters = pool.PoolFilters(
-        colors=args.colors,
-        color_mode=args.color_mode,
-        max_decks=args.max_decks,
-        min_decks=args.min_decks,
-        themes=themes,
-        themes_mode=args.themes_mode,
-    )
+    filters = _filters_from_args(args)
 
     try:
         conn = db.connect()
@@ -80,7 +72,171 @@ def _cmd_pool(args: argparse.Namespace) -> int:
     print(f"{len(candidates)} candidate(s):")
     for c in candidates:
         theme_str = f" [{', '.join(c.themes)}]" if c.themes else ""
-        print(f"  {c.name} ({c.color_identity}, {c.num_decks} decks){theme_str}")
+        color_display = c.color_identity or "C"
+        print(f"  {c.name} ({color_display}, {c.num_decks} decks){theme_str}")
+    return 0
+
+
+def _filters_from_args(args: argparse.Namespace) -> pool.PoolFilters:
+    themes = tuple(args.themes.split(",")) if args.themes else ()
+    return pool.PoolFilters(
+        colors=args.colors,
+        color_mode=args.color_mode,
+        max_decks=args.max_decks,
+        min_decks=args.min_decks,
+        themes=themes,
+        themes_mode=args.themes_mode,
+    )
+
+
+def _describe_filters(filters: pool.PoolFilters) -> str:
+    parts = []
+    if filters.colors:
+        parts.append(f"colors={filters.colors} ({filters.color_mode})")
+    if filters.max_decks is not None:
+        parts.append(f"max_decks={filters.max_decks}")
+    if filters.min_decks is not None:
+        parts.append(f"min_decks={filters.min_decks}")
+    if filters.themes:
+        parts.append(f"themes={','.join(filters.themes)} ({filters.themes_mode})")
+    return " ".join(parts) or "no filters"
+
+
+def _print_rankings(ranked: list[sessions.RankedCommander], limit: int | None = None) -> None:
+    shown = ranked[:limit] if limit else ranked
+    for i, c in enumerate(shown, start=1):
+        color_display = c.color_identity or "C"
+        print(f"  {i}. {c.name} ({color_display}, {c.num_decks} decks) -- rating {c.rating:.0f}")
+    if limit and len(ranked) > limit:
+        print(f"  ... and {len(ranked) - limit} more")
+
+
+def _interactive_loop(conn: object, session_id: str) -> None:
+    while True:
+        info = sessions.get_session(conn, session_id)
+        pairing = sessions.next_pairing(conn, session_id)
+        if pairing is None:
+            print("Session is no longer active.")
+            break
+
+        a, b = pairing
+        candidate_info = {
+            r["commander_name"]: r
+            for r in conn.execute(
+                "SELECT * FROM candidates WHERE session_id = ? AND commander_name IN (?, ?)",
+                (session_id, a, b),
+            ).fetchall()
+        }
+        print(f"\nRound {info.rounds_completed + 1} (suggested ~{info.target_rounds} total):")
+        for i, name in enumerate((a, b), start=1):
+            row = candidate_info[name]
+            color_display = row["color_identity"] or "C"
+            print(f"  [{i}] {name} ({color_display}, {row['num_decks']} decks)")
+
+        try:
+            choice = input("Pick 1 or 2 ('f' to finish, 'q' to pause): ").strip().lower()
+        except (EOFError, KeyboardInterrupt):
+            print("\nPaused.")
+            break
+
+        if choice in ("q", "quit"):
+            print("Paused.")
+            break
+        if choice in ("f", "finish", "done"):
+            sessions.finish_session(conn, session_id)
+            print("\nFinished! Final ranking:")
+            _print_rankings(sessions.get_rankings(conn, session_id))
+            return
+        if choice not in ("1", "2"):
+            print("Please enter 1, 2, f, or q.")
+            continue
+
+        winner, loser = (a, b) if choice == "1" else (b, a)
+        sessions.record_pick(conn, session_id, winner, loser)
+
+        new_info = sessions.get_session(conn, session_id)
+        if new_info.rounds_completed == new_info.target_rounds:
+            print(
+                f"\nYou've reached the suggested {new_info.target_rounds} rounds. "
+                "Type 'f' anytime to finish, or keep going for finer results."
+            )
+
+    print(f"Resume later with: commander-picker resume {session_id}")
+    print("Current standings:")
+    _print_rankings(sessions.get_rankings(conn, session_id), limit=10)
+
+
+def _cmd_play(args: argparse.Namespace) -> int:
+    filters = _filters_from_args(args)
+
+    try:
+        catalog_conn = db.connect()
+    except db.DbError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+
+    try:
+        candidates = pool.build_pool(
+            catalog_conn,
+            filters,
+            max_pool_size=args.pool_size,
+            min_pool_size=args.min_pool_size,
+        )
+    except pool.PoolTooSmallError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+    finally:
+        catalog_conn.close()
+
+    session_conn = sessions.connect()
+    session_id = sessions.create_session(session_conn, candidates, description=_describe_filters(filters))
+    info = sessions.get_session(session_conn, session_id)
+    print(f"Started session {session_id} with {info.pool_size} candidates ({_describe_filters(filters)}).")
+    print(f"Suggested ~{info.target_rounds} rounds -- pick your favorite each round.")
+
+    _interactive_loop(session_conn, session_id)
+    session_conn.close()
+    return 0
+
+
+def _cmd_resume(args: argparse.Namespace) -> int:
+    session_conn = sessions.connect()
+    try:
+        info = sessions.get_session(session_conn, args.session_id)
+    except sessions.SessionError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+
+    if info.status != "active":
+        print(f"Session {args.session_id} is {info.status}, not active. Final ranking:")
+        _print_rankings(sessions.get_rankings(session_conn, args.session_id))
+        return 0
+
+    print(f"Resuming session {args.session_id} ({info.rounds_completed}/{info.target_rounds} rounds so far).")
+    _interactive_loop(session_conn, args.session_id)
+    session_conn.close()
+    return 0
+
+
+def _cmd_sessions(_args: argparse.Namespace) -> int:
+    conn = sessions.connect()
+    all_sessions = sessions.list_sessions(conn)
+    if not all_sessions:
+        print("No sessions yet. Start one with: commander-picker play")
+        return 0
+    for s in all_sessions:
+        print(f"{s.id}  [{s.status}]  {s.rounds_completed}/{s.target_rounds} rounds  {s.pool_size} candidates  {s.description}")
+    return 0
+
+
+def _cmd_results(args: argparse.Namespace) -> int:
+    conn = sessions.connect()
+    try:
+        sessions.get_session(conn, args.session_id)
+    except sessions.SessionError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+    _print_rankings(sessions.get_rankings(conn, args.session_id))
     return 0
 
 
@@ -96,6 +252,27 @@ def _cmd_list_themes(_args: argparse.Namespace) -> int:
     return 0
 
 
+def _add_pool_filter_args(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("--colors", help="allowed colors, e.g. BRG (default: no color filter)")
+    parser.add_argument(
+        "--color-mode",
+        choices=["subset", "exact"],
+        default="subset",
+        help="'subset' (commander's colors fit within --colors) or 'exact' match (default: subset)",
+    )
+    parser.add_argument("--max-decks", type=int, default=pool.DEFAULT_MAX_DECKS, help="deck-count ceiling (default: 10000)")
+    parser.add_argument("--min-decks", type=int, default=None, help="deck-count floor (default: none)")
+    parser.add_argument("--themes", help="comma-separated theme slugs to filter by (default: none)")
+    parser.add_argument(
+        "--themes-mode",
+        choices=["any", "all"],
+        default="any",
+        help="match ANY or ALL of --themes (default: any)",
+    )
+    parser.add_argument("--pool-size", type=int, default=pool.DEFAULT_MAX_POOL_SIZE, help="max candidates to return (default: 40)")
+    parser.add_argument("--min-pool-size", type=int, default=pool.DEFAULT_MIN_POOL_SIZE, help="error if fewer than this many match (default: 4)")
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="commander-picker")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -107,25 +284,23 @@ def build_parser() -> argparse.ArgumentParser:
     update.set_defaults(func=_cmd_update_data)
 
     pool_cmd = subparsers.add_parser("pool", help="preview a filtered candidate pool")
-    pool_cmd.add_argument("--colors", help="allowed colors, e.g. BRG (default: no color filter)")
-    pool_cmd.add_argument(
-        "--color-mode",
-        choices=["subset", "exact"],
-        default="subset",
-        help="'subset' (commander's colors fit within --colors) or 'exact' match (default: subset)",
-    )
-    pool_cmd.add_argument("--max-decks", type=int, default=pool.DEFAULT_MAX_DECKS, help="deck-count ceiling (default: 10000)")
-    pool_cmd.add_argument("--min-decks", type=int, default=None, help="deck-count floor (default: none)")
-    pool_cmd.add_argument("--themes", help="comma-separated theme slugs to filter by (default: none)")
-    pool_cmd.add_argument(
-        "--themes-mode",
-        choices=["any", "all"],
-        default="any",
-        help="match ANY or ALL of --themes (default: any)",
-    )
-    pool_cmd.add_argument("--pool-size", type=int, default=pool.DEFAULT_MAX_POOL_SIZE, help="max candidates to return (default: 40)")
-    pool_cmd.add_argument("--min-pool-size", type=int, default=pool.DEFAULT_MIN_POOL_SIZE, help="error if fewer than this many match (default: 4)")
+    _add_pool_filter_args(pool_cmd)
     pool_cmd.set_defaults(func=_cmd_pool)
+
+    play = subparsers.add_parser("play", help="start a new picker session and play it interactively")
+    _add_pool_filter_args(play)
+    play.set_defaults(func=_cmd_play)
+
+    resume = subparsers.add_parser("resume", help="resume a paused picker session")
+    resume.add_argument("session_id")
+    resume.set_defaults(func=_cmd_resume)
+
+    sessions_cmd = subparsers.add_parser("sessions", help="list all picker sessions")
+    sessions_cmd.set_defaults(func=_cmd_sessions)
+
+    results = subparsers.add_parser("results", help="show the current/final ranking for a session")
+    results.add_argument("session_id")
+    results.set_defaults(func=_cmd_results)
 
     list_colors = subparsers.add_parser("list-colors", help="print all known color-identity slugs")
     list_colors.set_defaults(func=_cmd_list_colors)

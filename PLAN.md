@@ -216,25 +216,58 @@ color identities, deck counts, and theme tags.
   Also manually verified the CLI end-to-end against a real
   fixture-built DB.
 
-## Phase 3 — Picker engine: Elo-style swipe/rank feed (not started)
+## Phase 3 — Picker engine: Elo-style swipe/rank feed ✅ done
 
-- `commander_picker/picker.py`: maintain a rating per candidate in the
-  pool (start all equal, e.g. 1000).
-- Pairing: prefer comparing candidates with close current ratings
-  (reduces wasted comparisons once ratings start to separate); early
-  rounds can pair more randomly to get initial signal across the whole
-  pool.
-- Update ratings with a standard Elo formula after each pick (tune the
-  K-factor; consider decaying it as more comparisons accumulate).
-- Stopping condition: run a bounded number of rounds scaled to pool
-  size (e.g. proportional to `n * log2(n)`) so the session has a
-  predictable length, but let the user end early ("I'm done") or keep
-  going past the suggested minimum if they want more separation.
-- Persist session state (candidate pool, ratings, comparison history)
-  so a session can be resumed later, not just held in memory —
-  SQLite table keyed by session id.
-- Output: full ranked shortlist at the end, not just the top pick —
-  the point is narrowing down, and 2nd/3rd place are useful too.
+- `commander_picker/elo.py`: pure rating math + pairing selection, no
+  DB dependency (unit-testable in isolation, reused by `sessions.py`).
+  - `expected_score`/`update_ratings`: standard Elo formula, all
+    candidates start at rating 1000, `K_FACTOR=32`.
+  - `target_round_count(pool_size)`: `n * log2(n)` heuristic, a
+    **suggestion** surfaced to the user (printed mid-session), not a
+    hard cutoff — sessions stay active and keep offering pairings past
+    it until the user explicitly finishes.
+  - `choose_pairing`: early rounds (first third of target_rounds) pair
+    uniformly at random across the whole pool for initial signal;
+    later rounds sort by current rating and pair rating-adjacent
+    neighbors, since close matchups are more discriminating once
+    ratings separate. Prefers a pair not already compared.
+  - **Bug caught by testing, not assumed away**: adjacency-only search
+    can "false exhaust" on a small pool — if the one remaining fresh
+    pair ends up non-adjacent in the current sorted order (e.g. the
+    two extremes, with everything else already compared and sorted
+    between them), the naive adjacency loop never finds it even though
+    the pool isn't actually exhausted, and falls back to a repeat too
+    early. Fixed with an exhaustive-scan-across-all-pairs fallback
+    before accepting a genuine repeat. Verified with a 200-seed stress
+    test (zero premature repeats) in addition to the unit test that
+    caught it.
+- `commander_picker/sessions.py`: persistence in a **separate**
+  `data/sessions.db`, deliberately not `commanders.db` — the catalog
+  DB is fully dropped and rebuilt on every `update-data` run, which
+  would silently wipe in-progress/completed sessions if they shared a
+  file.
+  - Tables: `sessions` (id, status, target_rounds, rounds_completed,
+    description), `candidates` (per-session commander + current
+    rating), `comparisons` (full history — every winner/loser pair,
+    not just current ratings, so past sessions can be reviewed later
+    if needed).
+  - `create_session`, `next_pairing`, `record_pick`, `finish_session`,
+    `get_session`, `list_sessions`, `get_rankings` — sessions default
+    to `active` and only become `complete` when the user explicitly
+    finishes; pausing (closing the CLI) leaves a session `active` and
+    resumable.
+- CLI: `commander-picker play [pool filters]` starts a new session and
+  runs an interactive terminal loop (pick 1/2, `f` to finish, `q` to
+  pause); `commander-picker resume <id>` continues a paused session;
+  `commander-picker sessions` lists all sessions; `commander-picker
+  results <id>` shows the current/final ranking without playing.
+- Tests: `tests/test_elo.py` (10 cases — Elo math, target round count,
+  pairing freshness/fallback/late-phase behavior) and
+  `tests/test_sessions.py` (10 cases — persistence, rating updates,
+  pause/resume semantics, pairing exhaustion) — 20 new tests, all
+  offline. Also manually verified the full interactive CLI loop
+  end-to-end (play → pause → resume → finish → results) via piped
+  stdin against a real fixture-built catalog DB.
 
 ## Phase 4 — Web UI (not started)
 
