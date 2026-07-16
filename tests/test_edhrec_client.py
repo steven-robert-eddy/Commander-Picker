@@ -143,3 +143,138 @@ def test_fetch_all_pages_surfaces_color_failures_too(monkeypatch):
     assert results == []
     assert len(failures) == 1
     assert failures[0].kind == "color"
+
+
+def _cardview(num_decks, name=None):
+    n = name or f"Commander {num_decks}"
+    return {"name": n, "sanitized": n.lower(), "url": f"/commanders/{n.lower()}", "num_decks": num_decks}
+
+
+def test_pagination_follows_more_chain_and_merges_cardviews(monkeypatch):
+    monkeypatch.setattr(edhrec_client.time, "sleep", lambda *_: None)
+    first_page = {
+        "container": {
+            "json_dict": {
+                "cardlists": [
+                    {
+                        "tag": "rakdoscommanders",
+                        "cardviews": [_cardview(9957), _cardview(560)],
+                        "more": "commanders/rakdos-rakdoscommanders-1.json",
+                    }
+                ]
+            }
+        }
+    }
+    continuation_page = {
+        "cardviews": [_cardview(500), _cardview(400)],
+        "is_paginated": False,
+    }
+
+    calls = []
+
+    def fake_get(url, headers, timeout):
+        calls.append(url)
+        if "rakdoscommanders-1" in url:
+            return _FakeResponse(continuation_page)
+        return _FakeResponse(first_page)
+
+    monkeypatch.setattr(edhrec_client.requests, "get", fake_get)
+
+    edhrec_client.fetch_color_page("rakdos")
+
+    assert calls == [
+        "https://json.edhrec.com/pages/commanders/rakdos.json",
+        "https://json.edhrec.com/pages/commanders/rakdos-rakdoscommanders-1.json",
+    ]
+
+    cached = edhrec_client.load_page("color", "rakdos")
+    cardlist = cached["container"]["json_dict"]["cardlists"][0]
+    assert [cv["num_decks"] for cv in cardlist["cardviews"]] == [9957, 560, 500, 400]
+    assert "more" not in cardlist
+    assert "is_paginated" not in cardlist
+
+
+def test_pagination_stops_below_deck_floor(monkeypatch):
+    monkeypatch.setattr(edhrec_client.time, "sleep", lambda *_: None)
+    first_page = {
+        "container": {
+            "json_dict": {
+                "cardlists": [
+                    {
+                        "tag": "rakdoscommanders",
+                        "cardviews": [_cardview(200)],
+                        "more": "commanders/rakdos-rakdoscommanders-1.json",
+                    }
+                ]
+            }
+        }
+    }
+    # Below MIN_DECKS_FLOOR (50) -- should stop here even though this
+    # page itself still claims is_paginated/more.
+    below_floor_page = {
+        "cardviews": [_cardview(60), _cardview(30)],
+        "is_paginated": True,
+        "more": "commanders/rakdos-rakdoscommanders-2.json",
+    }
+
+    calls = []
+
+    def fake_get(url, headers, timeout):
+        calls.append(url)
+        if "rakdoscommanders-2" in url:
+            pytest.fail("should not have fetched a third page once below the deck floor")
+        if "rakdoscommanders-1" in url:
+            return _FakeResponse(below_floor_page)
+        return _FakeResponse(first_page)
+
+    monkeypatch.setattr(edhrec_client.requests, "get", fake_get)
+
+    edhrec_client.fetch_color_page("rakdos")
+
+    assert len(calls) == 2  # first page + exactly one continuation page
+
+    cached = edhrec_client.load_page("color", "rakdos")
+    cardlist = cached["container"]["json_dict"]["cardlists"][0]
+    # The 30-deck entry is filtered out (below floor); 200 and 60 stay.
+    assert [cv["num_decks"] for cv in cardlist["cardviews"]] == [200, 60]
+
+
+def test_pagination_stops_at_max_continuation_pages(monkeypatch):
+    monkeypatch.setattr(edhrec_client.time, "sleep", lambda *_: None)
+    first_page = {
+        "container": {
+            "json_dict": {
+                "cardlists": [
+                    {
+                        "tag": "rakdoscommanders",
+                        "cardviews": [_cardview(9000)],
+                        "more": "commanders/page-0.json",
+                    }
+                ]
+            }
+        }
+    }
+
+    def fake_get(url, headers, timeout):
+        if "commanders/page-" in url:
+            # Every continuation page still claims more, and stays
+            # comfortably above the deck floor -- only the page cap
+            # should stop this.
+            n = int(url.rsplit("page-", 1)[1].split(".")[0])
+            return _FakeResponse(
+                {
+                    "cardviews": [_cardview(8000 - n)],
+                    "is_paginated": True,
+                    "more": f"commanders/page-{n + 1}.json",
+                }
+            )
+        return _FakeResponse(first_page)
+
+    monkeypatch.setattr(edhrec_client.requests, "get", fake_get)
+
+    edhrec_client.fetch_color_page("rakdos")
+
+    cached = edhrec_client.load_page("color", "rakdos")
+    cardlist = cached["container"]["json_dict"]["cardlists"][0]
+    # 1 (first page) + MAX_CONTINUATION_PAGES continuation pages.
+    assert len(cardlist["cardviews"]) == 1 + edhrec_client.MAX_CONTINUATION_PAGES

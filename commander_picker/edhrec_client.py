@@ -11,6 +11,17 @@ sandbox's own egress policy still blocks edhrec.com directly, see
 PLAN.md). Notably, EDHREC calls archetype/theme pages "tags"
 internally (``/pages/tags/<slug>.json``), not "themes" — the initial
 ``/pages/themes/...`` guess 403'd against the real server.
+
+A first-page cardlist only holds its first ~100 entries and, if there
+are more, carries a ``more`` field (a relative path) pointing at a
+continuation page. Continuation pages have a **different shape** than
+the first page — flat ``{"cardviews": [...], "is_paginated": bool,
+"more": "..."}`` rather than wrapped in ``container.json_dict``,
+verified live 2026-07-16 against a real second Rakdos page. Pagination
+is followed until either a page's lowest ``num_decks`` drops below
+``MIN_DECKS_FLOOR`` or ``MAX_CONTINUATION_PAGES`` is hit, whichever
+comes first — a deliberate choice (confirmed with the user) not to
+chase single-digit-deck commanders into dozens of requests per color.
 """
 
 from __future__ import annotations
@@ -27,6 +38,11 @@ from commander_picker.themes import THEME_SLUGS
 
 COLOR_PAGE_URL_TEMPLATE = "https://json.edhrec.com/pages/commanders/{slug}.json"
 THEME_PAGE_URL_TEMPLATE = "https://json.edhrec.com/pages/tags/{slug}.json"
+CONTINUATION_BASE_URL = "https://json.edhrec.com/pages/"
+
+# Pagination stopping rules (see module docstring): whichever hits first.
+MIN_DECKS_FLOOR = 50
+MAX_CONTINUATION_PAGES = 15
 
 DATA_DIR = Path(__file__).resolve().parent.parent / "data"
 EDHREC_DIR = DATA_DIR / "edhrec"
@@ -98,6 +114,56 @@ def _cache_is_fresh(cache_key: str, path: Path, meta: dict, max_age_seconds: int
     return (time.time() - fetched_at) < max_age_seconds
 
 
+def _get_json(url: str, error_context: str) -> dict:
+    try:
+        resp = requests.get(url, headers=REQUEST_HEADERS, timeout=30)
+        resp.raise_for_status()
+        return resp.json()
+    except requests.RequestException as exc:
+        raise EdhrecFetchError(f"Failed to fetch {error_context} ({url}): {exc}") from exc
+
+
+def _paginate_cardlist(cardlist: dict) -> None:
+    """Follow one cardlist's `more` pagination chain in place, merging
+    continuation pages' cardviews into it. See module docstring for the
+    stopping rules and the continuation-page shape.
+
+    Only called for cardlists that already have a `more` field, i.e.
+    only when there's an actual decision to fetch further pages. A
+    cardlist whose first page already ends below MIN_DECKS_FLOOR with
+    no `more` field at all (a naturally short list, e.g. a niche color
+    combo) is left untouched -- no extra request needed, so no reason
+    to throw that data away.
+    """
+    cardlist.setdefault("cardviews", [])
+    pages_fetched = 0
+    while cardlist.get("more") and pages_fetched < MAX_CONTINUATION_PAGES:
+        more_path = cardlist.pop("more")
+        page = _get_json(f"{CONTINUATION_BASE_URL}{more_path}", "EDHREC continuation page")
+        pages_fetched += 1
+        time.sleep(REQUEST_DELAY_SECONDS)
+
+        page_cardviews = page.get("cardviews", [])
+        cardlist["cardviews"].extend(page_cardviews)
+
+        lowest_num_decks = page_cardviews[-1].get("num_decks", 0) if page_cardviews else 0
+        if lowest_num_decks < MIN_DECKS_FLOOR:
+            break
+        if page.get("is_paginated") and page.get("more"):
+            cardlist["more"] = page["more"]
+
+    cardlist.pop("is_paginated", None)
+    cardlist["cardviews"] = [cv for cv in cardlist["cardviews"] if cv.get("num_decks", 0) >= MIN_DECKS_FLOOR]
+
+
+def _paginate_page(payload: dict) -> None:
+    """Follow pagination for every cardlist on a fetched page, in place."""
+    cardlists = payload.get("container", {}).get("json_dict", {}).get("cardlists", [])
+    for cardlist in cardlists:
+        if cardlist.get("more"):
+            _paginate_cardlist(cardlist)
+
+
 def _fetch_page(kind: str, slug: str, force: bool, max_age_seconds: int) -> FetchResult:
     EDHREC_DIR.mkdir(parents=True, exist_ok=True)
     meta = _read_meta()
@@ -108,12 +174,8 @@ def _fetch_page(kind: str, slug: str, force: bool, max_age_seconds: int) -> Fetc
         return FetchResult(slug=slug, kind=kind, path=path, from_cache=True)
 
     url = _url_for(kind, slug)
-    try:
-        resp = requests.get(url, headers=REQUEST_HEADERS, timeout=30)
-        resp.raise_for_status()
-        payload = resp.json()
-    except requests.RequestException as exc:
-        raise EdhrecFetchError(f"Failed to fetch EDHREC {kind} page for {slug!r} ({url}): {exc}") from exc
+    payload = _get_json(url, f"EDHREC {kind} page for {slug!r}")
+    _paginate_page(payload)
 
     path.write_text(json.dumps(payload))
     meta[cache_key] = {"fetched_at": time.time(), "url": url}

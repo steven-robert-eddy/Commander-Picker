@@ -118,6 +118,53 @@ update-data` prints color-page failures as warnings (unexpected —
 those slugs are verified) and theme-page failures as an informational
 note (expected — `THEME_SLUGS` is still a guess).
 
+### Pagination ✅ done
+
+A full live `update-data` run initially returned only 2,667 total
+commanders, capped at exactly 100 per color combo for every popular
+color — the first page of each color list only holds ~100 entries and
+was silently dropping everything past that. In the real Rakdos data,
+rank #100 was already down to 560 decks, meaning essentially every
+genuinely obscure/underbuilt commander (the actual core premise of
+this app) was missing. Root cause: each cardlist that has more results
+carries a `more` field (a relative path to a continuation page) that
+wasn't being followed.
+
+Fixed in `edhrec_client.py` (`_paginate_cardlist`/`_paginate_page`,
+called from `_fetch_page` before caching):
+
+- Continuation pages have a **different shape** than the first page —
+  flat `{"cardviews": [...], "is_paginated": bool, "more": "..."}`,
+  not wrapped in `container.json_dict.cardlists` — verified live
+  2026-07-16 against a real second Rakdos page before writing any
+  code, rather than guessed.
+- Follows the `more` chain per-cardlist, merging continuation
+  cardviews into the original cardlist, until either a continuation
+  page's lowest `num_decks` drops below `MIN_DECKS_FLOOR` (50) or
+  `MAX_CONTINUATION_PAGES` (15) is hit — whichever comes first. This
+  was a deliberate product decision (confirmed with the user, not
+  assumed): chasing every single-digit-deck commander would mean
+  dozens of requests per popular color and surface data not really
+  useful for "pick something worth building." Cardlists that never
+  had a `more` field to begin with (naturally short lists, e.g. niche
+  4c/5c combos) are left untouched — no reason to throw away data that
+  cost no extra request.
+- The merged, final cached page is a fully self-contained normal page
+  (no leftover `more`/`is_paginated` keys) — `db.py`'s parser needed
+  zero changes, since pagination is resolved entirely before caching.
+- Tests: `test_pagination_follows_more_chain_and_merges_cardviews`,
+  `test_pagination_stops_below_deck_floor`,
+  `test_pagination_stops_at_max_continuation_pages` in
+  `test_edhrec_client.py`, all offline/mocked. Also manually verified
+  end-to-end with a simulated 3-page chain (100 + 100 + 10 entries,
+  third page all below the floor) — correctly merged 200 entries and
+  dropped the sub-floor page entirely.
+
+Not yet re-verified against a full live run (the user's last full
+`update-data` predates this fix) — next step is re-running it and
+checking the "under 10k" population is meaningfully larger than the
+2,443 seen before this fix.
+
 ## Phase 2 — Filtering & candidate pools (not started)
 
 - Query layer over `commanders.db`: filter by color identity (exact or
