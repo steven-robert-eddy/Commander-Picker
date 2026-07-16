@@ -19,7 +19,12 @@ def test_tricolor_shard_and_wedge():
 
 
 def test_five_color():
-    assert slug_for_colors("WUBRG") == "wubrg"
+    assert slug_for_colors("WUBRG") == "five-color"
+
+
+def test_four_color():
+    assert slug_for_colors("WUBR") == "yore-tiller"
+    assert slug_for_colors("GWUB") == "witch-maw"
 
 
 def test_unknown_color_letter_raises():

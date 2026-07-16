@@ -1,51 +1,92 @@
 {
-  "_comment": "Hand-built sample matching commander_picker/edhrec_client.py's ASSUMED (unverified) EDHREC JSON shape, for offline tests. Not a real captured response.",
+  "_comment": "Trimmed real response from https://json.edhrec.com/pages/commanders/rakdos.json, captured 2026-07-16. Cut down to a handful of cardviews for a fast offline fixture; related_info left intact since colors.py's mapping was cross-checked against it.",
+  "related_info": [
+    {
+      "header": "Monocolor",
+      "items": [
+        {"colors": ["w"], "count": 256023, "textLeft": "Mono-White", "url": "/commanders/mono-white"},
+        {"colors": ["u"], "count": 272971, "textLeft": "Mono-Blue", "url": "/commanders/mono-blue"},
+        {"colors": ["b"], "count": 376194, "textLeft": "Mono-Black", "url": "/commanders/mono-black"},
+        {"colors": ["r"], "count": 345249, "textLeft": "Mono-Red", "url": "/commanders/mono-red"},
+        {"colors": ["g"], "count": 295690, "textLeft": "Mono-Green", "url": "/commanders/mono-green"},
+        {"colors": ["c"], "count": 83153, "textLeft": "Colorless", "url": "/commanders/colorless"}
+      ]
+    },
+    {
+      "header": "Four / Five Color",
+      "items": [
+        {"colors": ["w", "u", "b", "r"], "count": 42758, "textLeft": "Yore-Tiller", "url": "/commanders/yore-tiller"},
+        {"colors": ["u", "b", "r", "g"], "count": 18080, "textLeft": "Glint-Eye", "url": "/commanders/glint-eye"},
+        {"colors": ["b", "r", "g", "w"], "count": 15314, "textLeft": "Dune-Brood", "url": "/commanders/dune-brood"},
+        {"colors": ["r", "g", "w", "u"], "count": 66166, "textLeft": "Ink-Treader", "url": "/commanders/ink-treader"},
+        {"colors": ["g", "w", "u", "b"], "count": 76432, "textLeft": "Witch-Maw", "url": "/commanders/witch-maw"},
+        {"colors": ["w", "u", "b", "r", "g"], "count": 631272, "textLeft": "Five-Color", "url": "/commanders/five-color"}
+      ]
+    }
+  ],
+  "header": "Top Rakdos Commanders",
+  "description": "",
   "container": {
+    "breadcrumb": [{"/commanders": "Commanders"}, {"/commanders/rakdos": "Rakdos"}],
+    "description": null,
     "json_dict": {
       "cardlists": [
         {
-          "tag": "topcommanders",
-          "header": "Top Commanders",
+          "header": "Rakdos Commanders",
+          "tag": "rakdoscommanders",
           "cardviews": [
             {
-              "name": "Korvold, Fae-Cursed King",
-              "sanitized": "korvold-fae-cursed-king",
-              "url": "/cards/korvold-fae-cursed-king",
-              "label": "6,543 decks",
-              "num_decks": 6543,
-              "salt": 1.72,
-              "colors": ["B", "G", "R"]
+              "id": "8d7c1f6c-af45-4449-8cf8-e13830b3df8a",
+              "name": "Valgavoth, Harrower of Souls",
+              "sanitized": "valgavoth-harrower-of-souls",
+              "slug": "valgavoth-harrower-of-souls",
+              "url": "/commanders/valgavoth-harrower-of-souls",
+              "num_decks": 28969,
+              "potential_decks": 0,
+              "rank": 1
             },
             {
-              "name": "Ob Nixilis, the Adversary",
-              "sanitized": "ob-nixilis-the-adversary",
-              "url": "/cards/ob-nixilis-the-adversary",
-              "label": "3,210 decks",
-              "num_decks": 3210,
-              "salt": 0.95,
-              "colors": ["B", "R"]
+              "id": "d743336e-d5c7-4053-a23d-92ec7581f74e",
+              "name": "Prosper, Tome-Bound",
+              "sanitized": "prosper-tome-bound",
+              "slug": "prosper-tome-bound",
+              "url": "/commanders/prosper-tome-bound",
+              "num_decks": 13741,
+              "potential_decks": 0,
+              "rank": 4
             },
             {
+              "id": "3d0d5a41-8251-437c-a4a0-3b712281ebb0",
               "name": "Rakdos, Lord of Riots",
               "sanitized": "rakdos-lord-of-riots",
-              "url": "/cards/rakdos-lord-of-riots",
-              "label": "8,921 decks",
-              "num_decks": 8921,
-              "salt": 0.61,
-              "colors": ["B", "R"]
+              "slug": "rakdos-lord-of-riots",
+              "url": "/commanders/rakdos-lord-of-riots",
+              "num_decks": 9957,
+              "potential_decks": 0,
+              "rank": 10
             },
             {
-              "name": "Obscura Interceptor",
-              "sanitized": "obscura-interceptor",
-              "url": "/cards/obscura-interceptor",
-              "label": "412 decks",
-              "num_decks": 412,
-              "salt": 0.22,
-              "colors": ["B", "R"]
+              "id": "06a981cd-1951-438e-95c9-68294795638e",
+              "name": "Krark, the Thumbless // Vial Smasher the Fierce",
+              "sanitized": "krark-the-thumbless-vial-smasher-the-fierce",
+              "slug": "krark-the-thumbless-vial-smasher-the-fierce",
+              "url": "/commanders/krark-the-thumbless-vial-smasher-the-fierce",
+              "cards": [
+                {"name": "Krark, the Thumbless", "url": "krark-the-thumbless"},
+                {"name": "Vial Smasher the Fierce", "url": "vial-smasher-the-fierce"}
+              ],
+              "is_partner": true,
+              "names": ["Krark, the Thumbless", "Vial Smasher the Fierce"],
+              "num_decks": 835,
+              "potential_decks": 0,
+              "rank": 85
             }
-          ]
+          ],
+          "more": "commanders/rakdos-rakdoscommanders-1.json"
         }
       ]
-    }
+    },
+    "keywords": "Top,Rakdos,Commanders",
+    "title": "Top Rakdos Commanders"
   }
 }

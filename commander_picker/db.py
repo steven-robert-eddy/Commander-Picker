@@ -7,9 +7,12 @@ recording which theme pages each commander appeared on.
 
 The EDHREC JSON parsing (``_cardviews_from_page``,
 ``_cardview_to_record``) is isolated in small functions here
-specifically so that once someone verifies the real response shape
-against live edhrec.com, fixing it up is a local change — the rest of
-the pipeline (caching, SQLite schema, CLI) doesn't need to move.
+specifically so that verifying/fixing the real response shape against
+live edhrec.com is a local change — the rest of the pipeline (caching,
+SQLite schema, CLI) doesn't need to move. Color-identity pages are
+verified as of 2026-07-16 (see ``_cardview_to_record``'s docstring);
+theme pages are still unverified — the URL template 403s against real
+EDHREC and needs the correct pattern confirmed.
 """
 
 from __future__ import annotations
@@ -19,7 +22,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from commander_picker import edhrec_client
-from commander_picker.colors import WUBRG, all_slugs
+from commander_picker.colors import COLOR_IDENTITY_BY_SLUG, all_slugs
 from commander_picker.themes import THEME_SLUGS
 
 DATA_DIR = Path(__file__).resolve().parent.parent / "data"
@@ -36,9 +39,9 @@ class CommanderRecord:
     sanitized: str
     color_identity: tuple  # e.g. ("B", "R")
     num_decks: int
-    salt: float | None
     edhrec_url: str | None
     themes: set = field(default_factory=set)
+    salt: float | None = None  # not populated in Phase 1 — see "Known gap" below
     image_url: str | None = None  # not populated in Phase 1 — see PLAN.md Phase 5
     price: float | None = None  # not populated in Phase 1 — see PLAN.md Phase 5
 
@@ -51,16 +54,22 @@ def _cardviews_from_page(page_json: dict) -> list[dict]:
     return views
 
 
-def _cardview_to_record(cardview: dict) -> CommanderRecord:
-    raw_colors = cardview.get("colors", [])
-    color_identity = tuple(sorted(raw_colors, key=WUBRG.index))
+def _cardview_to_record(cardview: dict, color_identity: tuple) -> CommanderRecord:
+    """Build a record from one cardview entry on a color-identity page.
+
+    Verified 2026-07-16 against a live ``.../pages/commanders/rakdos.json``
+    response: cardviews carry ``name``/``sanitized``/``num_decks``/``url``
+    but no per-card ``colors`` or ``salt`` field — color identity comes
+    from the page itself (every card on the ``rakdos`` page has BR
+    identity), and salt isn't available on this list endpoint at all
+    (known gap — would need a per-commander detail page, deferred).
+    """
     url = cardview.get("url")
     return CommanderRecord(
         name=cardview["name"],
         sanitized=cardview.get("sanitized", ""),
         color_identity=color_identity,
         num_decks=cardview.get("num_decks", 0),
-        salt=cardview.get("salt"),
         edhrec_url=f"https://edhrec.com{url}" if url else None,
     )
 
@@ -90,9 +99,10 @@ def load_commanders(
 
     commanders: dict[str, CommanderRecord] = {}
     for slug in color_slugs:
+        color_identity = COLOR_IDENTITY_BY_SLUG.get(slug, ())
         page = edhrec_client.load_page("color", slug)
         for cardview in _cardviews_from_page(page):
-            record = _cardview_to_record(cardview)
+            record = _cardview_to_record(cardview, color_identity)
             commanders[record.name] = record
 
     for slug in theme_slugs:

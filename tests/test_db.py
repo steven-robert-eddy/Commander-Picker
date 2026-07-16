@@ -1,4 +1,3 @@
-import json
 import shutil
 from pathlib import Path
 
@@ -27,19 +26,21 @@ def test_load_commanders_merges_color_and_theme_data(populated_cache):
     commanders = db.load_commanders(color_slugs=["rakdos"], theme_slugs=["aristocrats"])
 
     assert set(commanders) == {
-        "Korvold, Fae-Cursed King",
-        "Ob Nixilis, the Adversary",
+        "Valgavoth, Harrower of Souls",
+        "Prosper, Tome-Bound",
         "Rakdos, Lord of Riots",
-        "Obscura Interceptor",
+        "Krark, the Thumbless // Vial Smasher the Fierce",
     }
 
-    korvold = commanders["Korvold, Fae-Cursed King"]
-    assert korvold.color_identity == ("B", "R", "G")  # WUBRG order
-    assert korvold.num_decks == 6543
-    assert korvold.themes == set()  # not on the aristocrats theme fixture
+    # Color identity comes from the page itself (the "rakdos" slug), not
+    # a per-cardview field -- real EDHREC cardviews don't carry one.
+    valgavoth = commanders["Valgavoth, Harrower of Souls"]
+    assert valgavoth.color_identity == ("B", "R")
+    assert valgavoth.num_decks == 28969
+    assert valgavoth.themes == set()  # not on the aristocrats theme fixture
 
-    ob_nix = commanders["Ob Nixilis, the Adversary"]
-    assert ob_nix.themes == {"aristocrats"}
+    rakdos_lor = commanders["Rakdos, Lord of Riots"]
+    assert rakdos_lor.themes == {"aristocrats"}
 
 
 def test_load_commanders_no_cache_raises(tmp_path, monkeypatch):
@@ -61,15 +62,15 @@ def test_build_database_writes_queryable_sqlite(populated_cache):
         rows = conn.execute(
             "SELECT name, color_identity, num_decks FROM commanders ORDER BY num_decks DESC"
         ).fetchall()
-        assert rows[0]["name"] == "Rakdos, Lord of Riots"
+        assert rows[0]["name"] == "Valgavoth, Harrower of Souls"
         assert rows[0]["color_identity"] == "BR"
 
         theme_rows = conn.execute(
             "SELECT commander_name FROM commander_themes WHERE theme = 'aristocrats'"
         ).fetchall()
         assert {r["commander_name"] for r in theme_rows} == {
-            "Ob Nixilis, the Adversary",
-            "Obscura Interceptor",
+            "Rakdos, Lord of Riots",
+            "Krark, the Thumbless // Vial Smasher the Fierce",
         }
     finally:
         conn.close()

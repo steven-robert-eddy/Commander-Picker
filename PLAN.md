@@ -29,51 +29,66 @@ chosen).
 ## Phase 1 — EDHREC data ingestion ✅ done
 
 - `commander_picker/colors.py`: color-identity ↔ EDHREC URL slug
-  mapping for all 32 combos (colorless, 5 mono, 10 guilds, 10
-  shards/wedges via standard Magic terminology — high confidence;
-  4-color/5-color fall back to literal color letters — lower
-  confidence, flagged in the module docstring).
+  mapping for all 32 combos. **Verified 2026-07-16** against a live
+  `.../pages/commanders/rakdos.json` response's `related_info` block,
+  which lists every color-identity slug directly — including the
+  four-color names, which turned out to be real Alara Nephilim
+  nicknames (`yore-tiller`, `glint-eye`, `dune-brood`, `ink-treader`,
+  `witch-maw`) and `five-color`, not the literal-letter guess this
+  started with.
 - `commander_picker/themes.py`: curated list of ~18 EDHREC
   archetype/theme page slugs (tokens, aristocrats,
-  plus-1-plus-1-counters, voltron, stax, ...).
+  plus-1-plus-1-counters, voltron, stax, ...) — still unverified, see
+  known gap below.
 - `commander_picker/edhrec_client.py`: fetches EDHREC's JSON pages —
-  one per color-identity combo (`json.edhrec.com/pages/commanders/<slug>.json`)
-  and one per theme (`.../pages/themes/<slug>.json`) — and caches them
-  under `data/edhrec/` with a 24h freshness window (`--force` to
-  bypass), same pattern as `commander-synergy`'s `bulk_data.py`. Polite
-  client: identifying user agent, small delay between live fetches,
-  cache-first.
+  one per color-identity combo (`json.edhrec.com/pages/commanders/<slug>.json`,
+  **confirmed working live**) and one per theme (`.../pages/themes/<slug>.json`,
+  **confirmed wrong** — 403s against real EDHREC, see known gap) —
+  and caches them under `data/edhrec/` with a 24h freshness window
+  (`--force` to bypass), same pattern as `commander-synergy`'s
+  `bulk_data.py`. Polite client: identifying user agent, small delay
+  between live fetches, cache-first.
 - `commander_picker/db.py`: parses cached pages into
   `data/commanders.db` (SQLite) — `commanders` table (name,
-  color_identity, num_decks, salt, edhrec_url, image_url/price
-  columns present but unpopulated until Phase 5) plus a
+  color_identity, num_decks, edhrec_url, salt/image_url/price columns
+  present but unpopulated — salt isn't on this list endpoint at all,
+  turns out; image_url/price deferred to Phase 5) plus a
   `commander_themes` junction table built by unioning which theme
-  pages each commander name appeared on. Parsing logic
-  (`_cardviews_from_page`, `_cardview_to_record`) is isolated in small
-  functions specifically so it's a local fix once the real EDHREC
-  shape is confirmed.
+  pages each commander name appeared on. **Verified 2026-07-16**
+  against a live color-identity page: cardviews carry
+  `name`/`sanitized`/`num_decks`/`url` but no per-card `colors` or
+  `salt` field (color identity comes from the page itself, not a
+  per-card field — fixed after the first live test caught it). Parsing
+  logic (`_cardviews_from_page`, `_cardview_to_record`) stayed isolated
+  in small functions, which is exactly what made this a quick fix
+  instead of a rewrite.
 - CLI: `commander-picker update-data [--force] [--colors ...] [--themes ...]`,
-  `list-colors`, `list-themes`.
+  `list-colors`, `list-themes`. Fails cleanly with a clear message
+  (not a raw traceback) on fetch/DB errors.
 - Tests: `tests/test_colors.py`, `test_edhrec_client.py` (mocked
-  `requests`), `test_db.py` — all offline against hand-built fixtures
-  in `tests/fixtures/`. 16/16 passing. Also manually verified the full
-  `update-data` pipeline end-to-end against the fixtures (fetch →
-  cache → SQLite → query).
+  `requests`), `test_db.py` — all offline. `sample_color_page.json` is
+  now a trimmed real captured response (was a hand-built guess before
+  live verification); `sample_theme_page.json` is still a hand-built
+  guess pending the theme URL fix. 17/17 passing.
 
-**Known gap:** this dev sandbox's egress policy blocks edhrec.com (403
-via the proxy — confirmed, same class of restriction the sibling
-synergy project hit with Scryfall), so `update-data` has never
-actually reached live EDHREC in this environment. The URL templates
-and the assumed `container.json_dict.cardlists[].cardviews[]` response
-shape (fields: `name`, `sanitized`, `url`, `label`, `num_decks`,
-`salt`, `colors`) are a best-effort guess from public knowledge, not a
-captured live response. Whoever runs this with real network access
-should run `commander-picker update-data` once, sanity-check
-`data/commanders.db` (row count, spot-check a few well-known
-commanders' deck counts against edhrec.com directly), and fix up the
-URL templates / parser in `db.py` if the real shape differs — the CLI
-now fails cleanly with a clear error message rather than a raw
-traceback if fetching breaks, so this should be easy to spot.
+**Known gap (color pages): none — resolved.** Live-verified 2026-07-16
+by running `update-data --colors rakdos` from an environment with real
+network access (this dev sandbox still can't reach edhrec.com itself —
+confirmed 403 via the proxy). `colors.py` and the color-page parsing
+path in `db.py` are both confirmed correct against real data.
+
+**Known gap (theme pages): still open.** `THEME_PAGE_URL_TEMPLATE`
+(`.../pages/themes/<slug>.json`) returns a real `403` from EDHREC's
+own server (not a proxy block — the color page fetch on the same run
+succeeded first), so the URL pattern for theme pages is wrong. Next
+step: find the correct pattern (candidates to try: `.../pages/theme/<slug>.json`,
+`.../pages/tags/<slug>.json`, or themes might be nested under a color,
+e.g. `.../pages/commanders/<color>/<theme>.json`) by checking
+https://edhrec.com/themes/tokens in a browser's Network tab, or trying
+each candidate with `curl -o /dev/null -w "%{http_code}"`. Until this
+is fixed, `commander_themes` will always be empty from a real
+`update-data` run — `--themes` should be omitted or left empty when
+running against live data for now.
 
 ## Phase 2 — Filtering & candidate pools (not started)
 

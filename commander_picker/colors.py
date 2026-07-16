@@ -4,19 +4,12 @@ EDHREC groups its commander/theme pages by color identity using slugs
 like ``rakdos`` or ``mono-red`` in URLs such as
 ``https://json.edhrec.com/pages/commanders/rakdos.json``.
 
-Confidence levels, since this environment currently has no network
-access to edhrec.com to verify live (see PLAN.md "known gaps"):
-
-- Colorless and mono-color slugs: high confidence, these are standard
-  and simple (``colorless``, ``mono-white``, ...).
-- Two-color (guild) and three-color (shard/wedge) slugs: high
-  confidence — these reuse official Magic terminology (guild names like
-  ``rakdos``, shard/wedge names like ``jund``) that EDHREC has used
-  for years, not something EDHREC invented.
-- Four- and five-color slugs: LOWER confidence. Best guess is the
-  literal color letters concatenated in WUBRG order and lowercased
-  (e.g. ``wubr``, ``wubrg``) since these combos don't have widely used
-  nicknames. Verify against a live page once reachable.
+**Verified 2026-07-16** against a live response from
+``https://json.edhrec.com/pages/commanders/rakdos.json`` — its
+``related_info`` block lists all 32 color-identity slugs directly, so
+every entry below (including the four/five-color names, which were
+previously an unverified guess) is now confirmed against real EDHREC
+data rather than inferred.
 """
 
 from __future__ import annotations
@@ -66,6 +59,18 @@ _MONO = {
 
 _COLORLESS = {(): "colorless"}
 
+# Four-color nicknames (from the Alara block's Nephilim) and the
+# five-color catch-all. Confirmed against a live EDHREC response's
+# `related_info` block.
+_FOUR_FIVE_COLOR = {
+    ("W", "U", "B", "R"): "yore-tiller",
+    ("U", "B", "R", "G"): "glint-eye",
+    ("B", "R", "G", "W"): "dune-brood",
+    ("R", "G", "W", "U"): "ink-treader",
+    ("G", "W", "U", "B"): "witch-maw",
+    ("W", "U", "B", "R", "G"): "five-color",
+}
+
 
 def _build_slug_map() -> dict[tuple[str, ...], str]:
     slug_map: dict[tuple[str, ...], str] = {}
@@ -76,16 +81,8 @@ def _build_slug_map() -> dict[tuple[str, ...], str]:
         slug_map[_sort_colors(colors)] = name
     for colors, name in _TRICOLOR.items():
         slug_map[_sort_colors(colors)] = name
-
-    # Four- and five-color: no established nicknames used here, so fall
-    # back to the literal color letters. UNVERIFIED against live EDHREC.
-    from itertools import combinations
-
-    for n in (4, 5):
-        for combo in combinations(WUBRG, n):
-            key = _sort_colors(combo)
-            if key not in slug_map:
-                slug_map[key] = "".join(key).lower()
+    for colors, name in _FOUR_FIVE_COLOR.items():
+        slug_map[_sort_colors(colors)] = name
 
     return slug_map
 
