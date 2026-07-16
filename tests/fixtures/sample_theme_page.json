@@ -1,23 +1,33 @@
 {
-  "_comment": "Still a hand-built GUESS, not a captured real response -- the theme page URL 403s against live EDHREC (see edhrec_client.py THEME_PAGE_URL_TEMPLATE) and the correct URL/shape hasn't been confirmed yet. Modeled on the now-confirmed cardview field names from the color page fixture, referencing two commanders that also appear there so test_db.py can exercise the color+theme merge.",
+  "_comment": "Trimmed/hand-assembled from a real https://json.edhrec.com/pages/tags/tokens.json response captured 2026-07-16 -- kept only the 'topcommanders' cardlist (the actual archetype-relevant one; the page also has newcards/topcards/creatures/etc lists of non-commander cards which our by-name matching safely ignores) and swapped in a couple of commander names that also appear in sample_color_page.json so test_db.py can exercise the color+theme merge. Field names/shapes (id, name, sanitized, slug, url, num_decks, potential_decks) are the real ones EDHREC uses -- note the url pattern here is /commanders/<slug>/tokens (theme-qualified), unlike the plain /commanders/<slug> on color pages.",
+  "header": "Tokens",
+  "description": "",
   "container": {
+    "breadcrumb": [{"/tags": "Tags"}, {"/tags/tokens": "Tokens"}],
+    "description": "Popular Tokens EDH commanders",
     "json_dict": {
       "cardlists": [
         {
-          "header": "Top Aristocrats Commanders",
-          "tag": "aristocratscommanders",
+          "header": "Top Commanders",
+          "tag": "topcommanders",
           "cardviews": [
             {
+              "id": "3d0d5a41-8251-437c-a4a0-3b712281ebb0",
               "name": "Rakdos, Lord of Riots",
               "sanitized": "rakdos-lord-of-riots",
-              "url": "/commanders/rakdos-lord-of-riots",
-              "num_decks": 9957
+              "slug": "rakdos-lord-of-riots",
+              "url": "/commanders/rakdos-lord-of-riots/tokens",
+              "num_decks": 412,
+              "potential_decks": 9957
             },
             {
+              "id": "06a981cd-1951-438e-95c9-68294795638e",
               "name": "Krark, the Thumbless // Vial Smasher the Fierce",
               "sanitized": "krark-the-thumbless-vial-smasher-the-fierce",
-              "url": "/commanders/krark-the-thumbless-vial-smasher-the-fierce",
-              "num_decks": 835
+              "slug": "krark-the-thumbless-vial-smasher-the-fierce",
+              "url": "/commanders/krark-the-thumbless-vial-smasher-the-fierce/tokens",
+              "num_decks": 88,
+              "potential_decks": 835
             }
           ]
         }

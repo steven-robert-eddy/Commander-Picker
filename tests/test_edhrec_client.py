@@ -54,7 +54,7 @@ def test_fetch_theme_page_uses_theme_url(monkeypatch):
 
     edhrec_client.fetch_theme_page("tokens")
 
-    assert calls == ["https://json.edhrec.com/pages/themes/tokens.json"]
+    assert calls == ["https://json.edhrec.com/pages/tags/tokens.json"]
 
 
 def test_second_fetch_within_freshness_window_uses_cache(monkeypatch):
@@ -102,3 +102,44 @@ def test_page_exists(monkeypatch):
     assert not edhrec_client.page_exists("color", "rakdos")
     edhrec_client.fetch_color_page("rakdos")
     assert edhrec_client.page_exists("color", "rakdos")
+
+
+def test_fetch_all_pages_skips_bad_theme_slug_without_aborting(monkeypatch):
+    import requests
+
+    def fake_get(url, headers, timeout):
+        if "/tags/" in url:
+            resp = requests.Response()
+            resp.status_code = 403
+            raise requests.HTTPError("403 Client Error", response=resp)
+        return _FakeResponse({"container": {"json_dict": {"cardlists": []}}})
+
+    monkeypatch.setattr(edhrec_client.requests, "get", fake_get)
+
+    results, failures = edhrec_client.fetch_all_pages(
+        color_slugs=["rakdos"],
+        theme_slugs=["not-a-real-tag"],
+    )
+
+    assert len(results) == 1
+    assert results[0].kind == "color"
+    assert len(failures) == 1
+    assert failures[0].kind == "theme"
+    assert failures[0].slug == "not-a-real-tag"
+
+
+def test_fetch_all_pages_surfaces_color_failures_too(monkeypatch):
+    import requests
+
+    def fake_get(url, headers, timeout):
+        resp = requests.Response()
+        resp.status_code = 500
+        raise requests.HTTPError("500 Server Error", response=resp)
+
+    monkeypatch.setattr(edhrec_client.requests, "get", fake_get)
+
+    results, failures = edhrec_client.fetch_all_pages(color_slugs=["rakdos"], theme_slugs=[])
+
+    assert results == []
+    assert len(failures) == 1
+    assert failures[0].kind == "color"

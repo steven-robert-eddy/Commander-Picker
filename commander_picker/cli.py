@@ -13,18 +13,28 @@ def _cmd_update_data(args: argparse.Namespace) -> int:
     theme_slugs = args.themes.split(",") if args.themes else None
 
     print("Fetching EDHREC pages...")
-    try:
-        results = edhrec_client.fetch_all_pages(
-            force=args.force,
-            color_slugs=color_slugs,
-            theme_slugs=theme_slugs,
-        )
-    except edhrec_client.EdhrecFetchError as exc:
-        print(f"error: {exc}", file=sys.stderr)
-        return 1
+    results, failures = edhrec_client.fetch_all_pages(
+        force=args.force,
+        color_slugs=color_slugs,
+        theme_slugs=theme_slugs,
+    )
     fetched = sum(1 for r in results if not r.from_cache)
     cached = len(results) - fetched
     print(f"  {fetched} fetched, {cached} served from cache ({len(results)} pages total)")
+    if failures:
+        color_failures = [f for f in failures if f.kind == "color"]
+        theme_failures = [f for f in failures if f.kind == "theme"]
+        if color_failures:
+            print(f"  warning: {len(color_failures)} color page(s) failed:", file=sys.stderr)
+            for f in color_failures:
+                print(f"    {f.slug}: {f.error}", file=sys.stderr)
+        if theme_failures:
+            # Expected to happen sometimes -- THEME_SLUGS is an unverified
+            # guess of which tag slugs actually exist on EDHREC.
+            print(
+                f"  note: {len(theme_failures)} theme slug(s) skipped (not found on EDHREC): "
+                + ", ".join(f.slug for f in theme_failures)
+            )
 
     print("Building data/commanders.db...")
     try:

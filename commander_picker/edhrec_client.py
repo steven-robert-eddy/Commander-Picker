@@ -5,15 +5,12 @@ documents from ``json.edhrec.com`` that mirror what's rendered on each
 commander-list page. This module fetches those per-color-identity pages
 and caches them locally instead of re-fetching on every session.
 
-**Known gap** (see PLAN.md): this dev environment's egress policy
-blocks edhrec.com, so the exact URL template and response shape below
-are unverified against a live response — built from public knowledge of
-EDHREC's JSON API pattern and cross-checked against the offline test
-fixture. Whoever runs this with real network access should run
-``commander-picker update-data`` once and sanity-check the resulting
-``data/commanders.db`` (row counts, spot-check a few well-known
-commanders), then fix up ``PAGE_URL_TEMPLATE`` / the parser in
-``db.py`` if the real shape differs.
+Both URL templates below are **verified 2026-07-16** against live
+responses (fetched by hand from an unrestricted network — this dev
+sandbox's own egress policy still blocks edhrec.com directly, see
+PLAN.md). Notably, EDHREC calls archetype/theme pages "tags"
+internally (``/pages/tags/<slug>.json``), not "themes" — the initial
+``/pages/themes/...`` guess 403'd against the real server.
 """
 
 from __future__ import annotations
@@ -29,7 +26,7 @@ from commander_picker.colors import all_slugs
 from commander_picker.themes import THEME_SLUGS
 
 COLOR_PAGE_URL_TEMPLATE = "https://json.edhrec.com/pages/commanders/{slug}.json"
-THEME_PAGE_URL_TEMPLATE = "https://json.edhrec.com/pages/themes/{slug}.json"
+THEME_PAGE_URL_TEMPLATE = "https://json.edhrec.com/pages/tags/{slug}.json"
 
 DATA_DIR = Path(__file__).resolve().parent.parent / "data"
 EDHREC_DIR = DATA_DIR / "edhrec"
@@ -135,25 +132,49 @@ def fetch_theme_page(slug: str, force: bool = False, max_age_seconds: int = DEFA
     return _fetch_page("theme", slug, force, max_age_seconds)
 
 
+@dataclass
+class FetchFailure:
+    slug: str
+    kind: str
+    error: str
+
+
 def fetch_all_pages(
     force: bool = False,
     max_age_seconds: int = DEFAULT_MAX_AGE_SECONDS,
     color_slugs: list[str] | None = None,
     theme_slugs: list[str] | None = None,
-) -> list[FetchResult]:
-    """Fetch (or reuse cached) pages for every color-identity and theme slug."""
+) -> tuple[list[FetchResult], list[FetchFailure]]:
+    """Fetch (or reuse cached) pages for every color-identity and theme slug.
+
+    Color slugs are all verified real EDHREC pages, so a failure there
+    is unexpected and worth surfacing loudly. Theme slugs in
+    ``themes.py`` are still an unverified curated guess (see PLAN.md) —
+    an individual bad theme slug shouldn't abort the whole run, so
+    failures are collected and returned alongside the successes rather
+    than raised.
+    """
     results = []
-    for slug in color_slugs or all_slugs():
-        result = fetch_color_page(slug, force=force, max_age_seconds=max_age_seconds)
+    failures = []
+    for slug in (all_slugs() if color_slugs is None else color_slugs):
+        try:
+            result = fetch_color_page(slug, force=force, max_age_seconds=max_age_seconds)
+        except EdhrecFetchError as exc:
+            failures.append(FetchFailure(slug=slug, kind="color", error=str(exc)))
+            continue
         results.append(result)
         if not result.from_cache:
             time.sleep(REQUEST_DELAY_SECONDS)
-    for slug in theme_slugs or THEME_SLUGS:
-        result = fetch_theme_page(slug, force=force, max_age_seconds=max_age_seconds)
+    for slug in (THEME_SLUGS if theme_slugs is None else theme_slugs):
+        try:
+            result = fetch_theme_page(slug, force=force, max_age_seconds=max_age_seconds)
+        except EdhrecFetchError as exc:
+            failures.append(FetchFailure(slug=slug, kind="theme", error=str(exc)))
+            continue
         results.append(result)
         if not result.from_cache:
             time.sleep(REQUEST_DELAY_SECONDS)
-    return results
+    return results, failures
 
 
 def page_exists(kind: str, slug: str) -> bool:

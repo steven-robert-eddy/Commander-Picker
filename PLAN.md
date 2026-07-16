@@ -68,8 +68,10 @@ chosen).
 - Tests: `tests/test_colors.py`, `test_edhrec_client.py` (mocked
   `requests`), `test_db.py` — all offline. `sample_color_page.json` is
   now a trimmed real captured response (was a hand-built guess before
-  live verification); `sample_theme_page.json` is still a hand-built
-  guess pending the theme URL fix. 17/17 passing.
+  live verification); `sample_theme_page.json` is hand-assembled from
+  a real captured `tags/tokens.json` response's `topcommanders` list
+  (trimmed and with names swapped to overlap with the color fixture
+  for merge testing), not itself a raw capture. 17/17 passing.
 
 **Known gap (color pages): none — resolved.** Live-verified 2026-07-16
 by running `update-data --colors rakdos` from an environment with real
@@ -77,18 +79,44 @@ network access (this dev sandbox still can't reach edhrec.com itself —
 confirmed 403 via the proxy). `colors.py` and the color-page parsing
 path in `db.py` are both confirmed correct against real data.
 
-**Known gap (theme pages): still open.** `THEME_PAGE_URL_TEMPLATE`
-(`.../pages/themes/<slug>.json`) returns a real `403` from EDHREC's
-own server (not a proxy block — the color page fetch on the same run
-succeeded first), so the URL pattern for theme pages is wrong. Next
-step: find the correct pattern (candidates to try: `.../pages/theme/<slug>.json`,
-`.../pages/tags/<slug>.json`, or themes might be nested under a color,
-e.g. `.../pages/commanders/<color>/<theme>.json`) by checking
-https://edhrec.com/themes/tokens in a browser's Network tab, or trying
-each candidate with `curl -o /dev/null -w "%{http_code}"`. Until this
-is fixed, `commander_themes` will always be empty from a real
-`update-data` run — `--themes` should be omitted or left empty when
-running against live data for now.
+**Known gap (theme pages): none — resolved.** The `/pages/themes/...`
+guess 403'd from EDHREC's own server (not the sandbox's proxy — the
+color fetch on the same run succeeded first, ruling that out). Live
+testing several candidate URLs found it: EDHREC calls these "tags"
+internally, not "themes" — the correct pattern is
+`https://json.edhrec.com/pages/tags/<slug>.json`. Response shape is
+the same `container.json_dict.cardlists[].cardviews[]` nesting as
+color pages, just with multiple cardlists per page (`topcommanders`,
+`newcommanders` are the ones we want; `topcards`/`highsynergycards`/
+`creatures`/etc. are non-commander cards synergistic with the theme,
+which the existing by-exact-name matching in `db.py` already ignores
+correctly with no code change needed). One quirk: a theme page's
+`num_decks` per commander means "decks with this commander tagged
+with this theme," a different, smaller number than the color page's
+total — irrelevant to us since color pages stay the authoritative
+source for deck counts and theme pages only contribute the tag
+itself. `THEME_SLUGS` in `themes.py` is still an unverified curated
+guess of *which* tag slugs exist (only `tokens` has been confirmed
+live) — the URL *pattern* is now correct, but individual slugs beyond
+`tokens` (aristocrats, voltron, stax, ...) haven't been spot-checked.
+A full `update-data` run will just 404/403 per-slug on any that don't
+exist and move on (each slug is fetched independently), so this isn't
+blocking, but the theme list is worth trimming/correcting against
+EDHREC's real tag list at some point.
+
+Fixing this also surfaced and fixed a real bug: `fetch_all_pages` /
+`load_commanders` used `color_slugs or all_slugs()` (and the theme
+equivalent) to apply defaults, which silently treats an explicitly
+passed empty list `[]` the same as `None` in Python — so "fetch/load
+zero themes" was previously impossible to express, it always fell
+back to the full default list. Both now check `is None` instead.
+`fetch_all_pages` also no longer aborts the whole run on the first
+bad slug — per-slug failures are collected and returned as a
+`(results, failures)` tuple instead of raised, since a wrong theme
+slug shouldn't lose already-fetched color pages. `commander-picker
+update-data` prints color-page failures as warnings (unexpected —
+those slugs are verified) and theme-page failures as an informational
+note (expected — `THEME_SLUGS` is still a guess).
 
 ## Phase 2 — Filtering & candidate pools (not started)
 

@@ -89,8 +89,8 @@ def load_commanders(
     color page (a commander missing its color page is skipped with no
     error, since Phase 1's contract is "load what's cached").
     """
-    color_slugs = _available_slugs("color", color_slugs or all_slugs())
-    theme_slugs = _available_slugs("theme", theme_slugs or THEME_SLUGS)
+    color_slugs = _available_slugs("color", all_slugs() if color_slugs is None else color_slugs)
+    theme_slugs = _available_slugs("theme", THEME_SLUGS if theme_slugs is None else theme_slugs)
 
     if not color_slugs:
         raise DbError(
