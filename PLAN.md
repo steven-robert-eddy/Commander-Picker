@@ -417,6 +417,37 @@ design on EDHREC's end). Not enough signal to filter on yet.
   subset mode with B+R selected correctly returns all 4 non-BG
   commanders; exact mode correctly narrows to just the 2 BR ones.
 
+**Two real bugs found immediately by the user actually using exact
+mode** (not caught in the verification above, since that testing never
+tried "exact" with zero colors selected or a colorless commander):
+
+1. With no colors selected, `allowed_colors` defaulted to the full
+   WUBRG set as a stand-in for "no filter" — harmless in `subset` mode
+   (every identity is trivially a subset of all 5 colors) but silently
+   wrong in `exact` mode, where it meant "5-color commanders only."
+   Reported as "exact mode with nothing selected shows 68" (the
+   catalog's actual 5-color commander count). Fixed: `colors=None` now
+   bypasses color filtering entirely regardless of mode, in
+   `_filtered_candidates`.
+2. Colorless commanders are stored as `color_identity=""`. In `exact`
+   mode, `set("")` (empty set) never equals `{"C"}` (the UI's
+   pseudo-color for Colorless), so selecting Colorless always returned
+   0 — the bug as reported. Digging into it surfaced a second,
+   unreported consequence of the same root cause: in `subset` mode, an
+   empty set is a subset of *any* allowed set, so colorless commanders
+   were silently leaking into every color selection regardless of
+   whether "C" was ever picked. Fixed by normalizing an empty
+   `color_identity` to `{"C"}` before comparing in
+   `_color_identity_matches`, so both modes treat "C" consistently on
+   both sides of the comparison.
+
+Covered by 4 new tests in `test_pool.py` (exact+no-colors returns
+everything; colorless only matches when "C" is explicitly selected in
+exact mode; colorless doesn't leak into an unrelated subset selection;
+colorless is included when "C" is explicitly added to a subset
+selection). Also re-verified live via Playwright against the exact
+repro the user described.
+
 ### Not yet started
 
 - Session history across visits (which commanders have already been

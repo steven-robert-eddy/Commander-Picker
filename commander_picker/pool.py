@@ -11,8 +11,6 @@ import random
 import sqlite3
 from dataclasses import dataclass
 
-from commander_picker.colors import WUBRG
-
 DEFAULT_MAX_DECKS = 10_000
 DEFAULT_MIN_POOL_SIZE = 4
 DEFAULT_MAX_POOL_SIZE = 40
@@ -48,7 +46,15 @@ class PoolFilters:
 
 
 def _color_identity_matches(color_identity: str, allowed: set[str], mode: str) -> bool:
-    ci = set(color_identity)
+    # Colorless commanders are stored as color_identity="" (no WUBRG
+    # letters), but the UI represents "Colorless" as the pseudo-color
+    # "C". Normalize so the two sides actually mean the same thing:
+    # without this, `set("")` is the empty set, which is a subset of
+    # *any* allowed set in "subset" mode -- colorless commanders would
+    # leak into every color selection regardless of whether "C" was
+    # actually picked, and would never match "C" itself in "exact"
+    # mode since `set() != {"C"}`.
+    ci = set(color_identity) if color_identity else {"C"}
     if mode == "exact":
         return ci == allowed
     return ci <= allowed
@@ -63,7 +69,14 @@ def _load_themes_by_commander(conn: sqlite3.Connection) -> dict[str, set[str]]:
 
 def _filtered_candidates(conn: sqlite3.Connection, filters: PoolFilters) -> list[Commander]:
     """Every commander matching filters, with no pool-size bounding applied."""
-    allowed_colors = set(filters.colors.upper()) if filters.colors else set(WUBRG)
+    # None means "no color filter at all", regardless of color_mode --
+    # this used to default to the full WUBRG set as a stand-in for "no
+    # filter", which is harmless in "subset" mode (every identity is a
+    # subset of all 5 colors) but was actively wrong in "exact" mode:
+    # it silently meant "only 5-color commanders" instead of "no
+    # filter", so leaving colors unset with "exact" selected returned a
+    # near-empty result instead of everything.
+    allowed_colors = set(filters.colors.upper()) if filters.colors else None
     wanted_themes = set(filters.themes)
     # Always loaded, not just when filtering by theme -- Commander.themes
     # is informational output regardless of whether themes were filtered on.
@@ -73,7 +86,9 @@ def _filtered_candidates(conn: sqlite3.Connection, filters: PoolFilters) -> list
     for row in conn.execute(
         "SELECT name, color_identity, num_decks, edhrec_url, salt, image_url, price FROM commanders"
     ):
-        if not _color_identity_matches(row["color_identity"], allowed_colors, filters.color_mode):
+        if allowed_colors is not None and not _color_identity_matches(
+            row["color_identity"], allowed_colors, filters.color_mode
+        ):
             continue
         if filters.max_decks is not None and row["num_decks"] > filters.max_decks:
             continue

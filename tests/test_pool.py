@@ -51,6 +51,7 @@ def conn():
     _insert(conn, "Mono Black", "B", 3000)
     _insert(conn, "Jund Beatdown", "BRG", 4000, themes=("aristocrats",))
     _insert(conn, "Five Color Pile", "WUBRG", 2000)
+    _insert(conn, "Colorless Golem", "", 1000)
     conn.commit()
     return conn
 
@@ -59,14 +60,21 @@ def test_default_filters_exclude_over_10k_and_apply_no_color_filter(conn):
     candidates = pool.build_pool(conn, pool.PoolFilters(), min_pool_size=1)
     names = {c.name for c in candidates}
     assert "Big Rakdos" not in names  # over the default 10k ceiling
-    assert names == {"Small Rakdos", "Tiny Rakdos", "Mono Black", "Jund Beatdown", "Five Color Pile"}
+    assert names == {
+        "Small Rakdos",
+        "Tiny Rakdos",
+        "Mono Black",
+        "Jund Beatdown",
+        "Five Color Pile",
+        "Colorless Golem",
+    }
 
 
 def test_max_decks_and_min_decks(conn):
     filters = pool.PoolFilters(max_decks=4000, min_decks=1000)
     candidates = pool.build_pool(conn, filters, min_pool_size=1)
     names = {c.name for c in candidates}
-    assert names == {"Jund Beatdown", "Mono Black", "Five Color Pile"}
+    assert names == {"Jund Beatdown", "Mono Black", "Five Color Pile", "Colorless Golem"}
 
 
 def test_color_subset_mode(conn):
@@ -130,11 +138,10 @@ def test_commander_carries_its_themes(conn):
 
 
 def test_count_matches_ignores_pool_size_bounds(conn):
-    # 5 fixture commanders are under the default 10k ceiling (all but
-    # Big Rakdos) -- count_matches should report that uncapped total
-    # even when max_pool_size would normally sample it down.
+    # count_matches should report the uncapped total even when
+    # max_pool_size would normally sample it down.
     total = pool.count_matches(conn, pool.PoolFilters(max_decks=None))
-    assert total == 6  # all fixture commanders
+    assert total == 7  # all fixture commanders
 
 
 def test_count_matches_matches_build_pool_before_capping(conn):
@@ -147,3 +154,40 @@ def test_count_matches_matches_build_pool_before_capping(conn):
 def test_count_matches_zero_does_not_raise(conn):
     filters = pool.PoolFilters(colors="U", color_mode="exact")
     assert pool.count_matches(conn, filters) == 0
+
+
+def test_exact_mode_with_no_colors_selected_is_not_filtered(conn):
+    # Regression: colors=None used to default `allowed` to the full
+    # WUBRG set, which in "exact" mode silently meant "5-color
+    # commanders only" instead of "no color filter" -- so leaving
+    # colors unset with "exact" selected returned almost nothing
+    # instead of everything.
+    no_filter_count = pool.count_matches(conn, pool.PoolFilters(colors=None, max_decks=None))
+    exact_no_colors_count = pool.count_matches(
+        conn, pool.PoolFilters(colors=None, color_mode="exact", max_decks=None)
+    )
+    assert exact_no_colors_count == no_filter_count == 7  # all fixture commanders
+
+
+def test_colorless_only_matches_when_explicitly_selected(conn):
+    filters = pool.PoolFilters(colors="C", color_mode="exact", max_decks=None)
+    candidates = pool.build_pool(conn, filters, min_pool_size=1)
+    assert {c.name for c in candidates} == {"Colorless Golem"}
+
+
+def test_colorless_does_not_leak_into_unrelated_color_filters(conn):
+    # Regression: colorless commanders are stored with color_identity=""
+    # (empty set), which is a subset of *any* allowed set -- so in
+    # "subset" mode they used to match every color filter regardless of
+    # whether "C" was actually selected. Selecting BR (with real BR/B
+    # matches in the fixture) should not also pull in a colorless
+    # commander that was never asked for.
+    filters = pool.PoolFilters(colors="BR", color_mode="subset", max_decks=None)
+    candidates = pool.build_pool(conn, filters, min_pool_size=1)
+    assert "Colorless Golem" not in {c.name for c in candidates}
+
+
+def test_colorless_included_in_subset_when_c_explicitly_selected(conn):
+    filters = pool.PoolFilters(colors="RC", color_mode="subset", max_decks=None)
+    candidates = pool.build_pool(conn, filters, min_pool_size=1)
+    assert "Colorless Golem" in {c.name for c in candidates}
