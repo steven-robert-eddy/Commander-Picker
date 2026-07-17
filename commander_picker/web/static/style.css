@@ -205,9 +205,12 @@ header {
 }
 
 .chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   font-family: var(--mono);
   font-size: 0.82rem;
-  padding: 7px 12px;
+  padding: 6px 12px;
   border-radius: 999px;
   border: 1px solid var(--card-border);
   background: transparent;
@@ -222,6 +225,11 @@ header {
   border-color: var(--gold);
   color: var(--gold);
 }
+/* Real Scryfall mana symbol, same source as the duel/results pips
+   (see MANA_SYMBOL_BASE_URL in app.js) -- not affected by the chip's
+   own pressed/unpressed text color, since the symbol already carries
+   its correct color. */
+.chip-pip { display: block; width: 16px; height: 16px; }
 
 .pool-count {
   margin-top: 14px;

@@ -58,7 +58,10 @@
       const b = document.createElement("button");
       b.className = "chip";
       b.type = "button";
-      b.textContent = col === "C" ? "Colorless" : col;
+      const label = col === "C" ? "Colorless" : col;
+      // Same Scryfall mana symbol art as the duel/results pips (see
+      // MANA_SYMBOL_BASE_URL below), not a plain colored circle.
+      b.innerHTML = `<img class="chip-pip" src="${MANA_SYMBOL_BASE_URL}${col}.svg" alt="" />${label}`;
       b.setAttribute("aria-pressed", "false");
       b.addEventListener("click", () => {
         if (activeColors.has(col)) activeColors.delete(col);
