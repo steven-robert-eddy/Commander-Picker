@@ -683,6 +683,51 @@ sandbox with no network access to edhrec.com or Scryfall. Ran a real
   Dawn`) now shows its thumbnail on the results screen post-fix. No
   console errors, no failed network requests across the whole flow.
 
+### Design polish pass (impeccable skill) ✅ done
+
+Ran a full visual audit of all three screens (filter, duel, results +
+lightbox) across mobile/tablet/desktop and both themes via Playwright
+screenshots against a live `serve`, using the `impeccable` skill's
+`polish` flow. Design system (dark table-felt ground, gold accent,
+serif/sans/mono pairing, restrained product-register color use) was
+already consistent and not touched -- confirmed rather than reworked.
+
+- **Real bug found and fixed**: on a phone-width viewport, the results
+  screen's `.rank-name` used `white-space: nowrap` + ellipsis, and the
+  fixed-width thumbnail(s)/pips/rating columns left so little room for
+  the name on a 390px screen that most commanders truncated to a
+  handful of characters -- three different "Prava ..." entries all
+  read identically, most rows lost their name past the first word.
+  Confirmed via screenshot, not assumed. Desktop/tablet were
+  unaffected (enough width that nothing truncated).
+  - First fix attempt (let `.rank-name` wrap instead of truncating)
+    fixed the ambiguity but surfaced a second issue on 2-image
+    Partner-pair rows with a multi-color pip row: the leftover space
+    beside the thumbnails+pips could be narrower than a single word,
+    producing an ugly letter-by-letter wrap ("Sakashi" / "ma" / "of" /
+    "a" / "Thousa" / "nd" on separate lines).
+  - Real fix: `.rank-name-line` gained `flex-wrap: wrap` and
+    `.rank-name` a `flex: 1 1 160px` basis, so the name drops to its
+    own full-width line below the thumbnail(s)/pips whenever there
+    isn't room beside them, instead of being squeezed into whatever
+    narrow remainder is left. Verified: names now wrap at word
+    boundaries only, every row legible, desktop/tablet layout
+    unchanged (still one line, plenty of room).
+- Everything else checked out clean: real card art renders correctly
+  at all three breakpoints in both themes, the proportional 2-vs-1
+  duel sizing and card-art-group seam render as designed, the lightbox
+  opens correctly with proper contrast against its fixed dark backdrop
+  in both themes, keyboard focus rings are clearly visible on chips/
+  card-btns/buttons, and apparent "blank" thumbnails in one screenshot
+  were confirmed via `naturalWidth` to be a `loading="lazy"` timing
+  artifact of the screenshot tool, not a real missing-image bug (0
+  commanders lack `image_urls` per the fix above).
+- One pre-existing design-hook finding (`.progress-fill`'s `width`
+  transition) reviewed and left as-is: a real progress bar filling is
+  one of the few legitimate uses of a layout-property transition, and
+  it predates this pass.
+- Full suite still 98/98 passing (CSS-only change).
+
 ### Not yet started
 
 - Session history across visits (which commanders have already been

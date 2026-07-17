@@ -496,7 +496,13 @@ header {
 }
 .rank-row.top1 .rank-num { color: var(--gold); }
 
-.rank-name-line { display: flex; align-items: center; gap: 8px; min-width: 0; }
+/* flex-wrap so the name drops to its own full-width line below the
+   thumbnail(s)/pips whenever there isn't room beside them, rather than
+   being squeezed into whatever narrow remainder is left -- on a 2-image
+   partner pair with a multi-color pip row on a phone-width screen, that
+   remainder can be narrower than a single word, forcing an ugly
+   letter-by-letter wrap. */
+.rank-name-line { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; min-width: 0; }
 .rank-thumb-group { display: flex; gap: 2px; flex-shrink: 0; }
 .rank-thumb {
   width: 36px;
@@ -506,11 +512,19 @@ header {
   flex-shrink: 0;
   background: var(--felt-hi);
 }
+/* Wraps instead of truncating -- a single-line ellipsis was cutting
+   most names down to a few characters on a narrow viewport (e.g. three
+   different "Prava ..." commanders all read identically). A wrapped
+   name costs a taller row; a truncated one costs knowing which
+   commander it is. flex-basis gives it a floor so it wraps to its own
+   line (see .rank-name-line) instead of cramming into a sliver next to
+   the thumbnail(s)/pips. */
 .rank-name {
+  flex: 1 1 160px;
+  min-width: 0;
   font-size: 0.92rem;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  line-height: 1.3;
+  overflow-wrap: break-word;
 }
 .rank-rating {
   font-family: var(--mono);
