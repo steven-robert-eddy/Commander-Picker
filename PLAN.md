@@ -792,6 +792,38 @@ values in isolation.
   with the new palette; zero console errors/failed requests across a
   full play-through. Full suite still 98/98 passing (CSS-only change).
 
+### Redesign follow-up: the first pass under-committed ✅ done
+
+Reported directly: "the ui is worse" after the redesign above shipped.
+Re-screenshotted with fresh eyes rather than assuming the *strategy*
+(moving off gold/black) was the problem -- it wasn't; the *execution*
+was too timid. Root cause: background/surface chroma was so low
+(~0.017-0.021) it rendered as plain dark/light grey on a real screen,
+so the only visible personality was one muted button -- objectively
+less confident than the old high-contrast gold-on-black it replaced,
+even though the color-cliché complaint was correctly addressed.
+
+- Raised background/surface chroma substantially (dark bg
+  0.017->0.03, surface 0.021->0.04; light bg 0.010->0.025) so the
+  moss/ink mood actually reads as a deliberate deep-green (dark) /
+  pale-sage (light) surface instead of neutral grey.
+- Shifted primary's hue 132->145 (further from a muddy olive-brown,
+  closer to a clean leaf green) and raised its chroma/lightness so the
+  chip/segmented "selected" tint reads as fresh green rather than
+  drab, and raised accent's chroma (0.15/0.19) and lightness for a
+  punchier, more confident rust that actually commands attention the
+  way the old gold did.
+- Added real depth: `box-shadow` on `.panel` and `.card-btn` (soft
+  drop shadow + a 1px inner top highlight) so panels read as raised
+  material instead of a flat rectangle -- the flatness was part of
+  why the first pass felt washed out, independent of the color values
+  themselves.
+- Every revised token re-verified with the same OKLCH->sRGB->WCAG
+  contrast script as the first pass before shipping (all comfortably
+  above the 4.5:1 floor, most well above); re-verified via Playwright
+  across both themes/all breakpoints with zero console errors/failed
+  requests. Full suite still 98/98 passing (CSS-only change).
+
 ### Not yet started
 
 - Session history across visits (which commanders have already been
