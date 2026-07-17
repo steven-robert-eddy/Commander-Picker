@@ -84,10 +84,14 @@ def test_fetch_oracle_cards_cache_reused_within_freshness_window(monkeypatch):
     assert call_count == first_call_count  # second call served from cache, no new requests
 
 
-def test_build_image_lookup_prefers_art_crop(tmp_path):
+def test_build_image_lookup_prefers_full_card_over_art_crop(tmp_path):
     cards = [
-        {"name": "Simple Card", "image_uris": {"art_crop": "https://img/simple-art.jpg", "normal": "https://img/simple.jpg"}},
-        {"name": "No Art Crop", "image_uris": {"normal": "https://img/normal-only.jpg"}},
+        {
+            "name": "Simple Card",
+            "image_uris": {"art_crop": "https://img/simple-art.jpg", "normal": "https://img/simple.jpg"},
+        },
+        {"name": "Large Only", "image_uris": {"large": "https://img/large-only.jpg"}},
+        {"name": "Art Crop Only Fallback", "image_uris": {"art_crop": "https://img/fallback-art.jpg"}},
         {"name": "No Images At All"},
     ]
     path = tmp_path / "oracle_cards.json"
@@ -95,8 +99,9 @@ def test_build_image_lookup_prefers_art_crop(tmp_path):
 
     lookup = scryfall_client.build_image_lookup(path)
 
-    assert lookup["Simple Card"] == "https://img/simple-art.jpg"
-    assert lookup["No Art Crop"] == "https://img/normal-only.jpg"
+    assert lookup["Simple Card"] == "https://img/simple.jpg"  # full card, not the art crop
+    assert lookup["Large Only"] == "https://img/large-only.jpg"
+    assert lookup["Art Crop Only Fallback"] == "https://img/fallback-art.jpg"  # last-resort fallback
     assert "No Images At All" not in lookup
 
 

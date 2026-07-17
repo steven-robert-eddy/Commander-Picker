@@ -96,7 +96,11 @@ def fetch_oracle_cards(force: bool = False, max_age_seconds: int = DEFAULT_MAX_A
 
 
 def _card_image_url(card: dict) -> str | None:
-    """Prefer a wide art-crop image -- fits a compact duel card better than a full vertical card face."""
+    """Prefer the full card face image -- the whole card (name, mana
+    cost, text box, art), not just a cropped illustration. `art_crop`
+    is only a last-resort fallback if a card genuinely has no full-face
+    image for some reason.
+    """
     image_uris = card.get("image_uris")
     if image_uris is None:
         faces = card.get("card_faces") or []
@@ -104,7 +108,7 @@ def _card_image_url(card: dict) -> str | None:
             image_uris = faces[0].get("image_uris")
     if not image_uris:
         return None
-    return image_uris.get("art_crop") or image_uris.get("normal")
+    return image_uris.get("normal") or image_uris.get("large") or image_uris.get("art_crop")
 
 
 def build_image_lookup(oracle_cards_path: Path = ORACLE_CARDS_PATH) -> dict[str, str]:

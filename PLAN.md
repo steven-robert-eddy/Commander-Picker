@@ -368,6 +368,17 @@ Requested directly by the project owner after trying the real web UI
   looks like a UUID but isn't a Scryfall card ID; using it directly in
   a test fixture produced exactly the broken-image case this fallback
   needed to handle).
+- **Switched from art-crop to the full card face** after feedback that
+  a cropped illustration alone doesn't show what the card actually
+  *is* (name, mana cost, text box). `scryfall_client._card_image_url`
+  now prefers `image_uris.normal`/`large` over `art_crop` (kept only
+  as a last-resort fallback). `.card-art`/`.rank-thumb` CSS switched
+  from a wide banner crop (`aspect-ratio: 5/2`, `object-fit: cover`)
+  to the real Magic card ratio (`63/88`) with `object-fit: contain` so
+  the whole card shows undistorted rather than being cropped to fill a
+  box shaped for a landscape illustration. Verified with an SVG
+  data-URI placeholder at the correct ratio (real Scryfall images
+  aren't reachable from this dev sandbox any more than EDHREC's are).
 
 ### UX pass ✅ done
 

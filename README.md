@@ -166,7 +166,7 @@ commander_picker/
   colors.py         # color-identity <-> EDHREC URL slug mapping (32 combos)
   themes.py         # known EDHREC archetype/theme page slugs
   edhrec_client.py  # fetch + cache EDHREC color/theme pages, with pagination
-  scryfall_client.py # fetch Scryfall bulk data, build name -> art_crop image lookup
+  scryfall_client.py # fetch Scryfall bulk data, build name -> full card image lookup
   db.py             # parse cached pages into data/commanders.db (SQLite)
   pool.py           # filter commanders.db into a bounded candidate pool
   elo.py            # Elo rating math + pairing selection (no DB dependency)

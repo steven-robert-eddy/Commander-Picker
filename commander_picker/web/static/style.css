@@ -357,8 +357,8 @@ header {
   display: block;
   width: calc(100% + 36px);
   margin: -18px -18px 0;
-  aspect-ratio: 5 / 2;
-  object-fit: cover;
+  aspect-ratio: 63 / 88; /* real Magic card ratio -- show the whole card, not a cropped illustration */
+  object-fit: contain;
   background: var(--felt-hi);
   border-radius: 16px 16px 0 0;
 }
@@ -463,8 +463,8 @@ header {
 .rank-name-line { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .rank-thumb {
   width: 28px;
-  height: 28px;
-  border-radius: 6px;
+  height: 39px; /* real Magic card ratio (63/88), not a square crop */
+  border-radius: 4px;
   object-fit: cover;
   flex-shrink: 0;
   background: var(--felt-hi);
