@@ -728,6 +728,70 @@ already consistent and not touched -- confirmed rather than reworked.
   it predates this pass.
 - Full suite still 98/98 passing (CSS-only change).
 
+### Full visual identity redesign (impeccable skill) ✅ done
+
+Requested directly: the previous dark-felt-and-gold theme reads as
+generic "premium tool" scaffolding at this point ("every site nowadays
+has the gold and black theme"). Reworked the palette from scratch via
+`impeccable`'s color-strategy method rather than reskinning individual
+values in isolation.
+
+- **Mood**: a wizard's herbarium at dusk -- pressed leaves and inked
+  marginalia under low library light, moss-glass jars on a dark shelf.
+  Chosen over the old "casino card-table felt" metaphor specifically
+  because it doesn't reach for gold/metallic accenting at all.
+- **Two-hue brand system**, both in OKLCH, replacing the single gold
+  accent: `--primary` (a deep moss green) marks *selected/chosen*
+  state (active filter chips, the color-mode toggle); `--accent` (a
+  burnt rust/terracotta) marks *actionable/emphasized* (the CTA
+  button, focus rings, the winner glow, the #1 result). Distinct hues
+  ~90° apart so the two roles stay visually separable even where
+  lightness is close.
+  - `--accent` (lighter, for text/borders against the dark ground) and
+    `--accent-fill` (a deeper shade of the same hue, for solid button
+    backgrounds under white text) are separate tokens -- one accent
+    value can't simultaneously satisfy "readable as text on the page
+    background" and "readable *under* white text as a button fill";
+    trying to reuse a single value for both, first draft, failed the
+    contrast check below.
+  - Light theme's background moved off the classic warm cream/tan
+    parchment (`#e4ddc9`, itself a recognized AI-default territory --
+    same failure mode as the dark theme's gold, just the light-mode
+    version of it) to a cool, barely-there sage-grey paper -- tinted
+    per the "surface IS part of the brand" exception (an explicit
+    herbarium/pressed-paper environment), not tinted "because warm
+    feels nice."
+  - Every token's contrast verified numerically (OKLCH -> linear sRGB
+    -> WCAG contrast), not eyeballed: a Python script (see this
+    session's scratch dir) computed real contrast ratios for every
+    ink/accent/primary/good/bad pairing against its background in both
+    themes before any CSS was written. First-draft accent value passed
+    button-text contrast (7.2:1) but failed as plain text-on-background
+    (2.96:1) -- caught by the script, fixed by splitting into
+    `--accent`/`--accent-fill` above, not by picking values on
+    instinct.
+- **Winner treatment redesigned, not just recolored**: the old
+  `@keyframes sweep` was a diagonal shine literally simulating gold
+  foil catching light -- kept as CSS structure it would've stayed
+  "the gold foil card game" regardless of hex values. Replaced with
+  `@keyframes bloom`, a soft radial glow expanding from the card's
+  center plus a gentle scale-in, reading as an inked stamp of approval
+  instead of foil glare. Still transform/opacity only (no layout
+  properties), still respects `prefers-reduced-motion`.
+- **New small delight**: the results screen's #1 row gets a one-time
+  `--accent-soft` podium tint -- a genuine one-off moment (the
+  session's actual winner), not a repeated pattern down the list.
+- CSS custom property names generalized alongside the value changes
+  (`--felt`/`--felt-hi`/`--card`/`--card-border`/`--gold`/`--gold-soft`
+  -> `--bg`/`--bg-alt`/`--surface`/`--border`/`--accent`/`--accent-soft`
+  etc.) so the tokens no longer carry the old felt-table/foil-card
+  metaphor in their names either.
+- Verified via Playwright screenshots across mobile/tablet/desktop and
+  both themes: filter chips, duel (single and multi-card sides),
+  winner bloom, results podium tint, and lightbox all render correctly
+  with the new palette; zero console errors/failed requests across a
+  full play-through. Full suite still 98/98 passing (CSS-only change).
+
 ### Not yet started
 
 - Session history across visits (which commanders have already been

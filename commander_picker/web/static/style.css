@@ -2,18 +2,35 @@
   :root { color-scheme: dark; }
 }
 
+/* Palette mood: a wizard's herbarium at dusk -- pressed leaves and inked
+   marginalia under low library light. Two brand hues carry the identity
+   instead of a single metallic accent: moss (--primary) marks what's
+   chosen/selected, rust (--accent) marks what's actionable or has won.
+   All colors in OKLCH; --accent-fill is a deeper shade of --accent
+   specifically for solid button backgrounds (so white button text stays
+   readable) while --accent itself stays lighter for use as text/borders
+   against the dark ground. */
 :root {
-  --felt: #12181a;
-  --felt-hi: #171f21;
-  --card: #1c2422;
-  --card-border: #2c3634;
-  --gold: #c7a542;
-  --gold-soft: rgba(199, 165, 66, 0.18);
-  --ink: #efe7d8;
-  --ink-dim: #a9b0ac;
-  --ink-faint: #6f7a75;
-  --good: #6fae72;
-  --bad: #c96a5a;
+  --bg: oklch(0.17 0.017 140);
+  --bg-alt: oklch(0.21 0.019 140);
+  --surface: oklch(0.24 0.021 140);
+  --border: oklch(0.33 0.025 140);
+  --ink: oklch(0.93 0.018 90);
+  --ink-dim: oklch(0.76 0.018 90);
+  --ink-faint: oklch(0.58 0.016 95);
+  --primary: oklch(0.64 0.11 132);
+  --primary-soft: oklch(0.64 0.11 132 / 0.16);
+  --accent: oklch(0.66 0.15 42);
+  --accent-fill: oklch(0.46 0.16 42);
+  --accent-soft: oklch(0.66 0.15 42 / 0.16);
+  --accent-glow: oklch(0.66 0.15 42 / 0.35);
+  --on-accent: oklch(0.98 0.006 90);
+  --good: oklch(0.70 0.14 150);
+  --bad: oklch(0.62 0.17 20);
+  /* Always sits on the lightbox's fixed dark backdrop, not the page's
+     own theme background -- one value regardless of theme. */
+  --lightbox-ink: oklch(0.96 0.012 90);
+  --lightbox-border: oklch(0.96 0.012 90 / 0.35);
 
   --serif: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
   --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
@@ -21,32 +38,42 @@
 }
 
 :root[data-theme="light"] {
-  --felt: #e4ddc9;
-  --felt-hi: #ece5d2;
-  --card: #f8f4e8;
-  --card-border: #d8cdad;
-  --gold: #96721e;
-  --gold-soft: rgba(150, 114, 30, 0.14);
-  --ink: #2a2620;
-  --ink-dim: #5b5648;
-  --ink-faint: #948d78;
-  --good: #3f7a43;
-  --bad: #a8432f;
+  --bg: oklch(0.94 0.010 135);
+  --bg-alt: oklch(0.905 0.012 135);
+  --surface: oklch(0.975 0.007 135);
+  --border: oklch(0.82 0.018 135);
+  --ink: oklch(0.24 0.018 135);
+  --ink-dim: oklch(0.43 0.018 135);
+  --ink-faint: oklch(0.52 0.016 130);
+  --primary: oklch(0.36 0.09 132);
+  --primary-soft: oklch(0.36 0.09 132 / 0.14);
+  --accent: oklch(0.48 0.15 42);
+  --accent-fill: oklch(0.48 0.15 42);
+  --accent-soft: oklch(0.48 0.15 42 / 0.14);
+  --accent-glow: oklch(0.48 0.15 42 / 0.30);
+  --on-accent: oklch(0.99 0.004 90);
+  --good: oklch(0.46 0.14 150);
+  --bad: oklch(0.50 0.17 22);
 }
 
 @media (prefers-color-scheme: light) {
   :root:not([data-theme="dark"]) {
-    --felt: #e4ddc9;
-    --felt-hi: #ece5d2;
-    --card: #f8f4e8;
-    --card-border: #d8cdad;
-    --gold: #96721e;
-    --gold-soft: rgba(150, 114, 30, 0.14);
-    --ink: #2a2620;
-    --ink-dim: #5b5648;
-    --ink-faint: #948d78;
-    --good: #3f7a43;
-    --bad: #a8432f;
+    --bg: oklch(0.94 0.010 135);
+    --bg-alt: oklch(0.905 0.012 135);
+    --surface: oklch(0.975 0.007 135);
+    --border: oklch(0.82 0.018 135);
+    --ink: oklch(0.24 0.018 135);
+    --ink-dim: oklch(0.43 0.018 135);
+    --ink-faint: oklch(0.52 0.016 130);
+    --primary: oklch(0.36 0.09 132);
+    --primary-soft: oklch(0.36 0.09 132 / 0.14);
+    --accent: oklch(0.48 0.15 42);
+    --accent-fill: oklch(0.48 0.15 42);
+    --accent-soft: oklch(0.48 0.15 42 / 0.14);
+    --accent-glow: oklch(0.48 0.15 42 / 0.30);
+    --on-accent: oklch(0.99 0.004 90);
+    --good: oklch(0.46 0.14 150);
+    --bad: oklch(0.50 0.17 22);
   }
 }
 
@@ -55,7 +82,7 @@
 html, body {
   margin: 0;
   min-height: 100%;
-  background: radial-gradient(ellipse at top, var(--felt-hi), var(--felt) 70%);
+  background: radial-gradient(ellipse at top, var(--bg-alt), var(--bg) 70%);
   color: var(--ink);
   font-family: var(--sans);
   -webkit-tap-highlight-color: transparent;
@@ -93,7 +120,7 @@ header {
   color: var(--ink);
   text-wrap: balance;
 }
-.wordmark em { font-style: normal; color: var(--gold); }
+.wordmark em { font-style: normal; color: var(--accent); }
 
 .phase {
   font-family: var(--mono);
@@ -112,8 +139,8 @@ header {
 .lede strong { color: var(--ink); font-weight: 600; }
 
 .panel {
-  background: var(--card);
-  border: 1px solid var(--card-border);
+  background: var(--surface);
+  border: 1px solid var(--border);
   border-radius: 14px;
   padding: 16px;
 }
@@ -138,7 +165,7 @@ header {
 .segmented {
   display: flex;
   margin-top: 10px;
-  border: 1px solid var(--card-border);
+  border: 1px solid var(--border);
   border-radius: 10px;
   overflow: hidden;
 }
@@ -154,12 +181,12 @@ header {
   text-align: center;
   transition: background 0.15s ease, color 0.15s ease;
 }
-.segmented-btn:not(:first-child) { border-left: 1px solid var(--card-border); }
+.segmented-btn:not(:first-child) { border-left: 1px solid var(--border); }
 .segmented-btn:hover { color: var(--ink); }
-.segmented-btn:focus-visible { outline: 2px solid var(--gold); outline-offset: -2px; }
+.segmented-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 .segmented-btn[aria-pressed="true"] {
-  background: var(--gold-soft);
-  color: var(--gold);
+  background: var(--primary-soft);
+  color: var(--primary);
   font-weight: 600;
 }
 
@@ -171,7 +198,7 @@ header {
 }
 .deck-range input[type="range"] {
   flex: 1;
-  accent-color: var(--gold);
+  accent-color: var(--accent);
   height: 28px; /* larger hit area/thumb -- native sliders can feel fiddly otherwise */
 }
 
@@ -179,15 +206,15 @@ header {
   font-family: var(--mono);
   font-size: 0.82rem;
   color: var(--ink);
-  background: var(--felt-hi);
-  border: 1px solid var(--card-border);
+  background: var(--bg-alt);
+  border: 1px solid var(--border);
   border-radius: 8px;
   padding: 6px 6px 6px 8px;
   width: 11ch; /* room for up to 6 digits + the spin-button icon without clipping */
   text-align: right;
   font-variant-numeric: tabular-nums;
 }
-.num-input:focus-visible { outline: 2px solid var(--gold); outline-offset: 1px; border-color: var(--gold); }
+.num-input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; border-color: var(--accent); }
 /* Hide native spinner arrows -- cleaner next to the slider, typing/arrow-keys still work */
 .num-input::-webkit-inner-spin-button,
 .num-input::-webkit-outer-spin-button { opacity: 0.5; }
@@ -212,18 +239,18 @@ header {
   font-size: 0.82rem;
   padding: 6px 12px;
   border-radius: 999px;
-  border: 1px solid var(--card-border);
+  border: 1px solid var(--border);
   background: transparent;
   color: var(--ink-dim);
   cursor: pointer;
   transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
 }
-.chip:hover { border-color: var(--gold); }
-.chip:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+.chip:hover { border-color: var(--accent); }
+.chip:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .chip[aria-pressed="true"] {
-  background: var(--gold-soft);
-  border-color: var(--gold);
-  color: var(--gold);
+  background: var(--primary-soft);
+  border-color: var(--primary);
+  color: var(--primary);
 }
 /* Real Scryfall mana symbol, same source as the duel/results pips
    (see MANA_SYMBOL_BASE_URL in app.js) -- not affected by the chip's
@@ -254,15 +281,15 @@ header {
   padding: 13px;
   border-radius: 10px;
   border: none;
-  background: var(--gold);
-  color: var(--felt);
+  background: var(--accent-fill);
+  color: var(--on-accent);
   font-family: var(--sans);
   font-weight: 700;
   font-size: 0.95rem;
   cursor: pointer;
   transition: filter 0.15s ease, transform 0.05s ease;
 }
-.start-btn:hover { filter: brightness(1.08); }
+.start-btn:hover { filter: brightness(1.1); }
 .start-btn:active { transform: scale(0.99); }
 .start-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 .start-btn:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
@@ -270,12 +297,12 @@ header {
 .progress-track {
   height: 3px;
   border-radius: 3px;
-  background: var(--card-border);
+  background: var(--border);
   overflow: hidden;
 }
 .progress-fill {
   height: 100%;
-  background: linear-gradient(90deg, var(--gold), #e8c96a);
+  background: linear-gradient(90deg, var(--primary), var(--accent));
   width: 0%;
   transition: width 0.35s ease;
 }
@@ -318,9 +345,9 @@ header {
   width: 40px;
   height: 40px;
   border-radius: 50%;
-  background: var(--felt);
-  border: 1px solid var(--gold);
-  color: var(--gold);
+  background: var(--bg);
+  border: 1px solid var(--accent);
+  color: var(--accent);
   font-family: var(--serif);
   font-size: 0.8rem;
   display: flex;
@@ -334,8 +361,8 @@ header {
 
 .card-btn {
   text-align: left;
-  background: var(--card);
-  border: 1.5px solid var(--card-border);
+  background: var(--surface);
+  border: 1.5px solid var(--border);
   border-radius: 16px;
   padding: 18px 18px 16px;
   cursor: pointer;
@@ -347,22 +374,23 @@ header {
   position: relative;
   overflow: hidden;
 }
-.card-btn:hover { border-color: var(--gold); }
+.card-btn:hover { border-color: var(--accent); }
 .card-btn:active { transform: scale(0.985); }
-.card-btn:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+.card-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .card-btn:disabled { cursor: default; }
 
 .card-btn.winner {
-  border-color: var(--gold);
-  box-shadow: 0 0 0 1px var(--gold), 0 8px 24px -8px var(--gold-soft);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent), 0 8px 24px -8px var(--accent-glow);
 }
+/* A soft radial bloom from the card's center, not a diagonal metallic
+   shine -- reads as an inked stamp of approval rather than foil glare. */
 .card-btn.winner::after {
   content: "";
   position: absolute;
   inset: 0;
-  background: linear-gradient(115deg, transparent 30%, rgba(199, 165, 66, 0.35) 48%, transparent 66%);
-  background-size: 240% 240%;
-  animation: sweep 0.6s ease-out;
+  background: radial-gradient(circle at 50% 38%, var(--accent-glow) 0%, transparent 65%);
+  animation: bloom 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
   pointer-events: none;
 }
 .card-btn.loser { opacity: 0.45; }
@@ -387,7 +415,7 @@ header {
   display: flex;
   flex-wrap: wrap;
   gap: 1px;
-  background: var(--card-border);
+  background: var(--border);
   width: calc(100% + 36px);
   margin: -18px -18px 0;
   border-radius: 16px 16px 0 0;
@@ -399,11 +427,11 @@ header {
   min-width: 150px;
   aspect-ratio: 63 / 88; /* real Magic card ratio -- show the whole card, not a cropped illustration */
   object-fit: contain;
-  background: var(--felt-hi);
+  background: var(--bg-alt);
 }
-@keyframes sweep {
-  from { background-position: 120% -20%; }
-  to { background-position: -20% 120%; }
+@keyframes bloom {
+  from { opacity: 0; transform: scale(0.88); }
+  to { opacity: 1; transform: scale(1); }
 }
 
 .card-top {
@@ -448,9 +476,9 @@ header {
   letter-spacing: 0.03em;
   padding: 3px 8px;
   border-radius: 999px;
-  background: var(--felt-hi);
+  background: var(--bg-alt);
   color: var(--ink-faint);
-  border: 1px solid var(--card-border);
+  border: 1px solid var(--border);
 }
 
 .duel-actions {
@@ -469,8 +497,8 @@ header {
   cursor: pointer;
   padding: 6px 4px;
 }
-.ghost-btn:hover { color: var(--gold); }
-.ghost-btn:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+.ghost-btn:hover { color: var(--accent); }
+.ghost-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 .rank-row {
   display: grid;
@@ -478,15 +506,18 @@ header {
   align-items: center;
   gap: 12px;
   padding: 11px 4px;
-  border-bottom: 1px solid var(--card-border);
+  border-bottom: 1px solid var(--border);
 }
 .rank-row:last-child { border-bottom: none; }
 /* Rows for a commander with art open the full-size lightbox on click
    (see openLightbox() in app.js) -- rows with no art (no Scryfall
    match) aren't clickable, so no hover affordance for those. */
 .rank-row.has-art { cursor: pointer; border-radius: 8px; }
-.rank-row.has-art:hover { background: var(--felt-hi); }
-.rank-row.has-art:focus-visible { outline: 2px solid var(--gold); outline-offset: -2px; }
+.rank-row.has-art:hover { background: var(--bg-alt); }
+.rank-row.has-art:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+/* The session's actual winner gets a one-time podium tint -- a real
+   moment worth a small highlight, not a pattern repeated down the list. */
+.rank-row.top1 { background: var(--accent-soft); border-radius: 8px; }
 
 .rank-num {
   font-family: var(--serif);
@@ -494,7 +525,7 @@ header {
   color: var(--ink-faint);
   text-align: center;
 }
-.rank-row.top1 .rank-num { color: var(--gold); }
+.rank-row.top1 .rank-num { color: var(--accent); }
 
 /* flex-wrap so the name drops to its own full-width line below the
    thumbnail(s)/pips whenever there isn't room beside them, rather than
@@ -510,7 +541,7 @@ header {
   border-radius: 4px;
   object-fit: cover;
   flex-shrink: 0;
-  background: var(--felt-hi);
+  background: var(--bg-alt);
 }
 /* Wraps instead of truncating -- a single-line ellipsis was cutting
    most names down to a few characters on a narrow viewport (e.g. three
@@ -540,16 +571,16 @@ header {
   margin-top: 14px;
   padding: 12px;
   border-radius: 10px;
-  border: 1px solid var(--gold);
+  border: 1px solid var(--accent);
   background: transparent;
-  color: var(--gold);
+  color: var(--accent);
   font-family: var(--sans);
   font-weight: 600;
   font-size: 0.9rem;
   cursor: pointer;
 }
-.again-btn:hover { background: var(--gold-soft); }
-.again-btn:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+.again-btn:hover { background: var(--accent-soft); }
+.again-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 footer {
   text-align: center;
@@ -560,10 +591,10 @@ footer {
 }
 footer code {
   font-family: var(--mono);
-  background: var(--card);
+  background: var(--surface);
   padding: 1px 5px;
   border-radius: 4px;
-  border: 1px solid var(--card-border);
+  border: 1px solid var(--border);
 }
 
 .hidden { display: none !important; }
@@ -596,7 +627,7 @@ footer code {
 .lightbox-name {
   font-family: var(--serif);
   font-size: 1.15rem;
-  color: #efe7d8; /* fixed light ink -- always sits on the dark backdrop, not the page's own theme background */
+  color: var(--lightbox-ink); /* fixed -- always sits on the dark backdrop, not the page's own theme background */
   text-align: center;
 }
 .lightbox-images {
@@ -621,12 +652,12 @@ footer code {
   width: 40px;
   height: 40px;
   border-radius: 50%;
-  border: 1px solid rgba(239, 231, 216, 0.35);
+  border: 1px solid var(--lightbox-border);
   background: rgba(255, 255, 255, 0.06);
-  color: #efe7d8;
+  color: var(--lightbox-ink);
   font-size: 1.1rem;
   line-height: 1;
   cursor: pointer;
 }
 .lightbox-close:hover { background: rgba(255, 255, 255, 0.14); }
-.lightbox-close:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+.lightbox-close:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
