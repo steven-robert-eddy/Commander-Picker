@@ -17,14 +17,6 @@ playable from the terminal (`play`) or a browser (`serve`). Phase 5
 deck-count entry, editable duel pool size, total-vs-capped match
 counts) is partially done — see `PLAN.md`.
 
-**Known gap:** this dev sandbox's egress policy blocks edhrec.com
-(403) — `update-data` was verified by the project owner running it
-from their own machine and sharing back real captured responses
-rather than in this environment directly. If you're picking this up
-in a similarly restricted sandbox, the same approach applies: get
-someone with real network access to run `update-data` and sanity
-check `data/commanders.db`.
-
 ## Setup
 
 ```bash
