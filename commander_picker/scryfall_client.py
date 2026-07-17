@@ -95,24 +95,42 @@ def fetch_oracle_cards(force: bool = False, max_age_seconds: int = DEFAULT_MAX_A
     return ORACLE_CARDS_PATH
 
 
-def _card_image_url(card: dict) -> str | None:
-    """Prefer the full card face image -- the whole card (name, mana
-    cost, text box, art), not just a cropped illustration. `art_crop`
-    is only a last-resort fallback if a card genuinely has no full-face
-    image for some reason.
-    """
-    image_uris = card.get("image_uris")
-    if image_uris is None:
-        faces = card.get("card_faces") or []
-        if faces:
-            image_uris = faces[0].get("image_uris")
+def _one_face_image_url(image_uris: dict | None) -> str | None:
     if not image_uris:
         return None
     return image_uris.get("normal") or image_uris.get("large") or image_uris.get("art_crop")
 
 
-def build_image_lookup(oracle_cards_path: Path = ORACLE_CARDS_PATH) -> dict[str, str]:
-    """Card name -> art-crop image URL, for every card that has one."""
+def _card_face_image_urls(card: dict) -> list[str]:
+    """The image(s) that make up this card, in display order.
+
+    Most cards have a single `image_uris` and this returns one URL.
+    Double-faced/transform/modal-DFC cards carry per-face `image_uris`
+    instead (front and back are genuinely different images) -- for
+    those, return one URL per face so both sides can be shown. Layouts
+    like split or adventure have multiple `card_faces` entries too, but
+    share a single whole-card `image_uris` at the top level rather than
+    per-face images, so those still collapse to one URL.
+    """
+    image_uris = card.get("image_uris")
+    if image_uris is not None:
+        url = _one_face_image_url(image_uris)
+        return [url] if url else []
+
+    urls = []
+    for face in card.get("card_faces") or []:
+        url = _one_face_image_url(face.get("image_uris"))
+        if url:
+            urls.append(url)
+    return urls
+
+
+def build_image_lookup(oracle_cards_path: Path = ORACLE_CARDS_PATH) -> dict[str, list[str]]:
+    """Card name -> ordered list of image URLs, for every card that has any.
+
+    Usually a single-element list; two elements for double-faced/transform
+    cards (front + back), so both sides can be displayed.
+    """
     if not oracle_cards_path.exists():
         raise ScryfallFetchError(
             f"{oracle_cards_path} does not exist yet. Run `commander-picker update-data` first."
@@ -120,27 +138,29 @@ def build_image_lookup(oracle_cards_path: Path = ORACLE_CARDS_PATH) -> dict[str,
     with open(oracle_cards_path, "r", encoding="utf-8") as fh:
         cards = json.load(fh)
 
-    lookup: dict[str, str] = {}
+    lookup: dict[str, list[str]] = {}
     for card in cards:
-        url = _card_image_url(card)
-        if url and card.get("name"):
-            lookup[card["name"]] = url
+        urls = _card_face_image_urls(card)
+        if urls and card.get("name"):
+            lookup[card["name"]] = urls
     return lookup
 
 
-def resolve_image_url(commander_name: str, lookup: dict[str, str]) -> str | None:
-    """Look up a commander's image, handling EDHREC's Partner-pair naming.
+def resolve_image_urls(commander_name: str, lookup: dict[str, list[str]]) -> list[str]:
+    """Look up a commander's image(s), handling EDHREC's Partner-pair naming.
 
-    EDHREC displays two-Partner commanders as "A // B", but that combined
-    string usually isn't a real Scryfall card name -- Scryfall has "A" and
-    "B" as two separate cards. Fall back to the first half's art in that
-    case. True double-faced/transform cards already use "A // B" as their
-    actual Scryfall name too, so those match directly without needing the
-    fallback.
+    EDHREC displays two-Partner (or Background) commanders as "A // B",
+    but that combined string usually isn't a real Scryfall card name --
+    Scryfall has "A" and "B" as two separate cards. In that case, look
+    each half up independently and show both. True double-faced/transform
+    cards already use "A // B" as their actual single Scryfall card name
+    too (with front/back already folded into one lookup entry by
+    `build_image_lookup`), so those match directly without needing the
+    per-half fallback.
     """
     if commander_name in lookup:
         return lookup[commander_name]
     if " // " in commander_name:
-        first_half = commander_name.split(" // ", 1)[0]
-        return lookup.get(first_half)
-    return None
+        first_half, second_half = commander_name.split(" // ", 1)
+        return lookup.get(first_half, []) + lookup.get(second_half, [])
+    return []

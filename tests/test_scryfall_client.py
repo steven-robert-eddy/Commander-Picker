@@ -99,13 +99,13 @@ def test_build_image_lookup_prefers_full_card_over_art_crop(tmp_path):
 
     lookup = scryfall_client.build_image_lookup(path)
 
-    assert lookup["Simple Card"] == "https://img/simple.jpg"  # full card, not the art crop
-    assert lookup["Large Only"] == "https://img/large-only.jpg"
-    assert lookup["Art Crop Only Fallback"] == "https://img/fallback-art.jpg"  # last-resort fallback
+    assert lookup["Simple Card"] == ["https://img/simple.jpg"]  # full card, not the art crop
+    assert lookup["Large Only"] == ["https://img/large-only.jpg"]
+    assert lookup["Art Crop Only Fallback"] == ["https://img/fallback-art.jpg"]  # last-resort fallback
     assert "No Images At All" not in lookup
 
 
-def test_build_image_lookup_uses_first_face_for_dfc(tmp_path):
+def test_build_image_lookup_uses_both_faces_for_dfc(tmp_path):
     cards = [
         {
             "name": "Valki, God of Lies // Tibalt, Cosmic Impostor",
@@ -120,7 +120,31 @@ def test_build_image_lookup_uses_first_face_for_dfc(tmp_path):
 
     lookup = scryfall_client.build_image_lookup(path)
 
-    assert lookup["Valki, God of Lies // Tibalt, Cosmic Impostor"] == "https://img/valki.jpg"
+    # Both faces, front then back -- a transform/MDFC commander's two
+    # sides are genuinely different images, not interchangeable art.
+    assert lookup["Valki, God of Lies // Tibalt, Cosmic Impostor"] == [
+        "https://img/valki.jpg",
+        "https://img/tibalt.jpg",
+    ]
+
+
+def test_build_image_lookup_split_card_uses_single_whole_card_image(tmp_path):
+    # Split/adventure layouts also carry `card_faces`, but (unlike
+    # transform/MDFC) share one whole-card `image_uris` at the top
+    # level rather than per-face images -- still just one URL.
+    cards = [
+        {
+            "name": "Fire // Ice",
+            "image_uris": {"normal": "https://img/fire-ice.jpg"},
+            "card_faces": [{"name": "Fire"}, {"name": "Ice"}],
+        }
+    ]
+    path = tmp_path / "oracle_cards.json"
+    path.write_text(json.dumps(cards))
+
+    lookup = scryfall_client.build_image_lookup(path)
+
+    assert lookup["Fire // Ice"] == ["https://img/fire-ice.jpg"]
 
 
 def test_build_image_lookup_missing_file_raises(tmp_path):
@@ -128,18 +152,30 @@ def test_build_image_lookup_missing_file_raises(tmp_path):
         scryfall_client.build_image_lookup(tmp_path / "nope.json")
 
 
-def test_resolve_image_url_direct_match():
-    lookup = {"Korvold, Fae-Cursed King": "https://img/korvold.jpg"}
-    assert scryfall_client.resolve_image_url("Korvold, Fae-Cursed King", lookup) == "https://img/korvold.jpg"
+def test_resolve_image_urls_direct_match():
+    lookup = {"Korvold, Fae-Cursed King": ["https://img/korvold.jpg"]}
+    assert scryfall_client.resolve_image_urls("Korvold, Fae-Cursed King", lookup) == ["https://img/korvold.jpg"]
 
 
-def test_resolve_image_url_partner_pair_falls_back_to_first_half():
+def test_resolve_image_urls_dfc_returns_both_faces():
+    lookup = {"Valki, God of Lies // Tibalt, Cosmic Impostor": ["https://img/valki.jpg", "https://img/tibalt.jpg"]}
+    resolved = scryfall_client.resolve_image_urls("Valki, God of Lies // Tibalt, Cosmic Impostor", lookup)
+    assert resolved == ["https://img/valki.jpg", "https://img/tibalt.jpg"]
+
+
+def test_resolve_image_urls_partner_pair_combines_both_halves():
     # EDHREC's combined name isn't itself a Scryfall card; Scryfall has
-    # each partner as a separate entry.
-    lookup = {"Krark, the Thumbless": "https://img/krark.jpg", "Vial Smasher the Fierce": "https://img/vial.jpg"}
-    resolved = scryfall_client.resolve_image_url("Krark, the Thumbless // Vial Smasher the Fierce", lookup)
-    assert resolved == "https://img/krark.jpg"
+    # each partner as a separate entry -- show both, not just the first.
+    lookup = {"Krark, the Thumbless": ["https://img/krark.jpg"], "Vial Smasher the Fierce": ["https://img/vial.jpg"]}
+    resolved = scryfall_client.resolve_image_urls("Krark, the Thumbless // Vial Smasher the Fierce", lookup)
+    assert resolved == ["https://img/krark.jpg", "https://img/vial.jpg"]
 
 
-def test_resolve_image_url_no_match_returns_none():
-    assert scryfall_client.resolve_image_url("Nonexistent Card", {}) is None
+def test_resolve_image_urls_partner_pair_one_half_missing():
+    lookup = {"Krark, the Thumbless": ["https://img/krark.jpg"]}
+    resolved = scryfall_client.resolve_image_urls("Krark, the Thumbless // Vial Smasher the Fierce", lookup)
+    assert resolved == ["https://img/krark.jpg"]
+
+
+def test_resolve_image_urls_no_match_returns_empty_list():
+    assert scryfall_client.resolve_image_urls("Nonexistent Card", {}) == []

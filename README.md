@@ -53,9 +53,14 @@ archetype/theme pages each commander appeared on.
 
 This also fetches Scryfall's card-art data (a separate, larger
 download — Scryfall's full `oracle_cards` bulk file) and populates
-each commander's `image_url`, used by the web UI's duel cards and
-results ledger. **Unverified against live Scryfall** in this dev
-sandbox (same egress block as edhrec.com) — see PLAN.md Phase 5.
+each commander's `image_urls`, used by the web UI's duel cards and
+results ledger. Most commanders get one image; Partner/Background
+pairs (EDHREC's "A // B" combined name) and double-faced/transform
+commanders get two, shown side by side — the two halves of a
+partner pair are separate Scryfall cards, while a transform card's
+front and back are two faces of the same card. **Unverified against
+live Scryfall** in this dev sandbox (same egress block as
+edhrec.com) — see PLAN.md Phase 5.
 
 Useful flags:
 

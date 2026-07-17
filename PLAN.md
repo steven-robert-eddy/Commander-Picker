@@ -523,6 +523,62 @@ now" cue; they chose automatic stop.
   rounds against a target of 8 auto-transitions to the results screen
   after exactly 8 clicks.
 
+### Multi-card commanders: show both halves / both faces ✅ done
+
+Two-card commanders were only ever shown one image. `scryfall_client
+.resolve_image_url` deliberately fell back to just the first half's
+art for Partner-pair names like "A // B" (documented as a known
+simplification at the time), and single-faced-only lookups meant a
+transform/MDFC commander's back face was never fetched at all. User
+asked for both cards on a Partner/Background pair, and both sides of
+a double-faced commander.
+
+`image_url: str | None` became `image_urls: list[str]` end to end
+(`scryfall_client.py` → `db.py` → `pool.py` → `sessions.py` →
+`web/app.py` (free via `asdict`) → `app.js`/`style.css`):
+
+- `scryfall_client._card_face_image_urls(card)` returns one URL per
+  Scryfall `card_faces` entry when each face carries its own
+  `image_uris` (true transform/MDFC layouts — front and back are
+  genuinely different images), or a single URL from the card's own
+  top-level `image_uris` otherwise (plain cards, and layouts like
+  split/adventure that share one whole-card image despite also having
+  multiple `card_faces`).
+- `build_image_lookup` is now name → list[str] (was name → str).
+- `resolve_image_urls(commander_name, lookup)`: exact-name hits
+  (covers true DFCs, whose own Scryfall name is already "A // B")
+  return that card's face list as-is; a "A // B" EDHREC Partner/
+  Background name with no exact Scryfall match looks up "A" and "B"
+  independently and concatenates both halves' images, instead of the
+  old first-half-only fallback.
+- `commanders.db`'s `image_url TEXT` column became `image_urls TEXT`
+  storing a JSON array (the table is fully rebuilt every
+  `update-data` run, so no migration needed there). `sessions.db`'s
+  `candidates.image_url` migrated to `candidates.image_urls` (JSON
+  array) via the existing add-column migration pattern — since
+  `sessions.db` persists across app upgrades unlike `commanders.db`,
+  the migration also folds any legacy single `image_url` value into
+  the new list column for old on-disk sessions, rather than silently
+  dropping their art.
+- Frontend: `cardInnerHTML` and `renderResults` in `app.js` render a
+  `.card-art-group`/`.rank-thumb-group` of 1–2 images side by side
+  instead of a single `<img>`; `style.css` gives the group flex
+  layout with a hairline seam between two images and keeps each at
+  the real 63:88 card aspect ratio.
+
+Verified: `test_scryfall_client.py` covers per-face DFC extraction,
+the split/adventure single-image case, and partner-pair
+concatenation (including one-half-missing); `test_db.py` and
+`test_sessions.py` cover the JSON round-trip and the legacy
+single-column migration; a manual pipeline smoke test (fixture EDHREC
+page with a Partner pair and a DFC commander → `build_database` →
+`/api/pool` via `TestClient`) confirmed both commanders' `image_urls`
+arrays came through the real API response with 2 entries each, in
+the right order. CSS layout confirmed via a Playwright screenshot of
+`.card-art-group` with two placeholder images (real Scryfall images
+aren't reachable from this sandbox — same limitation as the original
+Scryfall integration). Full suite: 96 passed.
+
 ### Not yet started
 
 - Session history across visits (which commanders have already been

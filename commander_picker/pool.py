@@ -7,9 +7,10 @@ tags into a bounded pool ready to hand to the picker engine (Phase 3).
 
 from __future__ import annotations
 
+import json
 import random
 import sqlite3
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 DEFAULT_MAX_DECKS = 10_000
 DEFAULT_MIN_POOL_SIZE = 4
@@ -28,7 +29,7 @@ class Commander:
     edhrec_url: str | None
     themes: tuple[str, ...]
     salt: float | None = None
-    image_url: str | None = None  # not populated until Phase 5
+    image_urls: list = field(default_factory=list)  # 2 entries for partner pairs / DFCs, else 0 or 1
     price: float | None = None  # not populated until Phase 5
 
 
@@ -84,7 +85,7 @@ def _filtered_candidates(conn: sqlite3.Connection, filters: PoolFilters) -> list
 
     candidates = []
     for row in conn.execute(
-        "SELECT name, color_identity, num_decks, edhrec_url, salt, image_url, price FROM commanders"
+        "SELECT name, color_identity, num_decks, edhrec_url, salt, image_urls, price FROM commanders"
     ):
         if allowed_colors is not None and not _color_identity_matches(
             row["color_identity"], allowed_colors, filters.color_mode
@@ -113,7 +114,7 @@ def _filtered_candidates(conn: sqlite3.Connection, filters: PoolFilters) -> list
                 edhrec_url=row["edhrec_url"],
                 themes=tuple(sorted(commander_themes)),
                 salt=row["salt"],
-                image_url=row["image_url"],
+                image_urls=json.loads(row["image_urls"]) if row["image_urls"] else [],
                 price=row["price"],
             )
         )

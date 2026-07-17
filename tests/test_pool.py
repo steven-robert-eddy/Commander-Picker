@@ -18,7 +18,7 @@ def _make_conn():
             num_decks INTEGER NOT NULL,
             salt REAL,
             edhrec_url TEXT,
-            image_url TEXT,
+            image_urls TEXT,
             price REAL
         );
         CREATE TABLE commander_themes (

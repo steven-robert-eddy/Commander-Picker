@@ -373,14 +373,25 @@ header {
   .card-btn { transition: none; }
 }
 
-.card-art {
-  display: block;
+.card-art-group {
+  display: flex;
   width: calc(100% + 36px);
   margin: -18px -18px 0;
+  border-radius: 16px 16px 0 0;
+  overflow: hidden;
+}
+.card-art {
+  display: block;
+  flex: 1 1 0;
+  min-width: 0;
   aspect-ratio: 63 / 88; /* real Magic card ratio -- show the whole card, not a cropped illustration */
   object-fit: contain;
   background: var(--felt-hi);
-  border-radius: 16px 16px 0 0;
+}
+/* Two images (Partner/Background pair, or a DFC's two faces) share the
+   banner side by side; a hairline seam keeps them visually distinct. */
+.card-art-group .card-art:first-child:not(:last-child) {
+  border-right: 1px solid var(--card-border);
 }
 @keyframes sweep {
   from { background-position: 120% -20%; }
@@ -481,6 +492,7 @@ header {
 .rank-row.top1 .rank-num { color: var(--gold); }
 
 .rank-name-line { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.rank-thumb-group { display: flex; gap: 2px; flex-shrink: 0; }
 .rank-thumb {
   width: 28px;
   height: 39px; /* real Magic card ratio (63/88), not a square crop */

@@ -1,3 +1,4 @@
+import json
 import shutil
 from pathlib import Path
 
@@ -81,11 +82,14 @@ def test_connect_missing_db_raises(tmp_path):
         db.connect(db_path=tmp_path / "nope.db")
 
 
-def test_build_database_populates_image_url_from_lookup(populated_cache):
+def test_build_database_populates_image_urls_from_lookup(populated_cache):
     db_path = populated_cache / "commanders.db"
     image_lookup = {
-        "Rakdos, Lord of Riots": "https://img/rakdos.jpg",
-        "Krark, the Thumbless": "https://img/krark.jpg",  # partner-pair fallback target
+        "Rakdos, Lord of Riots": ["https://img/rakdos.jpg"],
+        # Partner pair -- each half is a separate Scryfall card, so both
+        # should show up in the combined commander's image list.
+        "Krark, the Thumbless": ["https://img/krark.jpg"],
+        "Vial Smasher the Fierce": ["https://img/vial.jpg"],
     }
 
     db.build_database(
@@ -95,31 +99,31 @@ def test_build_database_populates_image_url_from_lookup(populated_cache):
     conn = db.connect(db_path=db_path)
     try:
         row = conn.execute(
-            "SELECT image_url FROM commanders WHERE name = 'Rakdos, Lord of Riots'"
+            "SELECT image_urls FROM commanders WHERE name = 'Rakdos, Lord of Riots'"
         ).fetchone()
-        assert row["image_url"] == "https://img/rakdos.jpg"
+        assert json.loads(row["image_urls"]) == ["https://img/rakdos.jpg"]
 
         partner_row = conn.execute(
-            "SELECT image_url FROM commanders WHERE name = 'Krark, the Thumbless // Vial Smasher the Fierce'"
+            "SELECT image_urls FROM commanders WHERE name = 'Krark, the Thumbless // Vial Smasher the Fierce'"
         ).fetchone()
-        assert partner_row["image_url"] == "https://img/krark.jpg"
+        assert json.loads(partner_row["image_urls"]) == ["https://img/krark.jpg", "https://img/vial.jpg"]
 
         no_image_row = conn.execute(
-            "SELECT image_url FROM commanders WHERE name = 'Valgavoth, Harrower of Souls'"
+            "SELECT image_urls FROM commanders WHERE name = 'Valgavoth, Harrower of Souls'"
         ).fetchone()
-        assert no_image_row["image_url"] is None
+        assert json.loads(no_image_row["image_urls"]) == []
     finally:
         conn.close()
 
 
-def test_build_database_without_image_lookup_leaves_image_url_null(populated_cache):
+def test_build_database_without_image_lookup_leaves_image_urls_empty(populated_cache):
     db_path = populated_cache / "commanders.db"
 
     db.build_database(color_slugs=["rakdos"], theme_slugs=["aristocrats"], db_path=db_path)
 
     conn = db.connect(db_path=db_path)
     try:
-        rows = conn.execute("SELECT image_url FROM commanders").fetchall()
-        assert all(r["image_url"] is None for r in rows)
+        rows = conn.execute("SELECT image_urls FROM commanders").fetchall()
+        assert all(json.loads(r["image_urls"]) == [] for r in rows)
     finally:
         conn.close()

@@ -147,11 +147,16 @@
     const tags = c.themes && c.themes.length
       ? `<div class="theme-tags">${c.themes.map((t) => `<span class="tag">${t}</span>`).join("")}</div>`
       : "";
-    // image_url is only populated when `update-data` fetched Scryfall
+    // image_urls is only populated when `update-data` fetched Scryfall
     // art (see scryfall_client.py) -- gracefully omit the banner
     // entirely rather than showing a broken-image icon when absent.
-    const art = c.image_url
-      ? `<img class="card-art" src="${c.image_url}" alt="" loading="lazy" onerror="this.remove()" />`
+    // Two entries means a Partner/Background pair (two separate cards)
+    // or a double-faced/transform commander (front + back) -- either
+    // way, show both side by side rather than picking just one.
+    const art = c.image_urls && c.image_urls.length
+      ? `<div class="card-art-group">${c.image_urls
+          .map((url) => `<img class="card-art" src="${url}" alt="" loading="lazy" onerror="this.remove()" />`)
+          .join("")}</div>`
       : "";
     return `
       ${art}
@@ -256,8 +261,10 @@
         const delta = c.rating - 1000;
         const deltaClass = delta > 0 ? "up" : "";
         const sign = delta > 0 ? "+" : "";
-        const thumb = c.image_url
-          ? `<img class="rank-thumb" src="${c.image_url}" alt="" loading="lazy" onerror="this.remove()" />`
+        const thumb = c.image_urls && c.image_urls.length
+          ? `<div class="rank-thumb-group">${c.image_urls
+              .map((url) => `<img class="rank-thumb" src="${url}" alt="" loading="lazy" onerror="this.remove()" />`)
+              .join("")}</div>`
           : "";
         return `
           <div class="rank-row ${i === 0 ? "top1" : ""}">

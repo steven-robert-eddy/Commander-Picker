@@ -17,6 +17,7 @@ EDHREC and needs the correct pattern confirmed.
 
 from __future__ import annotations
 
+import json
 import sqlite3
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -42,7 +43,7 @@ class CommanderRecord:
     edhrec_url: str | None
     themes: set = field(default_factory=set)
     salt: float | None = None  # not populated in Phase 1 — see "Known gap" below
-    image_url: str | None = None  # not populated in Phase 1 — see PLAN.md Phase 5
+    image_urls: list = field(default_factory=list)  # 2 entries for partner pairs / DFCs, else 0 or 1
     price: float | None = None  # not populated in Phase 1 — see PLAN.md Phase 5
 
 
@@ -119,22 +120,23 @@ def build_database(
     color_slugs: list[str] | None = None,
     theme_slugs: list[str] | None = None,
     db_path: Path = DB_PATH,
-    image_lookup: dict[str, str] | None = None,
+    image_lookup: dict[str, list[str]] | None = None,
 ) -> Path:
     """Load cached pages and (re)write `data/commanders.db`.
 
-    ``image_lookup`` is a card name -> image URL dict (from
+    ``image_lookup`` is a card name -> image URLs dict (from
     ``scryfall_client.build_image_lookup``); when given, each
-    commander's ``image_url`` is resolved from it (handling EDHREC's
-    Partner-pair naming via ``scryfall_client.resolve_image_url``).
-    Omitted entirely (``None``) if the caller skipped fetching images —
-    left as ``NULL`` in that case, same as before this existed.
+    commander's ``image_urls`` is resolved from it (handling EDHREC's
+    Partner-pair naming, and double-faced/transform cards' two sides,
+    via ``scryfall_client.resolve_image_urls``). Omitted entirely
+    (``None``) if the caller skipped fetching images — left as ``[]``
+    in that case, same as before this existed.
     """
     commanders = load_commanders(color_slugs=color_slugs, theme_slugs=theme_slugs)
 
     if image_lookup is not None:
         for record in commanders.values():
-            record.image_url = scryfall_client.resolve_image_url(record.name, image_lookup)
+            record.image_urls = scryfall_client.resolve_image_urls(record.name, image_lookup)
 
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     if db_path.exists():
@@ -151,7 +153,7 @@ def build_database(
                 num_decks INTEGER NOT NULL,
                 salt REAL,
                 edhrec_url TEXT,
-                image_url TEXT,
+                image_urls TEXT NOT NULL DEFAULT '[]',
                 price REAL
             );
             CREATE TABLE commander_themes (
@@ -169,7 +171,7 @@ def build_database(
             conn.execute(
                 """
                 INSERT INTO commanders
-                    (name, sanitized, color_identity, num_decks, salt, edhrec_url, image_url, price)
+                    (name, sanitized, color_identity, num_decks, salt, edhrec_url, image_urls, price)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
@@ -179,7 +181,7 @@ def build_database(
                     record.num_decks,
                     record.salt,
                     record.edhrec_url,
-                    record.image_url,
+                    json.dumps(record.image_urls),
                     record.price,
                 ),
             )
