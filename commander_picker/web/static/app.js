@@ -153,6 +153,17 @@
       .join("");
   }
 
+  // Target width for a single card face -- each image renders at (up
+  // to) this size regardless of how many faces this commander has or
+  // how much extra room the duel layout happens to give its button,
+  // so a plain 1-image commander doesn't balloon to fill the whole
+  // card-btn while a 2-image commander's faces stay small by
+  // comparison. A 2-image group is capped at roughly double this
+  // (plus the seam gap) so each of its faces still lands at close to
+  // the same size as a single-image opponent's.
+  const CARD_ART_TARGET_WIDTH = 210;
+  const CARD_ART_GAP = 1;
+
   function cardInnerHTML(c) {
     const tags = c.themes && c.themes.length
       ? `<div class="theme-tags">${c.themes.map((t) => `<span class="tag">${t}</span>`).join("")}</div>`
@@ -162,13 +173,11 @@
     // entirely rather than showing a broken-image icon when absent.
     // Two entries means a Partner/Background pair (two separate cards)
     // or a double-faced/transform commander (front + back) -- shown
-    // side by side, both at full card size. On the desktop duel layout
-    // that's made possible by renderPairing() giving this button extra
-    // flex-grow proportional to its image count, so a 2-image side
-    // ends up roughly twice as wide as a 1-image opponent instead of
-    // squeezing two images into the same width and shrinking them.
-    const art = c.image_urls && c.image_urls.length
-      ? `<div class="card-art-group">${c.image_urls
+    // side by side.
+    const count = c.image_urls ? c.image_urls.length : 0;
+    const maxWidth = count * CARD_ART_TARGET_WIDTH + Math.max(0, count - 1) * CARD_ART_GAP;
+    const art = count
+      ? `<div class="card-art-group" style="max-width:${maxWidth}px">${c.image_urls
           .map((url) => `<img class="card-art" src="${url}" alt="" loading="lazy" onerror="this.remove()" />`)
           .join("")}</div>`
       : "";
@@ -203,17 +212,6 @@
       el.disabled = false;
     });
     const [candA, candB] = pairing.candidates;
-    // On the desktop side-by-side duel layout, give each card extra
-    // flex-grow proportional to its own image count (min 1) -- a
-    // 2-image commander's button then ends up roughly twice as wide as
-    // a 1-image opponent's, so each image renders at the same size on
-    // both sides ("two full cards side by side") instead of the
-    // 2-image side shrinking both of its images to fit the same width
-    // as the opponent's one. Only affects the row layout: the mobile
-    // stacked layout gives every card-btn the full viewport width
-    // regardless of flex-grow, so there's nothing to unbalance there.
-    cardA.style.flexGrow = Math.max((candA.image_urls || []).length, 1);
-    cardB.style.flexGrow = Math.max((candB.image_urls || []).length, 1);
     cardA.innerHTML = cardInnerHTML(candA);
     cardB.innerHTML = cardInnerHTML(candB);
   }

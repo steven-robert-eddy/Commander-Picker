@@ -401,26 +401,27 @@ header {
   .card-btn { transition: none; }
 }
 
-/* Two images (Partner/Background pair, or a DFC's two faces) sit side
-   by side at full size. On the desktop row duel layout, app.js gives
-   this card-btn extra flex-grow proportional to its image count, so
-   the container itself is wide enough for both images at the same
-   per-image width as a 1-image opponent -- not shrunk to fit two into
-   an equal-width slot. On the mobile stacked duel layout (or if a
-   card-btn is ever narrower than two images' floor width for some
-   other reason), flex-wrap falls back to stacking the second image
-   below the first, each at full width, rather than squeezing both
-   below a legible size. `gap` + a matching background color draws a
-   1px seam between the images in either orientation without extra
-   selectors. */
+/* app.js caps each card face at a fixed target width (see
+   CARD_ART_TARGET_WIDTH) via an inline max-width on this element, so
+   a plain 1-image commander's art renders at the same standard size
+   as each face of a 2-image Partner/Background pair or DFC, instead
+   of stretching to fill however much room its card-btn happens to
+   have. Centered rather than bled to the button's edges, since it no
+   longer needs to fill the full available width. flex-wrap is still
+   the fallback if the button is ever narrower than two capped faces
+   side by side (e.g. mobile) -- the second wraps below the first
+   instead of squeezing both below a legible size. `gap` + a matching
+   background color draws a 1px seam between the images in either
+   orientation without extra selectors. */
 .card-art-group {
   display: flex;
   flex-wrap: wrap;
+  justify-content: center;
   gap: 1px;
   background: var(--border);
-  width: calc(100% + 36px);
-  margin: -18px -18px 0;
-  border-radius: 16px 16px 0 0;
+  width: 100%;
+  margin: 0 auto;
+  border-radius: 12px;
   overflow: hidden;
 }
 .card-art {
