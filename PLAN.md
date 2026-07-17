@@ -640,6 +640,49 @@ since `svgs.scryfall.io`/`cards.scryfall.io` aren't reachable from
 this sandbox — real rendering to be confirmed on the user's machine
 as with every other Scryfall-dependent piece of this project.
 
+### First live verification of the multi-card/lightbox/mana-pip work ✅ done
+
+The three items above (`image_urls` list, results lightbox, real mana
+symbol SVGs) were all built and only offline/mock-verified in a
+sandbox with no network access to edhrec.com or Scryfall. Ran a real
+`update-data` and `serve` on a machine with real network access:
+
+- **Real bug found and fixed**: EDHREC names a true double-faced/
+  transform/MDFC commander after its **front face only** (e.g.
+  `"Heliod, the Radiant Dawn"`, not Scryfall's actual card name
+  `"Heliod, the Radiant Dawn // Heliod, the Warped Eclipse"`).
+  `resolve_image_urls`'s exact-match path never found these, and its
+  `" // " in commander_name` fallback never triggered either since
+  the EDHREC name has no `//` in it — so every true transform/MDFC
+  commander silently got zero images, the opposite of the Partner-pair
+  case (which does contain `//` and already worked). Confirmed against
+  a live-built `commanders.db`: 132 of 3,801 commanders had empty
+  `image_urls`, 117 of which were true DFCs matchable by front-face
+  name (`Heliod, the Radiant Dawn`, `Archangel Avacyn`, `King
+  T'Challa`, `Katilda, Dawnhart Martyr`, etc.) — a large, systematic
+  gap, not a handful of edge cases.
+  - Fixed in `scryfall_client.py::build_image_lookup`: after indexing
+    every card by its full Scryfall name, a second pass adds a
+    front-face-name alias (`lookup.setdefault(face[0].name, urls)`)
+    for every multi-face card, pointing at the same image list. Uses
+    `setdefault` so it can never override a real card's own entry if a
+    front-face name happens to collide with an unrelated card's full
+    name (covered by a new test).
+  - After the fix: 0 of 3,801 commanders have empty `image_urls`.
+  - Tests: 2 new in `test_scryfall_client.py` (front-face alias
+    resolves both images; alias never overrides a real card's own
+    name).
+- Visually verified via a live `uvicorn` run + Playwright, real
+  network: mana symbol SVGs (`svgs.scryfall.io/card-symbols/*.svg`)
+  load correctly in the filter chips (200 responses, rendered
+  correctly, no console errors); a Partner-pair duel side renders two
+  full, legible real card faces proportionally sized to match a
+  single-card opponent; the results-screen lightbox opens two full-size
+  legible cards for a Commander/Background pair with a working close
+  button; a previously-broken DFC commander (`Heliod, the Radiant
+  Dawn`) now shows its thumbnail on the results screen post-fix. No
+  console errors, no failed network requests across the whole flow.
+
 ### Not yet started
 
 - Session history across visits (which commanders have already been

@@ -143,6 +143,18 @@ def build_image_lookup(oracle_cards_path: Path = ORACLE_CARDS_PATH) -> dict[str,
         urls = _card_face_image_urls(card)
         if urls and card.get("name"):
             lookup[card["name"]] = urls
+
+    # EDHREC names true double-faced/transform/MDFC commanders after their
+    # front face only (e.g. "Heliod, the Radiant Dawn", not "Heliod, the
+    # Radiant Dawn // Heliod, the Warped Eclipse") -- add a front-face-name
+    # alias for those so resolve_image_urls's exact-match path still finds
+    # them. `setdefault` so this never overrides a real card's own full name.
+    for card in cards:
+        faces = card.get("card_faces") or []
+        if len(faces) >= 2 and card.get("name") in lookup:
+            front_name = faces[0].get("name")
+            if front_name:
+                lookup.setdefault(front_name, lookup[card["name"]])
     return lookup
 
 
@@ -153,10 +165,10 @@ def resolve_image_urls(commander_name: str, lookup: dict[str, list[str]]) -> lis
     but that combined string usually isn't a real Scryfall card name --
     Scryfall has "A" and "B" as two separate cards. In that case, look
     each half up independently and show both. True double-faced/transform
-    cards already use "A // B" as their actual single Scryfall card name
-    too (with front/back already folded into one lookup entry by
-    `build_image_lookup`), so those match directly without needing the
-    per-half fallback.
+    cards' full "A // B" Scryfall name, and EDHREC's front-face-only name
+    for the same card, both resolve directly via `lookup` (the latter via
+    the front-face alias `build_image_lookup` adds), so those match
+    without needing the per-half fallback.
     """
     if commander_name in lookup:
         return lookup[commander_name]

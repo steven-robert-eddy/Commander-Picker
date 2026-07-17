@@ -128,6 +128,52 @@ def test_build_image_lookup_uses_both_faces_for_dfc(tmp_path):
     ]
 
 
+def test_build_image_lookup_aliases_front_face_name_for_transform_commanders(tmp_path):
+    # EDHREC names a true transform/MDFC commander after its front face only
+    # (e.g. "Heliod, the Radiant Dawn"), not Scryfall's full "A // B" name --
+    # an exact-match lookup on that front-face-only name must still resolve
+    # both images, not come up empty.
+    cards = [
+        {
+            "name": "Heliod, the Radiant Dawn // Heliod, the Warped Eclipse",
+            "card_faces": [
+                {"name": "Heliod, the Radiant Dawn", "image_uris": {"normal": "https://img/heliod-front.jpg"}},
+                {"name": "Heliod, the Warped Eclipse", "image_uris": {"normal": "https://img/heliod-back.jpg"}},
+            ],
+        }
+    ]
+    path = tmp_path / "oracle_cards.json"
+    path.write_text(json.dumps(cards))
+
+    lookup = scryfall_client.build_image_lookup(path)
+
+    assert lookup["Heliod, the Radiant Dawn"] == [
+        "https://img/heliod-front.jpg",
+        "https://img/heliod-back.jpg",
+    ]
+
+
+def test_build_image_lookup_front_face_alias_does_not_override_real_card(tmp_path):
+    # If a front-face name happens to collide with a real, independent
+    # card's own full name, the real card's own entry must win.
+    cards = [
+        {
+            "name": "Two-Face Card // Two-Face Card Back",
+            "card_faces": [
+                {"name": "Shared Name", "image_uris": {"normal": "https://img/dfc-front.jpg"}},
+                {"name": "Two-Face Card Back", "image_uris": {"normal": "https://img/dfc-back.jpg"}},
+            ],
+        },
+        {"name": "Shared Name", "image_uris": {"normal": "https://img/real-card.jpg"}},
+    ]
+    path = tmp_path / "oracle_cards.json"
+    path.write_text(json.dumps(cards))
+
+    lookup = scryfall_client.build_image_lookup(path)
+
+    assert lookup["Shared Name"] == ["https://img/real-card.jpg"]
+
+
 def test_build_image_lookup_split_card_uses_single_whole_card_image(tmp_path):
     # Split/adventure layouts also carry `card_faces`, but (unlike
     # transform/MDFC) share one whole-card `image_uris` at the top
