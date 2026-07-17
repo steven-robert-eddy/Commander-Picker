@@ -379,6 +379,18 @@ Requested directly by the project owner after trying the real web UI
   box shaped for a landscape illustration. Verified with an SVG
   data-URI placeholder at the correct ratio (real Scryfall images
   aren't reachable from this dev sandbox any more than EDHREC's are).
+  **Note:** `image_url` is resolved once and stored in `commanders.db`
+  at `update-data` time, not recomputed on the fly -- a database built
+  under the old art-crop-preferring code keeps those URLs until
+  `update-data` is run again. Told the user this explicitly after they
+  reported "still no text" on a database that predated this fix.
+- **Responsive duel layout**: side-by-side comparison at ≥720px
+  viewport width (`.duel` switches `flex-direction: column` →
+  `row`, `.medallion`'s overlap margin flips from vertical to
+  horizontal, `main`'s max-width grows from 480px to 860px), stacked
+  top/bottom below that breakpoint. Verified at 420px (stacked) and
+  1100px (side-by-side, medallion centered between the two cards) via
+  Playwright screenshots.
 
 ### UX pass ✅ done
 

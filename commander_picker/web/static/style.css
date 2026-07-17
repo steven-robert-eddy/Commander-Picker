@@ -85,6 +85,10 @@ main {
   gap: 18px;
 }
 
+@media (min-width: 720px) {
+  main { max-width: 860px; }
+}
+
 header {
   display: flex;
   align-items: baseline;
@@ -297,6 +301,18 @@ header {
   position: relative;
 }
 
+/* Side-by-side comparison once there's room for it -- stacked
+   top/bottom is right for a phone, but wastes width on anything
+   tablet-sized or larger. */
+@media (min-width: 720px) {
+  .duel {
+    flex-direction: row;
+    align-items: stretch;
+    gap: 0;
+  }
+  .card-btn { flex: 1 1 0; min-width: 0; }
+}
+
 .medallion {
   align-self: center;
   z-index: 2;
@@ -312,6 +328,10 @@ header {
   display: flex;
   align-items: center;
   justify-content: center;
+  flex-shrink: 0;
+}
+@media (min-width: 720px) {
+  .medallion { margin: 0 -14px; }
 }
 
 .card-btn {
