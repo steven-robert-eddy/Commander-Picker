@@ -143,7 +143,7 @@
     return list.map((c) => `<span class="pip ${c.toLowerCase()}">${c}</span>`).join("");
   }
 
-  function cardInnerHTML(c) {
+  function cardInnerHTML(c, forceStack) {
     const tags = c.themes && c.themes.length
       ? `<div class="theme-tags">${c.themes.map((t) => `<span class="tag">${t}</span>`).join("")}</div>`
       : "";
@@ -151,10 +151,17 @@
     // art (see scryfall_client.py) -- gracefully omit the banner
     // entirely rather than showing a broken-image icon when absent.
     // Two entries means a Partner/Background pair (two separate cards)
-    // or a double-faced/transform commander (front + back) -- either
-    // way, show both side by side rather than picking just one.
+    // or a double-faced/transform commander (front + back) -- shown
+    // side by side when there's room, or stacked on a narrow card (see
+    // .card-art-group in style.css). `forceStack` overrides that and
+    // always stacks -- passed when the duel opponent has a different
+    // number of images, so this side doesn't shrink its images to fit
+    // two in a row while the opponent's single image stays full size;
+    // that mismatch reads as "this commander's art is tiny" rather
+    // than "this commander has two cards."
+    const groupClass = forceStack ? "card-art-group card-art-group--stack" : "card-art-group";
     const art = c.image_urls && c.image_urls.length
-      ? `<div class="card-art-group">${c.image_urls
+      ? `<div class="${groupClass}">${c.image_urls
           .map((url) => `<img class="card-art" src="${url}" alt="" loading="lazy" onerror="this.remove()" />`)
           .join("")}</div>`
       : "";
@@ -188,8 +195,10 @@
       el.classList.remove("winner", "loser");
       el.disabled = false;
     });
-    cardA.innerHTML = cardInnerHTML(pairing.candidates[0]);
-    cardB.innerHTML = cardInnerHTML(pairing.candidates[1]);
+    const [candA, candB] = pairing.candidates;
+    const countsDiffer = (candA.image_urls || []).length !== (candB.image_urls || []).length;
+    cardA.innerHTML = cardInnerHTML(candA, countsDiffer);
+    cardB.innerHTML = cardInnerHTML(candB, countsDiffer);
   }
 
   async function startSession() {

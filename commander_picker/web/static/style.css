@@ -399,6 +399,22 @@ header {
   object-fit: contain;
   background: var(--felt-hi);
 }
+/* app.js adds this when the duel opponent has a different number of
+   images -- without it, this side's images would shrink to fit two
+   in a row while the opponent's single image stays full width,
+   making this commander's art look small/cramped by comparison
+   rather than reading as "two cards." Always stack full width
+   instead, so each image matches the opponent's image width exactly
+   even though this card-btn ends up taller overall. */
+.card-art-group--stack {
+  flex-direction: column;
+  flex-wrap: nowrap;
+}
+.card-art-group--stack .card-art {
+  flex: 0 0 auto;
+  width: 100%;
+  min-width: 0;
+}
 @keyframes sweep {
   from { background-position: 120% -20%; }
   to { background-position: -20% 120%; }
