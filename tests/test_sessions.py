@@ -222,3 +222,45 @@ def test_migration_adds_image_url_column_to_old_db(tmp_path):
     conn = sessions.connect(db_path=db_path)
     session_id = sessions.create_session(conn, [_commander("A", image_url="https://img/a.jpg"), _commander("B")])
     assert sessions.get_candidates(conn, session_id)["A"].image_url == "https://img/a.jpg"
+
+
+def test_record_pick_auto_finishes_at_target_rounds(conn):
+    # 2 candidates -> target_rounds = round(2 * log2(2)) = 2.
+    candidates = [_commander("A"), _commander("B")]
+    session_id = sessions.create_session(conn, candidates)
+    info = sessions.get_session(conn, session_id)
+    assert info.target_rounds == 2
+
+    sessions.record_pick(conn, session_id, "A", "B")
+    assert sessions.get_session(conn, session_id).status == "active"
+
+    sessions.record_pick(conn, session_id, "A", "B")
+    finished = sessions.get_session(conn, session_id)
+    assert finished.status == "complete"
+    assert finished.rounds_completed == 2
+    assert sessions.next_pairing(conn, session_id) is None
+
+
+def test_next_pairing_self_heals_a_session_already_past_target(conn):
+    # Simulates a session created before auto-finish existed, sitting
+    # well past its target_rounds with status still 'active' -- should
+    # finalize the moment anything asks it for a pairing, not require
+    # one more pick first.
+    candidates = [_commander("A"), _commander("B"), _commander("C")]
+    session_id = sessions.create_session(conn, candidates)
+    conn.execute("UPDATE sessions SET rounds_completed = 999 WHERE id = ?", (session_id,))
+    conn.commit()
+
+    assert sessions.get_session(conn, session_id).status == "active"
+    assert sessions.next_pairing(conn, session_id) is None
+    assert sessions.get_session(conn, session_id).status == "complete"
+
+
+def test_record_pick_on_already_finished_session_raises(conn):
+    candidates = [_commander("A"), _commander("B")]
+    session_id = sessions.create_session(conn, candidates)
+    sessions.record_pick(conn, session_id, "A", "B")
+    sessions.record_pick(conn, session_id, "A", "B")  # reaches target_rounds=2, auto-finishes
+
+    with pytest.raises(sessions.SessionError):
+        sessions.record_pick(conn, session_id, "A", "B")

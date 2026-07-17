@@ -186,9 +186,31 @@ def get_candidates(conn: sqlite3.Connection, session_id: str) -> dict[str, Candi
     }
 
 
+def _maybe_auto_finish(conn: sqlite3.Connection, session_id: str) -> SessionInfo:
+    """Finalize the session if it's reached target_rounds and hasn't been marked complete yet.
+
+    target_rounds used to be purely a suggestion -- sessions stayed
+    active indefinitely until the user explicitly finished, with no
+    real signal in the web UI that the suggested count had passed
+    (the CLI printed a one-time message; the web UI printed nothing at
+    all). Confirmed with the user this was confusing rather than
+    useful: they wanted a real stopping point, not an unbounded
+    session with no visible end. Called from both `next_pairing` (so
+    a session already sitting past its target -- e.g. one created
+    before this existed -- self-heals the next time anything touches
+    it, not just after one more pick) and `record_pick` (so it
+    finalizes at the exact pick that reaches the threshold).
+    """
+    info = get_session(conn, session_id)
+    if info.status == "active" and info.rounds_completed >= info.target_rounds:
+        finish_session(conn, session_id)
+        info = get_session(conn, session_id)
+    return info
+
+
 def next_pairing(conn: sqlite3.Connection, session_id: str, rng=None) -> tuple[str, str] | None:
     """The next pair to present, or None if the session isn't active."""
-    info = get_session(conn, session_id)
+    info = _maybe_auto_finish(conn, session_id)
     if info.status != "active":
         return None
     ratings = _ratings(conn, session_id)
@@ -197,6 +219,14 @@ def next_pairing(conn: sqlite3.Connection, session_id: str, rng=None) -> tuple[s
 
 
 def record_pick(conn: sqlite3.Connection, session_id: str, winner: str, loser: str) -> None:
+    # Guards against a stale client (a duel screen left open past
+    # auto-finish, e.g. in a second tab) still POSTing a pick after the
+    # session has already concluded -- the round it's picking for
+    # doesn't exist anymore.
+    info = _maybe_auto_finish(conn, session_id)
+    if info.status != "active":
+        raise SessionError(f"Session {session_id!r} is {info.status}, not active -- can't record a pick.")
+
     ratings = _ratings(conn, session_id)
     if winner not in ratings or loser not in ratings:
         raise SessionError("winner/loser must both be candidates in this session")
@@ -218,6 +248,7 @@ def record_pick(conn: sqlite3.Connection, session_id: str, winner: str, loser: s
     )
     conn.execute("UPDATE sessions SET rounds_completed = rounds_completed + 1 WHERE id = ?", (session_id,))
     conn.commit()
+    _maybe_auto_finish(conn, session_id)
 
 
 def finish_session(conn: sqlite3.Connection, session_id: str) -> None:

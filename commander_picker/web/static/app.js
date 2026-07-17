@@ -215,12 +215,28 @@
     try {
       const pairing = await api("POST", `/api/sessions/${sessionId}/pick`, { winner: winnerName, loser: loserName });
       setTimeout(() => {
-        if (pairing) renderPairing(pairing);
+        if (pairing) {
+          renderPairing(pairing);
+        } else {
+          // The session auto-finished (reached its round count) --
+          // there's no next pairing, so show final results instead of
+          // leaving the last duel frozen on screen with nothing to do.
+          showFinalResults();
+        }
       }, delay);
     } catch (e) {
       window.alert(e.message);
       $("card-a").disabled = false;
       $("card-b").disabled = false;
+    }
+  }
+
+  async function showFinalResults() {
+    try {
+      const { rankings } = await api("GET", `/api/sessions/${sessionId}/results`);
+      renderResults(rankings);
+    } catch (e) {
+      window.alert(e.message);
     }
   }
 

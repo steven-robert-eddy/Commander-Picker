@@ -138,6 +138,37 @@ def test_full_session_lifecycle(client):
     assert pairing_resp.json() is None
 
 
+def test_session_auto_finishes_at_target_rounds(client):
+    created = client.post("/api/sessions", json=_pool_body()).json()
+    session_id = created["session_id"]
+    target_rounds = created["info"]["target_rounds"]
+    assert target_rounds > 0
+
+    pairing = created["pairing"]
+    for _ in range(target_rounds):
+        a, b = pairing["candidates"]
+        resp = client.post(f"/api/sessions/{session_id}/pick", json={"winner": a["name"], "loser": b["name"]})
+        assert resp.status_code == 200
+        pairing = resp.json()
+
+    # The pick that completed the final round should have returned no
+    # further pairing -- the session auto-finished, not just "reached
+    # the suggested count with nothing visibly different."
+    assert pairing is None
+
+    info = client.get(f"/api/sessions/{session_id}").json()
+    assert info["status"] == "complete"
+    assert info["rounds_completed"] == target_rounds
+
+    # A stale client trying to pick again after auto-finish gets a
+    # clear error, not silently-accepted data for a round that no
+    # longer exists.
+    a_name = created["pairing"]["candidates"][0]["name"]
+    b_name = created["pairing"]["candidates"][1]["name"]
+    late_pick = client.post(f"/api/sessions/{session_id}/pick", json={"winner": a_name, "loser": b_name})
+    assert late_pick.status_code == 400
+
+
 def test_pick_unknown_session_returns_400(client):
     resp = client.post("/api/sessions/does-not-exist/pick", json={"winner": "A", "loser": "B"})
     assert resp.status_code == 400

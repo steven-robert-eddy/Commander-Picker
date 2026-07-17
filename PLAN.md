@@ -222,10 +222,11 @@ color identities, deck counts, and theme tags.
   DB dependency (unit-testable in isolation, reused by `sessions.py`).
   - `expected_score`/`update_ratings`: standard Elo formula, all
     candidates start at rating 1000, `K_FACTOR=32`.
-  - `target_round_count(pool_size)`: `n * log2(n)` heuristic, a
-    **suggestion** surfaced to the user (printed mid-session), not a
-    hard cutoff — sessions stay active and keep offering pairings past
-    it until the user explicitly finishes.
+  - `target_round_count(pool_size)`: `n * log2(n)` heuristic. Originally
+    a soft suggestion (sessions stayed active indefinitely past it) —
+    **changed to a hard cutoff in Phase 5** after a user played 70
+    rounds of a 15-commander session (target 59) with no sign it would
+    ever stop; see Phase 5 below.
   - `choose_pairing`: early rounds (first third of target_rounds) pair
     uniformly at random across the whole pool for initial signal;
     later rounds sort by current rating and pair rating-adjacent
@@ -470,6 +471,57 @@ exact mode; colorless doesn't leak into an unrelated subset selection;
 colorless is included when "C" is explicitly added to a subset
 selection). Also re-verified live via Playwright against the exact
 repro the user described.
+
+### Round count: suggestion → hard cutoff ✅ done
+
+Reported: "I did 15 commanders and it didn't stop after the
+recommended 59 rounds, I am up to 70 and it is not ending." This was
+working exactly as originally designed (`target_rounds` was explicitly
+a soft suggestion, Phase 3's own docstring said so) — but the design
+itself was wrong. Asked the user directly whether they wanted a prompt
+at the threshold, an automatic stop, or just a clearer "you can stop
+now" cue; they chose automatic stop.
+
+- `sessions.py` gained `_maybe_auto_finish`: checks whether
+  `rounds_completed >= target_rounds` on an active session and calls
+  `finish_session` if so. Called from **both** `next_pairing` (so a
+  session already sitting past its target — like the one in the bug
+  report, or any session created before this existed — self-heals the
+  moment anything asks it for a pairing, not just after one more pick)
+  and `record_pick` (finalizes at the exact pick that crosses the
+  threshold).
+- **Real gap this surfaced**: `record_pick` never checked session
+  status before recording a pick — a stale client (a duel screen left
+  open past auto-finish, e.g. a second tab) could still POST a pick
+  for a round that no longer existed, and it would be silently
+  accepted. Added a guard: `record_pick` now raises `SessionError` (→
+  `400` over the API) if the session isn't `active`.
+- **Real gap this surfaced in the web frontend**: `app.js`'s `pick()`
+  handled a `null` pairing response (the shape auto-finish produces)
+  by doing *nothing* — `if (pairing) renderPairing(pairing);` had no
+  `else`. Before this change that branch was dead code (sessions never
+  auto-completed), so it had never been exercised; auto-finish made it
+  reachable immediately. Fixed: a `null` pairing now fetches and
+  renders the final results screen instead of leaving the last duel
+  frozen on screen with no next action.
+- CLI (`_interactive_loop`) restructured to check session status at
+  the top of each loop iteration and print "Finished!" with full
+  rankings the moment the session is no longer active, rather than the
+  old per-pick "you've reached the suggested count" message that
+  didn't actually change anything. Dropped "suggested"/`~` wording
+  throughout the CLI and web UI now that the count is exact, not an
+  estimate.
+- Tests: 3 new in `test_sessions.py` (auto-finish exactly at
+  `target_rounds`; a session manually set past its target self-heals
+  via `next_pairing` alone, no pick required; `record_pick` on an
+  already-finished session raises), 1 new in `test_web.py` (drives a
+  full session to its real `target_rounds` via the API, confirms the
+  final pick's response is `null`, confirms a follow-up pick attempt
+  gets `400`). Also re-verified live: CLI with 20 buffered picks
+  against a target of 8 stops exactly at round 8 and cleanly ignores
+  the extra buffered input; web UI via Playwright clicking through 15
+  rounds against a target of 8 auto-transitions to the results screen
+  after exactly 8 clicks.
 
 ### Not yet started
 

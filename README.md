@@ -110,10 +110,10 @@ commander-picker play --colors BRG --themes tokens
 Each round shows two candidates; type `1` or `2` to pick your
 favorite, `f` to finish early and see the final ranking, or `q` to
 pause (the session stays saved and resumable). Ratings update via a
-standard Elo formula after each pick. A suggested round count (roughly
-`pool_size * log2(pool_size)`) is shown as guidance, not a hard
-cutoff — keep going past it for finer-grained results, or stop
-whenever you're satisfied.
+standard Elo formula after each pick. A session automatically finishes
+once it reaches its target round count (roughly `pool_size *
+log2(pool_size)`) and shows the final ranking — use `f` any time
+before that to stop sooner.
 
 ```bash
 commander-picker sessions                 # list all sessions (active + finished)

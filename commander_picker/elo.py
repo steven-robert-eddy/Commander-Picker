@@ -32,14 +32,19 @@ def update_ratings(winner_rating: float, loser_rating: float, k: float = K_FACTO
 
 
 def target_round_count(pool_size: int) -> int:
-    """Suggested number of comparisons to reasonably separate a pool this size.
+    """Number of comparisons to reasonably separate a pool this size.
 
     `n * log2(n)` is a common heuristic for comparison-sort-like
     problems -- enough rounds for ratings to meaningfully separate
-    without demanding an exhaustive round robin. This is a
-    SUGGESTION surfaced to the user, not a hard cutoff -- sessions
-    stay `active` and keep offering pairings past this point until the
-    user explicitly ends the session.
+    without demanding an exhaustive round robin. `sessions.py` treats
+    this as a hard stopping point: a session auto-finishes once
+    `rounds_completed` reaches it (originally this was meant as a
+    soft suggestion with sessions staying open indefinitely past it,
+    but that left no visible end -- a user reported playing 70 rounds
+    of a session with a target of 59 with no sign it would ever stop,
+    since the web UI in particular gave no indication anything had
+    changed once the target was crossed). `finish_session`/the "finish
+    early" actions still let a session end before this point.
     """
     if pool_size <= 1:
         return 0

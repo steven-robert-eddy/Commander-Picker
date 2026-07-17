@@ -111,6 +111,14 @@ def _print_rankings(ranked: list[sessions.RankedCommander], limit: int | None = 
 def _interactive_loop(conn: object, session_id: str) -> None:
     while True:
         info = sessions.get_session(conn, session_id)
+        if info.status != "active":
+            # Reached target_rounds -- record_pick/next_pairing auto-finish
+            # the session at that point now, no more open-ended play past
+            # the round count with no visible stopping point.
+            print("\nFinished! Final ranking:")
+            _print_rankings(sessions.get_rankings(conn, session_id))
+            return
+
         pairing = sessions.next_pairing(conn, session_id)
         if pairing is None:
             print("Session is no longer active.")
@@ -124,14 +132,14 @@ def _interactive_loop(conn: object, session_id: str) -> None:
                 (session_id, a, b),
             ).fetchall()
         }
-        print(f"\nRound {info.rounds_completed + 1} (suggested ~{info.target_rounds} total):")
+        print(f"\nRound {info.rounds_completed + 1} of {info.target_rounds}:")
         for i, name in enumerate((a, b), start=1):
             row = candidate_info[name]
             color_display = row["color_identity"] or "C"
             print(f"  [{i}] {name} ({color_display}, {row['num_decks']} decks)")
 
         try:
-            choice = input("Pick 1 or 2 ('f' to finish, 'q' to pause): ").strip().lower()
+            choice = input("Pick 1 or 2 ('f' to finish early, 'q' to pause): ").strip().lower()
         except (EOFError, KeyboardInterrupt):
             print("\nPaused.")
             break
@@ -150,13 +158,6 @@ def _interactive_loop(conn: object, session_id: str) -> None:
 
         winner, loser = (a, b) if choice == "1" else (b, a)
         sessions.record_pick(conn, session_id, winner, loser)
-
-        new_info = sessions.get_session(conn, session_id)
-        if new_info.rounds_completed == new_info.target_rounds:
-            print(
-                f"\nYou've reached the suggested {new_info.target_rounds} rounds. "
-                "Type 'f' anytime to finish, or keep going for finer results."
-            )
 
     print(f"Resume later with: commander-picker resume {session_id}")
     print("Current standings:")
@@ -189,7 +190,7 @@ def _cmd_play(args: argparse.Namespace) -> int:
     session_id = sessions.create_session(session_conn, candidates, description=pool.describe_filters(filters))
     info = sessions.get_session(session_conn, session_id)
     print(f"Started session {session_id} with {info.pool_size} candidates ({pool.describe_filters(filters)}).")
-    print(f"Suggested ~{info.target_rounds} rounds -- pick your favorite each round.")
+    print(f"{info.target_rounds} rounds -- pick your favorite each round ('f' to finish early).")
 
     _interactive_loop(session_conn, session_id)
     session_conn.close()
