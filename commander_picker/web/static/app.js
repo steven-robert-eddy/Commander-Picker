@@ -143,7 +143,7 @@
     return list.map((c) => `<span class="pip ${c.toLowerCase()}">${c}</span>`).join("");
   }
 
-  function cardInnerHTML(c, forceStack) {
+  function cardInnerHTML(c) {
     const tags = c.themes && c.themes.length
       ? `<div class="theme-tags">${c.themes.map((t) => `<span class="tag">${t}</span>`).join("")}</div>`
       : "";
@@ -152,16 +152,13 @@
     // entirely rather than showing a broken-image icon when absent.
     // Two entries means a Partner/Background pair (two separate cards)
     // or a double-faced/transform commander (front + back) -- shown
-    // side by side when there's room, or stacked on a narrow card (see
-    // .card-art-group in style.css). `forceStack` overrides that and
-    // always stacks -- passed when the duel opponent has a different
-    // number of images, so this side doesn't shrink its images to fit
-    // two in a row while the opponent's single image stays full size;
-    // that mismatch reads as "this commander's art is tiny" rather
-    // than "this commander has two cards."
-    const groupClass = forceStack ? "card-art-group card-art-group--stack" : "card-art-group";
+    // side by side, both at full card size. On the desktop duel layout
+    // that's made possible by renderPairing() giving this button extra
+    // flex-grow proportional to its image count, so a 2-image side
+    // ends up roughly twice as wide as a 1-image opponent instead of
+    // squeezing two images into the same width and shrinking them.
     const art = c.image_urls && c.image_urls.length
-      ? `<div class="${groupClass}">${c.image_urls
+      ? `<div class="card-art-group">${c.image_urls
           .map((url) => `<img class="card-art" src="${url}" alt="" loading="lazy" onerror="this.remove()" />`)
           .join("")}</div>`
       : "";
@@ -196,9 +193,19 @@
       el.disabled = false;
     });
     const [candA, candB] = pairing.candidates;
-    const countsDiffer = (candA.image_urls || []).length !== (candB.image_urls || []).length;
-    cardA.innerHTML = cardInnerHTML(candA, countsDiffer);
-    cardB.innerHTML = cardInnerHTML(candB, countsDiffer);
+    // On the desktop side-by-side duel layout, give each card extra
+    // flex-grow proportional to its own image count (min 1) -- a
+    // 2-image commander's button then ends up roughly twice as wide as
+    // a 1-image opponent's, so each image renders at the same size on
+    // both sides ("two full cards side by side") instead of the
+    // 2-image side shrinking both of its images to fit the same width
+    // as the opponent's one. Only affects the row layout: the mobile
+    // stacked layout gives every card-btn the full viewport width
+    // regardless of flex-grow, so there's nothing to unbalance there.
+    cardA.style.flexGrow = Math.max((candA.image_urls || []).length, 1);
+    cardB.style.flexGrow = Math.max((candB.image_urls || []).length, 1);
+    cardA.innerHTML = cardInnerHTML(candA);
+    cardB.innerHTML = cardInnerHTML(candB);
   }
 
   async function startSession() {

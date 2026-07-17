@@ -374,13 +374,17 @@ header {
 }
 
 /* Two images (Partner/Background pair, or a DFC's two faces) sit side
-   by side, shrinking a bit, whenever the card-btn is wide enough for
-   both at a legible size (min-width below) -- otherwise the second
-   wraps below the first, each back to full width. No media query
-   needed: flex-wrap responds to the card's actual rendered width,
-   which already varies with the stacked/side-by-side duel layout.
-   `gap` + a matching background color draws a 1px seam between the
-   images in either orientation without extra selectors. */
+   by side at full size. On the desktop row duel layout, app.js gives
+   this card-btn extra flex-grow proportional to its image count, so
+   the container itself is wide enough for both images at the same
+   per-image width as a 1-image opponent -- not shrunk to fit two into
+   an equal-width slot. On the mobile stacked duel layout (or if a
+   card-btn is ever narrower than two images' floor width for some
+   other reason), flex-wrap falls back to stacking the second image
+   below the first, each at full width, rather than squeezing both
+   below a legible size. `gap` + a matching background color draws a
+   1px seam between the images in either orientation without extra
+   selectors. */
 .card-art-group {
   display: flex;
   flex-wrap: wrap;
@@ -398,22 +402,6 @@ header {
   aspect-ratio: 63 / 88; /* real Magic card ratio -- show the whole card, not a cropped illustration */
   object-fit: contain;
   background: var(--felt-hi);
-}
-/* app.js adds this when the duel opponent has a different number of
-   images -- without it, this side's images would shrink to fit two
-   in a row while the opponent's single image stays full width,
-   making this commander's art look small/cramped by comparison
-   rather than reading as "two cards." Always stack full width
-   instead, so each image matches the opponent's image width exactly
-   even though this card-btn ends up taller overall. */
-.card-art-group--stack {
-  flex-direction: column;
-  flex-wrap: nowrap;
-}
-.card-art-group--stack .card-art {
-  flex: 0 0 auto;
-  width: 100%;
-  min-width: 0;
 }
 @keyframes sweep {
   from { background-position: 120% -20%; }
