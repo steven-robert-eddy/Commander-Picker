@@ -3,7 +3,7 @@ from __future__ import annotations
 import argparse
 import sys
 
-from commander_picker import db, edhrec_client, pool, sessions
+from commander_picker import db, edhrec_client, pool, scryfall_client, sessions
 from commander_picker.colors import all_slugs
 from commander_picker.themes import THEME_SLUGS
 
@@ -36,9 +36,19 @@ def _cmd_update_data(args: argparse.Namespace) -> int:
                 + ", ".join(f.slug for f in theme_failures)
             )
 
+    image_lookup = None
+    if not args.skip_images:
+        print("Fetching Scryfall card images...")
+        try:
+            oracle_path = scryfall_client.fetch_oracle_cards(force=args.force)
+            image_lookup = scryfall_client.build_image_lookup(oracle_path)
+            print(f"  {len(image_lookup)} card images available")
+        except scryfall_client.ScryfallFetchError as exc:
+            print(f"  warning: couldn't fetch card images ({exc}) -- continuing without them", file=sys.stderr)
+
     print("Building data/commanders.db...")
     try:
-        path = db.build_database(color_slugs=color_slugs, theme_slugs=theme_slugs)
+        path = db.build_database(color_slugs=color_slugs, theme_slugs=theme_slugs, image_lookup=image_lookup)
     except db.DbError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
@@ -281,6 +291,7 @@ def build_parser() -> argparse.ArgumentParser:
     update.add_argument("--force", action="store_true", help="bypass the freshness cache")
     update.add_argument("--colors", help="comma-separated color slugs to fetch (default: all)")
     update.add_argument("--themes", help="comma-separated theme slugs to fetch (default: all)")
+    update.add_argument("--skip-images", action="store_true", help="skip fetching Scryfall card images")
     update.set_defaults(func=_cmd_update_data)
 
     pool_cmd = subparsers.add_parser("pool", help="preview a filtered candidate pool")

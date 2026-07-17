@@ -43,6 +43,7 @@ def _ensure_schema(conn: sqlite3.Connection) -> None:
             num_decks INTEGER,
             edhrec_url TEXT,
             themes TEXT NOT NULL DEFAULT '',
+            image_url TEXT,
             rating REAL NOT NULL,
             PRIMARY KEY (session_id, commander_name)
         );
@@ -56,12 +57,14 @@ def _ensure_schema(conn: sqlite3.Connection) -> None:
         );
         """
     )
-    # Migration for sessions.db files created before the `themes` column
+    # Migration for sessions.db files created before these columns
     # existed (CREATE TABLE IF NOT EXISTS doesn't add columns to an
     # already-existing table).
     existing_columns = {row["name"] for row in conn.execute("PRAGMA table_info(candidates)")}
     if "themes" not in existing_columns:
         conn.execute("ALTER TABLE candidates ADD COLUMN themes TEXT NOT NULL DEFAULT ''")
+    if "image_url" not in existing_columns:
+        conn.execute("ALTER TABLE candidates ADD COLUMN image_url TEXT")
     conn.commit()
 
 
@@ -88,10 +91,19 @@ def create_session(conn: sqlite3.Connection, candidates: list[Commander], descri
         (session_id, time.time(), description, target_rounds),
     )
     conn.executemany(
-        "INSERT INTO candidates (session_id, commander_name, color_identity, num_decks, edhrec_url, themes, rating) "
-        "VALUES (?, ?, ?, ?, ?, ?, ?)",
+        "INSERT INTO candidates (session_id, commander_name, color_identity, num_decks, edhrec_url, themes, image_url, rating) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
         [
-            (session_id, c.name, c.color_identity, c.num_decks, c.edhrec_url, ",".join(c.themes), elo.DEFAULT_RATING)
+            (
+                session_id,
+                c.name,
+                c.color_identity,
+                c.num_decks,
+                c.edhrec_url,
+                ",".join(c.themes),
+                c.image_url,
+                elo.DEFAULT_RATING,
+            )
             for c in candidates
         ],
     )
@@ -152,6 +164,7 @@ class CandidateDetail:
     num_decks: int
     edhrec_url: str | None
     themes: tuple[str, ...]
+    image_url: str | None
     rating: float
 
 
@@ -166,6 +179,7 @@ def get_candidates(conn: sqlite3.Connection, session_id: str) -> dict[str, Candi
             num_decks=r["num_decks"],
             edhrec_url=r["edhrec_url"],
             themes=tuple(t for t in (r["themes"] or "").split(",") if t),
+            image_url=r["image_url"],
             rating=r["rating"],
         )
         for r in rows
@@ -219,11 +233,12 @@ class RankedCommander:
     num_decks: int
     edhrec_url: str | None
     themes: tuple[str, ...]
+    image_url: str | None
 
 
 def get_rankings(conn: sqlite3.Connection, session_id: str) -> list[RankedCommander]:
     rows = conn.execute(
-        "SELECT commander_name, rating, color_identity, num_decks, edhrec_url, themes FROM candidates "
+        "SELECT commander_name, rating, color_identity, num_decks, edhrec_url, themes, image_url FROM candidates "
         "WHERE session_id = ? ORDER BY rating DESC",
         (session_id,),
     ).fetchall()
@@ -235,6 +250,7 @@ def get_rankings(conn: sqlite3.Connection, session_id: str) -> list[RankedComman
             num_decks=r["num_decks"],
             edhrec_url=r["edhrec_url"],
             themes=tuple(t for t in (r["themes"] or "").split(",") if t),
+            image_url=r["image_url"],
         )
         for r in rows
     ]

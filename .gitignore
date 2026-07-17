@@ -5,8 +5,9 @@ __pycache__/
 build/
 dist/
 
-# Cached EDHREC pages and derived DB — regenerated via `commander-picker update-data`
+# Cached EDHREC/Scryfall pages and derived DB — regenerated via `commander-picker update-data`
 data/edhrec/*.json
+data/scryfall/
 data/*.db
 data/edhrec_meta.json
 !data/.gitkeep

@@ -79,3 +79,47 @@ def test_build_database_writes_queryable_sqlite(populated_cache):
 def test_connect_missing_db_raises(tmp_path):
     with pytest.raises(db.DbError):
         db.connect(db_path=tmp_path / "nope.db")
+
+
+def test_build_database_populates_image_url_from_lookup(populated_cache):
+    db_path = populated_cache / "commanders.db"
+    image_lookup = {
+        "Rakdos, Lord of Riots": "https://img/rakdos.jpg",
+        "Krark, the Thumbless": "https://img/krark.jpg",  # partner-pair fallback target
+    }
+
+    db.build_database(
+        color_slugs=["rakdos"], theme_slugs=["aristocrats"], db_path=db_path, image_lookup=image_lookup
+    )
+
+    conn = db.connect(db_path=db_path)
+    try:
+        row = conn.execute(
+            "SELECT image_url FROM commanders WHERE name = 'Rakdos, Lord of Riots'"
+        ).fetchone()
+        assert row["image_url"] == "https://img/rakdos.jpg"
+
+        partner_row = conn.execute(
+            "SELECT image_url FROM commanders WHERE name = 'Krark, the Thumbless // Vial Smasher the Fierce'"
+        ).fetchone()
+        assert partner_row["image_url"] == "https://img/krark.jpg"
+
+        no_image_row = conn.execute(
+            "SELECT image_url FROM commanders WHERE name = 'Valgavoth, Harrower of Souls'"
+        ).fetchone()
+        assert no_image_row["image_url"] is None
+    finally:
+        conn.close()
+
+
+def test_build_database_without_image_lookup_leaves_image_url_null(populated_cache):
+    db_path = populated_cache / "commanders.db"
+
+    db.build_database(color_slugs=["rakdos"], theme_slugs=["aristocrats"], db_path=db_path)
+
+    conn = db.connect(db_path=db_path)
+    try:
+        rows = conn.execute("SELECT image_url FROM commanders").fetchall()
+        assert all(r["image_url"] is None for r in rows)
+    finally:
+        conn.close()

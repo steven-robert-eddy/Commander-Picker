@@ -13,7 +13,7 @@ from pathlib import Path
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from commander_picker import db, pool as pool_module, sessions
 from commander_picker.themes import THEME_SLUGS
@@ -30,8 +30,11 @@ class FiltersBody(BaseModel):
     min_decks: int | None = None
     themes: list[str] = []
     themes_mode: str = "any"
-    pool_size: int = pool_module.DEFAULT_MAX_POOL_SIZE
-    min_pool_size: int = pool_module.DEFAULT_MIN_POOL_SIZE
+    # Bounded so a stray client value (or someone poking the API
+    # directly) can't request an absurd pool size -- 200 is well above
+    # any reasonable duel session length.
+    pool_size: int = Field(default=pool_module.DEFAULT_MAX_POOL_SIZE, ge=2, le=200)
+    min_pool_size: int = Field(default=pool_module.DEFAULT_MIN_POOL_SIZE, ge=1, le=200)
 
 
 def _to_pool_filters(body: FiltersBody) -> pool_module.PoolFilters:
@@ -86,10 +89,12 @@ def api_themes():
 def api_pool(body: FiltersBody):
     conn = _catalog_conn()
     try:
+        filters = _to_pool_filters(body)
+        total_matches = pool_module.count_matches(conn, filters)
         candidates = _build_pool_or_422(conn, body)
     finally:
         conn.close()
-    return {"candidates": [asdict(c) for c in candidates]}
+    return {"total_matches": total_matches, "candidates": [asdict(c) for c in candidates]}
 
 
 @app.post("/api/sessions")

@@ -325,11 +325,75 @@ color identities, deck counts, and theme tags.
   winner foil-sweep, and final results) — not just curl, an actual
   rendered browser check end to end.
 
-## Phase 5 — Stretch (not started)
+## Phase 5 — Stretch (partially done)
 
-- Card images sourced from Scryfall (EDHREC pages link card names, not
-  always hotlinkable images) — small Scryfall lookup, not a full bulk
-  import.
+### Card images ✅ done
+
+Requested directly by the project owner after trying the real web UI
+("show a picture of the cards being compared").
+
+- `commander_picker/scryfall_client.py`: fetches Scryfall's
+  `oracle_cards` bulk data (same two-request pattern as
+  `edhrec_client.py` — GET the bulk-data index to find the current
+  download URL, then GET that URL for the actual card file), caches to
+  `data/scryfall/`, builds a `name -> art_crop image URL` lookup.
+  **Unverified against live Scryfall** — this dev sandbox blocks
+  `api.scryfall.com` same as it blocks edhrec.com — built from public
+  API docs, same discipline as the rest of this project: verify once
+  someone with real network access runs `update-data`.
+- Handles EDHREC's Partner-pair naming ("A // B" combining two
+  independent Scryfall cards, not a real Scryfall card name) by
+  falling back to the first half's art when the combined name isn't
+  found directly. True double-faced/transform cards already use "A //
+  B" as their real Scryfall name too, so those match without the
+  fallback.
+- `db.py::build_database` takes an optional `image_lookup` and
+  resolves each commander's `image_url` from it.
+  `cli.py update-data` fetches Scryfall data by default (`--skip-images`
+  to opt out), failing gracefully (warning, continue without images)
+  rather than aborting the whole run if Scryfall is unreachable.
+- **Had to retrofit `sessions.py`** — a session's `candidates` table
+  copies fields from `pool.Commander` at session-creation time, and
+  `image_url` was missing from that copy (and from `CandidateDetail`/
+  `RankedCommander`), so images would never have reached the duel
+  screen even with Scryfall data available. Added the column (with a
+  migration for existing `sessions.db` files), threaded through
+  `get_candidates`/`get_rankings`.
+- Frontend: `.card-art` full-bleed banner image on each duel card,
+  small `.rank-thumb` on the results ledger. Both use
+  `onerror="this.remove()"` so a failed/dead image URL collapses
+  cleanly back to the text-only layout instead of showing a
+  broken-image icon with a big reserved blank box — caught by testing
+  with intentionally-fake image URLs (EDHREC's own per-card `id` field
+  looks like a UUID but isn't a Scryfall card ID; using it directly in
+  a test fixture produced exactly the broken-image case this fallback
+  needed to handle).
+
+### UX pass ✅ done
+
+Also requested after trying the real UI, same conversation:
+
+- **Typed exact deck-count entry**: the max-decks control was
+  slider-only, which felt imprecise for picking an exact ceiling. Now
+  a synced range + number input — drag for coarse, type for exact,
+  either updates the other. (Caught + fixed a display bug in this
+  pass: the number input's native spin-button icon was clipping the
+  last digit of 5-digit values, e.g. "10000" rendering as "1000" —
+  widened the field.)
+- **Editable duel pool size**: `pool_size` (previously hardcoded to 40
+  in the frontend) is now a number input, bounded 4–200 both
+  client-side and server-side (`pydantic.Field(ge=..., le=...)` on
+  `FiltersBody`).
+- **Total match count shown separately from the capped duel pool**:
+  `pool.py` gained `count_matches()` (extracted from `build_pool` via
+  a new `_filtered_candidates` helper) so the UI can show "N
+  commanders match your filters" — the real uncapped total — distinct
+  from "dueling with up to 40" — the sampled session size. Previously
+  only the capped number was visible, which was ambiguous about
+  whether a filter was actually broad or just aggressively sampled.
+
+### Not yet started
+
 - Session history across visits (which commanders have already been
   shown/picked/rejected before, so repeat sessions can exclude recent
   picks).

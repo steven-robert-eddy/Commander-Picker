@@ -21,7 +21,7 @@ import sqlite3
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from commander_picker import edhrec_client
+from commander_picker import edhrec_client, scryfall_client
 from commander_picker.colors import COLOR_IDENTITY_BY_SLUG, all_slugs
 from commander_picker.themes import THEME_SLUGS
 
@@ -119,9 +119,22 @@ def build_database(
     color_slugs: list[str] | None = None,
     theme_slugs: list[str] | None = None,
     db_path: Path = DB_PATH,
+    image_lookup: dict[str, str] | None = None,
 ) -> Path:
-    """Load cached pages and (re)write `data/commanders.db`."""
+    """Load cached pages and (re)write `data/commanders.db`.
+
+    ``image_lookup`` is a card name -> image URL dict (from
+    ``scryfall_client.build_image_lookup``); when given, each
+    commander's ``image_url`` is resolved from it (handling EDHREC's
+    Partner-pair naming via ``scryfall_client.resolve_image_url``).
+    Omitted entirely (``None``) if the caller skipped fetching images —
+    left as ``NULL`` in that case, same as before this existed.
+    """
     commanders = load_commanders(color_slugs=color_slugs, theme_slugs=theme_slugs)
+
+    if image_lookup is not None:
+        for record in commanders.values():
+            record.image_url = scryfall_client.resolve_image_url(record.name, image_lookup)
 
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     if db_path.exists():

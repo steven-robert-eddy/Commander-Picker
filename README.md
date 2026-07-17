@@ -13,7 +13,9 @@ Phases 1–4 are done: EDHREC data ingestion (live-verified — a real
 identities, deck counts, and theme tags), filtering / candidate pools,
 the Elo-style swipe picker, and a web UI on top of the same engine —
 playable from the terminal (`play`) or a browser (`serve`). Phase 5
-(stretch polish) is not started yet — see `PLAN.md`.
+(card images from Scryfall, plus a UX pass on the web UI — typed
+deck-count entry, editable duel pool size, total-vs-capped match
+counts) is partially done — see `PLAN.md`.
 
 **Known gap:** this dev sandbox's egress policy blocks edhrec.com
 (403) — `update-data` was verified by the project owner running it
@@ -49,11 +51,20 @@ row per commander (name, color identity, deck count, EDHREC salt
 score, URL) plus a `commander_themes` table recording which
 archetype/theme pages each commander appeared on.
 
+This also fetches Scryfall's card-art data (a separate, larger
+download — Scryfall's full `oracle_cards` bulk file) and populates
+each commander's `image_url`, used by the web UI's duel cards and
+results ledger. **Unverified against live Scryfall** in this dev
+sandbox (same egress block as edhrec.com) — see PLAN.md Phase 5.
+
 Useful flags:
 
 - `--force` — bypass the freshness cache and re-fetch everything.
 - `--colors azorius,rakdos` — only fetch/rebuild specific color slugs.
 - `--themes tokens,aristocrats` — only fetch/rebuild specific theme slugs.
+- `--skip-images` — skip the Scryfall card-art fetch (faster, no images
+  in the web UI). A failed Scryfall fetch (e.g. unreachable) doesn't
+  abort the run either way — you just end up without images.
 
 To see the full list of recognized slugs:
 
@@ -126,11 +137,16 @@ The same picker, in a browser instead of the terminal:
 commander-picker serve
 ```
 
-Then open http://127.0.0.1:8000. Filter by color/theme/deck-count
-ceiling, tap through duels, see final standings — same Elo engine and
-`data/sessions.db` as `play`/`resume`/`results`, so sessions started
-in one are visible from the other. Flags: `--host`, `--port`,
-`--reload` (auto-restart on code changes, for development).
+Then open http://127.0.0.1:8000. Filter by color/theme, an exact or
+slider-adjusted deck-count ceiling, and an editable duel pool size
+(the live preview shows both the total commanders matching your
+filters and how many will actually be sampled into the duel — the two
+can differ once a filter matches more than the pool size). Tap through
+duels — with card art when Scryfall images are available — and see
+final standings. Same Elo engine and `data/sessions.db` as
+`play`/`resume`/`results`, so sessions started in one are visible from
+the other. Flags: `--host`, `--port`, `--reload` (auto-restart on code
+changes, for development).
 
 Local-only, no auth, no rate limiting — fine for a single-user local
 tool, would need attention before exposing beyond localhost.
@@ -148,6 +164,7 @@ commander_picker/
   colors.py         # color-identity <-> EDHREC URL slug mapping (32 combos)
   themes.py         # known EDHREC archetype/theme page slugs
   edhrec_client.py  # fetch + cache EDHREC color/theme pages, with pagination
+  scryfall_client.py # fetch Scryfall bulk data, build name -> art_crop image lookup
   db.py             # parse cached pages into data/commanders.db (SQLite)
   pool.py           # filter commanders.db into a bounded candidate pool
   elo.py            # Elo rating math + pairing selection (no DB dependency)
@@ -160,6 +177,7 @@ tests/
   fixtures/          # hand-built/captured sample EDHREC pages for offline tests
   test_colors.py
   test_edhrec_client.py
+  test_scryfall_client.py
   test_db.py
   test_pool.py
   test_elo.py

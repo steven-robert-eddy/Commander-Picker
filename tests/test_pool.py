@@ -127,3 +127,23 @@ def test_commander_carries_its_themes(conn):
     assert tiny.themes == ("aristocrats", "tokens")
     mono_black = next(c for c in candidates if c.name == "Mono Black")
     assert mono_black.themes == ()
+
+
+def test_count_matches_ignores_pool_size_bounds(conn):
+    # 5 fixture commanders are under the default 10k ceiling (all but
+    # Big Rakdos) -- count_matches should report that uncapped total
+    # even when max_pool_size would normally sample it down.
+    total = pool.count_matches(conn, pool.PoolFilters(max_decks=None))
+    assert total == 6  # all fixture commanders
+
+
+def test_count_matches_matches_build_pool_before_capping(conn):
+    filters = pool.PoolFilters(colors="BR", color_mode="subset", max_decks=None)
+    total = pool.count_matches(conn, filters)
+    uncapped = pool.build_pool(conn, filters, max_pool_size=1000, min_pool_size=1)
+    assert total == len(uncapped)
+
+
+def test_count_matches_zero_does_not_raise(conn):
+    filters = pool.PoolFilters(colors="U", color_mode="exact")
+    assert pool.count_matches(conn, filters) == 0

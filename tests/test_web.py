@@ -70,8 +70,25 @@ def test_api_themes(client):
 def test_api_pool_returns_filtered_candidates(client):
     resp = client.post("/api/pool", json=_pool_body(max_decks=10000))
     assert resp.status_code == 200
-    names = {c["name"] for c in resp.json()["candidates"]}
+    body = resp.json()
+    names = {c["name"] for c in body["candidates"]}
     assert names == {"Rakdos, Lord of Riots", "Krark, the Thumbless // Vial Smasher the Fierce"}
+    assert body["total_matches"] == 2
+
+
+def test_api_pool_total_matches_uncapped_by_pool_size(client):
+    # 4 fixture commanders total, no deck-count ceiling -- total_matches
+    # should report all 4 even when pool_size caps candidates lower.
+    resp = client.post("/api/pool", json=_pool_body(max_decks=None, pool_size=2))
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["total_matches"] == 4
+    assert len(body["candidates"]) == 2
+
+
+def test_api_pool_size_out_of_bounds_rejected(client):
+    resp = client.post("/api/pool", json=_pool_body(pool_size=500))
+    assert resp.status_code == 422
 
 
 def test_api_pool_too_small_returns_422(client):

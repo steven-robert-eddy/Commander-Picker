@@ -6,13 +6,14 @@ from commander_picker import sessions
 from commander_picker.pool import Commander
 
 
-def _commander(name, decks=1000, colors="BR", themes=()):
+def _commander(name, decks=1000, colors="BR", themes=(), image_url=None):
     return Commander(
         name=name,
         color_identity=colors,
         num_decks=decks,
         edhrec_url=f"https://edhrec.com/commanders/{name.lower()}",
         themes=themes,
+        image_url=image_url,
     )
 
 
@@ -175,3 +176,49 @@ def test_schema_migration_adds_themes_column_to_old_db(tmp_path):
     conn = sessions.connect(db_path=db_path)
     session_id = sessions.create_session(conn, [_commander("A", themes=("tokens",)), _commander("B")])
     assert sessions.get_candidates(conn, session_id)["A"].themes == ("tokens",)
+
+
+def test_image_url_flows_through_candidates_and_rankings(conn):
+    candidates = [
+        _commander("Pictured", image_url="https://img/pictured-art.jpg"),
+        _commander("Unpictured"),
+    ]
+    session_id = sessions.create_session(conn, candidates)
+
+    details = sessions.get_candidates(conn, session_id)
+    assert details["Pictured"].image_url == "https://img/pictured-art.jpg"
+    assert details["Unpictured"].image_url is None
+
+    ranked = {r.name: r for r in sessions.get_rankings(conn, session_id)}
+    assert ranked["Pictured"].image_url == "https://img/pictured-art.jpg"
+    assert ranked["Unpictured"].image_url is None
+
+
+def test_migration_adds_image_url_column_to_old_db(tmp_path):
+    import sqlite3
+
+    db_path = tmp_path / "old_sessions.db"
+    raw = sqlite3.connect(db_path)
+    raw.executescript(
+        """
+        CREATE TABLE sessions (
+            id TEXT PRIMARY KEY, created_at REAL NOT NULL, description TEXT NOT NULL DEFAULT '',
+            status TEXT NOT NULL, target_rounds INTEGER NOT NULL, rounds_completed INTEGER NOT NULL DEFAULT 0
+        );
+        CREATE TABLE candidates (
+            session_id TEXT NOT NULL, commander_name TEXT NOT NULL, color_identity TEXT,
+            num_decks INTEGER, edhrec_url TEXT, themes TEXT NOT NULL DEFAULT '', rating REAL NOT NULL,
+            PRIMARY KEY (session_id, commander_name)
+        );
+        CREATE TABLE comparisons (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, session_id TEXT NOT NULL, round_num INTEGER NOT NULL,
+            winner TEXT NOT NULL, loser TEXT NOT NULL, created_at REAL NOT NULL
+        );
+        """
+    )
+    raw.commit()
+    raw.close()
+
+    conn = sessions.connect(db_path=db_path)
+    session_id = sessions.create_session(conn, [_commander("A", image_url="https://img/a.jpg"), _commander("B")])
+    assert sessions.get_candidates(conn, session_id)["A"].image_url == "https://img/a.jpg"

@@ -61,24 +61,8 @@ def _load_themes_by_commander(conn: sqlite3.Connection) -> dict[str, set[str]]:
     return themes_by_commander
 
 
-def build_pool(
-    conn: sqlite3.Connection,
-    filters: PoolFilters,
-    max_pool_size: int = DEFAULT_MAX_POOL_SIZE,
-    min_pool_size: int = DEFAULT_MIN_POOL_SIZE,
-    rng: random.Random | None = None,
-) -> list[Commander]:
-    """Filter commanders.db down to a bounded candidate pool.
-
-    Raises PoolTooSmallError if the filtered set (before size capping)
-    has fewer than min_pool_size candidates -- callers should loosen
-    filters rather than hand the picker an unusably small pool.
-
-    When the filtered set exceeds max_pool_size, a random sample is
-    taken rather than always truncating to the most-built candidates
-    -- the whole point is variety across the "under 10k" range, not
-    always showing the same highest-deck-count commanders within it.
-    """
+def _filtered_candidates(conn: sqlite3.Connection, filters: PoolFilters) -> list[Commander]:
+    """Every commander matching filters, with no pool-size bounding applied."""
     allowed_colors = set(filters.colors.upper()) if filters.colors else set(WUBRG)
     wanted_themes = set(filters.themes)
     # Always loaded, not just when filtering by theme -- Commander.themes
@@ -118,6 +102,38 @@ def build_pool(
                 price=row["price"],
             )
         )
+    return candidates
+
+
+def count_matches(conn: sqlite3.Connection, filters: PoolFilters) -> int:
+    """Total commanders matching filters, before pool-size bounding.
+
+    For UI live-preview use ("N commanders match your filters") --
+    distinct from build_pool's returned list, which is capped to
+    max_pool_size.
+    """
+    return len(_filtered_candidates(conn, filters))
+
+
+def build_pool(
+    conn: sqlite3.Connection,
+    filters: PoolFilters,
+    max_pool_size: int = DEFAULT_MAX_POOL_SIZE,
+    min_pool_size: int = DEFAULT_MIN_POOL_SIZE,
+    rng: random.Random | None = None,
+) -> list[Commander]:
+    """Filter commanders.db down to a bounded candidate pool.
+
+    Raises PoolTooSmallError if the filtered set (before size capping)
+    has fewer than min_pool_size candidates -- callers should loosen
+    filters rather than hand the picker an unusably small pool.
+
+    When the filtered set exceeds max_pool_size, a random sample is
+    taken rather than always truncating to the most-built candidates
+    -- the whole point is variety across the "under 10k" range, not
+    always showing the same highest-deck-count commanders within it.
+    """
+    candidates = _filtered_candidates(conn, filters)
 
     if len(candidates) < min_pool_size:
         raise PoolTooSmallError(

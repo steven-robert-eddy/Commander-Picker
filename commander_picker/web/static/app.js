@@ -13,6 +13,7 @@
   const activeColors = new Set();
   const activeThemes = new Set();
   let maxDecks = 10000;
+  let poolSize = 40;
 
   // ---- session state ----
   let sessionId = null;
@@ -27,7 +28,7 @@
         min_decks: null,
         themes: [...activeThemes],
         themes_mode: "any",
-        pool_size: 40,
+        pool_size: poolSize,
         min_pool_size: 4,
       },
       overrides || {}
@@ -95,17 +96,19 @@
   async function refreshPoolPreview() {
     const errEl = $("filter-error");
     errEl.classList.add("hidden");
+    $("pool-size-label").textContent = poolSize;
     try {
       // min_pool_size: 1 here so the server always returns a raw count
       // instead of 422ing early -- MIN_POOL_SIZE (matching the real
       // session-creation default) is what actually gates the button, so
       // the preview and the real "Start" click agree on the threshold.
-      const { candidates } = await api("POST", "/api/pool", currentFiltersBody({ min_pool_size: 1 }));
-      $("pool-count").textContent = candidates.length;
-      $("round-estimate").textContent = candidates.length > 1 ? targetRoundEstimate(candidates.length) : "–";
+      const { total_matches, candidates } = await api("POST", "/api/pool", currentFiltersBody({ min_pool_size: 1 }));
+      $("total-matches").textContent = total_matches.toLocaleString();
+      const duelPoolSize = Math.min(total_matches, poolSize);
+      $("round-estimate").textContent = duelPoolSize > 1 ? targetRoundEstimate(duelPoolSize) : "–";
 
-      if (candidates.length < MIN_POOL_SIZE) {
-        errEl.textContent = `Need at least ${MIN_POOL_SIZE} matching commanders to duel (${candidates.length} right now) — loosen a filter.`;
+      if (total_matches < MIN_POOL_SIZE) {
+        errEl.textContent = `Need at least ${MIN_POOL_SIZE} matching commanders to duel (${total_matches} right now) — loosen a filter.`;
         errEl.classList.remove("hidden");
         $("start-btn").disabled = true;
       } else {
@@ -118,7 +121,7 @@
         errEl.textContent = e.message;
       }
       errEl.classList.remove("hidden");
-      $("pool-count").textContent = "0";
+      $("total-matches").textContent = "0";
       $("round-estimate").textContent = "–";
       $("start-btn").disabled = true;
     }
@@ -140,7 +143,14 @@
     const tags = c.themes && c.themes.length
       ? `<div class="theme-tags">${c.themes.map((t) => `<span class="tag">${t}</span>`).join("")}</div>`
       : "";
+    // image_url is only populated when `update-data` fetched Scryfall
+    // art (see scryfall_client.py) -- gracefully omit the banner
+    // entirely rather than showing a broken-image icon when absent.
+    const art = c.image_url
+      ? `<img class="card-art" src="${c.image_url}" alt="" loading="lazy" onerror="this.remove()" />`
+      : "";
     return `
+      ${art}
       <div class="card-top">
         <div class="card-name">${c.name}</div>
         <div class="pips">${pipsHTML(c.color_identity)}</div>
@@ -226,10 +236,14 @@
         const delta = c.rating - 1000;
         const deltaClass = delta > 0 ? "up" : "";
         const sign = delta > 0 ? "+" : "";
+        const thumb = c.image_url
+          ? `<img class="rank-thumb" src="${c.image_url}" alt="" loading="lazy" onerror="this.remove()" />`
+          : "";
         return `
           <div class="rank-row ${i === 0 ? "top1" : ""}">
             <div class="rank-num">${i + 1}</div>
             <div class="rank-name-line">
+              ${thumb}
               <div class="pips">${pipsHTML(c.color_identity)}</div>
               <div class="rank-name">${c.name}</div>
             </div>
@@ -257,15 +271,37 @@
     refreshPoolPreview();
   });
   $("start-btn").addEventListener("click", startSession);
-  $("max-decks").addEventListener("input", (e) => {
-    maxDecks = Number(e.target.value);
-    $("max-decks-out").textContent = maxDecks.toLocaleString();
+
+  // Slider and number input both drive maxDecks -- the slider is fast
+  // for coarse adjustment, the number input is exact (no more fighting
+  // a drag gesture to land on a specific value).
+  const decksSlider = $("max-decks-slider");
+  const decksInput = $("max-decks-input");
+  decksSlider.addEventListener("input", () => {
+    maxDecks = Number(decksSlider.value);
+    decksInput.value = maxDecks;
   });
-  $("max-decks").addEventListener("change", refreshPoolPreview);
+  decksSlider.addEventListener("change", refreshPoolPreview);
+  decksInput.addEventListener("change", () => {
+    const value = Math.max(1, Math.floor(Number(decksInput.value) || 0));
+    maxDecks = value;
+    decksInput.value = value;
+    // Keep the slider in sync when the typed value is in its range;
+    // clamp visually rather than fighting the slider's own min/max.
+    decksSlider.value = Math.min(Math.max(value, Number(decksSlider.min)), Number(decksSlider.max));
+    refreshPoolPreview();
+  });
+
+  const poolSizeInput = $("pool-size-input");
+  poolSizeInput.addEventListener("change", () => {
+    const value = Math.min(200, Math.max(4, Math.floor(Number(poolSizeInput.value) || 40)));
+    poolSize = value;
+    poolSizeInput.value = value;
+    refreshPoolPreview();
+  });
 
   renderColorChips();
   renderThemeChips();
-  $("max-decks-out").textContent = maxDecks.toLocaleString();
   refreshPoolPreview();
   showScreen("screen-intro");
 })();
