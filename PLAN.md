@@ -834,11 +834,15 @@ even though the color-cliché complaint was correctly addressed.
 
 ## Known open questions / risks
 
-- EDHREC JSON endpoint shapes are unconfirmed until this environment
-  can actually reach edhrec.com — Phase 1 should build against
-  captured/sample fixtures first (mirrors how `commander-synergy`
-  handled the same class of sandbox network restriction) and get a
-  live sanity-check pass once reachable.
+- This dev sandbox still can't reach edhrec.com/Scryfall itself (403
+  via the proxy) — every network-dependent piece (Phase 1's EDHREC
+  ingestion, Phase 5's Scryfall images, this session's DFC image-lookup
+  and UI redesign work) has to be built here first, then live-verified
+  by whoever has real network access before trusting it. All of it
+  *has* been live-verified at least once as of 2026-07-17 (see Phase 1
+  and the "First live verification..." entry above) — this bullet is
+  about the ongoing constraint on future changes, not an open gap in
+  what's shipped so far.
 - EDHREC's "num decks" figure is a moving target (updates continuously)
   — cache freshness window keeps this reasonably fresh without
   hammering the site on every session.
