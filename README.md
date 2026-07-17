@@ -137,13 +137,15 @@ The same picker, in a browser instead of the terminal:
 commander-picker serve
 ```
 
-Then open http://127.0.0.1:8000. Filter by color/theme, an exact or
-slider-adjusted deck-count ceiling, and an editable duel pool size
-(the live preview shows both the total commanders matching your
-filters and how many will actually be sampled into the duel — the two
-can differ once a filter matches more than the pool size). Tap through
-duels — with card art when Scryfall images are available — and see
-final standings. Same Elo engine and `data/sessions.db` as
+Then open http://127.0.0.1:8000. Filter by color — with a toggle for
+**any combo within your selected colors** (picking B+R shows mono-B,
+mono-R, and BR) vs. **exact colors only** (picking B+R shows only BR)
+— an exact-or-slider-adjusted deck-count ceiling, and an editable duel
+pool size (the live preview shows both the total commanders matching
+your filters and how many will actually be sampled into the duel —
+the two can differ once a filter matches more than the pool size).
+Tap through duels — with card art when Scryfall images are available
+— and see final standings. Same Elo engine and `data/sessions.db` as
 `play`/`resume`/`results`, so sessions started in one are visible from
 the other. Flags: `--host`, `--port`, `--reload` (auto-restart on code
 changes, for development).

@@ -141,6 +141,34 @@ header {
 }
 .filter-label:first-child { margin-top: 0; }
 
+.segmented {
+  display: flex;
+  margin-top: 10px;
+  border: 1px solid var(--card-border);
+  border-radius: 10px;
+  overflow: hidden;
+}
+.segmented-btn {
+  flex: 1;
+  font-family: var(--sans);
+  font-size: 0.8rem;
+  padding: 9px 8px;
+  border: none;
+  background: transparent;
+  color: var(--ink-dim);
+  cursor: pointer;
+  text-align: center;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.segmented-btn:not(:first-child) { border-left: 1px solid var(--card-border); }
+.segmented-btn:hover { color: var(--ink); }
+.segmented-btn:focus-visible { outline: 2px solid var(--gold); outline-offset: -2px; }
+.segmented-btn[aria-pressed="true"] {
+  background: var(--gold-soft);
+  color: var(--gold);
+  font-weight: 600;
+}
+
 .deck-range {
   display: flex;
   align-items: center;

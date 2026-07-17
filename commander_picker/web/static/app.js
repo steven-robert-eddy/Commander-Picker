@@ -11,7 +11,8 @@
 
   // ---- filter state ----
   const activeColors = new Set();
-  const activeThemes = new Set();
+  const activeThemes = new Set(); // archetype UI is hidden (see index.html) -- stays empty
+  let colorMode = "subset"; // "subset" (any combo within --colors) or "exact"
   let maxDecks = 10000;
   let poolSize = 40;
 
@@ -23,7 +24,7 @@
     return Object.assign(
       {
         colors: activeColors.size ? [...activeColors].join("") : null,
-        color_mode: "subset",
+        color_mode: colorMode,
         max_decks: maxDecks,
         min_decks: null,
         themes: [...activeThemes],
@@ -69,6 +70,9 @@
     });
   }
 
+  // Currently unused -- archetype filtering is hidden in the UI (see
+  // index.html), left defined so it's a one-line change to bring back
+  // (`renderThemeChips();` in the init section below) if that changes.
   async function renderThemeChips() {
     const wrap = $("theme-chips");
     try {
@@ -300,8 +304,17 @@
     refreshPoolPreview();
   });
 
+  document.querySelectorAll("#color-mode-toggle .segmented-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      colorMode = btn.dataset.mode;
+      document.querySelectorAll("#color-mode-toggle .segmented-btn").forEach((b) => {
+        b.setAttribute("aria-pressed", String(b === btn));
+      });
+      refreshPoolPreview();
+    });
+  });
+
   renderColorChips();
-  renderThemeChips();
   refreshPoolPreview();
   showScreen("screen-intro");
 })();

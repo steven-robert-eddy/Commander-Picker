@@ -392,6 +392,31 @@ Also requested after trying the real UI, same conversation:
   only the capped number was visible, which was ambiguous about
   whether a filter was actually broad or just aggressively sampled.
 
+### Archetype filter hidden, color-match mode exposed ✅ done
+
+Requested after trying the real UI with real data: EDHREC's tag pages
+turned out to only expose a shallow (~30 commander) "top commanders"
+list per archetype regardless of color filtering — a data-source
+limitation, not a bug in our pagination (which only ever paginated
+color pages deeply; theme pages' own commander lists are just short by
+design on EDHREC's end). Not enough signal to filter on yet.
+
+- Archetype/theme chips removed from `index.html` (commented out with
+  the reasoning above) and `renderThemeChips()` no longer called from
+  `app.js` — but left defined, and `pool.py`/`sessions.py`/the API/the
+  CLI (`pool --themes`, `play --themes`) all still fully support theme
+  filtering. Easy to bring the UI back if EDHREC's data improves or
+  another source is added.
+- **Color match mode** was already fully implemented server-side since
+  Phase 2 (`PoolFilters.color_mode`: `"subset"` — any combo within the
+  selected colors, e.g. picking B+R shows mono-B, mono-R, *and* BR —
+  or `"exact"` — only the exact combo) but the web UI never exposed
+  it, hardcoded to `"subset"`. Added a two-way segmented toggle
+  ("Any combo within colors" / "Exact colors only"). Verified with a
+  small custom fixture spanning mono-B, mono-R, BR, and BG commanders:
+  subset mode with B+R selected correctly returns all 4 non-BG
+  commanders; exact mode correctly narrows to just the 2 BR ones.
+
 ### Not yet started
 
 - Session history across visits (which commanders have already been

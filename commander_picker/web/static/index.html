@@ -24,16 +24,27 @@
         <div class="filter-label">Colors</div>
         <div class="filter-row" id="color-chips"></div>
 
+        <div class="filter-label">Color match</div>
+        <div class="segmented" id="color-mode-toggle">
+          <button type="button" class="segmented-btn" data-mode="subset" aria-pressed="true">Any combo within colors</button>
+          <button type="button" class="segmented-btn" data-mode="exact" aria-pressed="false">Exact colors only</button>
+        </div>
+
         <div class="filter-label">Max decks (underbuilt ceiling)</div>
         <div class="deck-range">
           <input type="range" id="max-decks-slider" min="100" max="60000" step="100" value="10000" />
           <input type="number" id="max-decks-input" class="num-input" min="1" max="1000000" step="1" value="10000" inputmode="numeric" />
         </div>
 
-        <div class="filter-label">Archetype</div>
-        <div class="filter-row" id="theme-chips">
-          <span class="spinner-note">loading…</span>
-        </div>
+        <!--
+          Archetype/theme filtering is hidden for now, not removed --
+          EDHREC's tag pages only expose a shallow (~30 commander)
+          "top commanders" list per archetype regardless of color
+          filtering, unlike the much deeper color pages we paginate.
+          Not much signal to filter on yet. The backend/CLI (`pool
+          --themes`, `play --themes`) still fully supports it -- easy
+          to bring back here if EDHREC's data or our sourcing improves.
+        -->
 
         <div class="filter-label">Duel pool size</div>
         <div class="pool-size-row">
