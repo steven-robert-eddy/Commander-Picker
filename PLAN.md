@@ -579,6 +579,67 @@ the right order. CSS layout confirmed via a Playwright screenshot of
 aren't reachable from this sandbox — same limitation as the original
 Scryfall integration). Full suite: 96 passed.
 
+### Duel layout follow-ups + results lightbox + real mana pips ✅ done
+
+Three rounds of feedback on the multi-card work above, plus a
+project-wide ask:
+
+- **"if it is two cards lets shrink them ... side by side if enough
+  room"**: `.card-art-group` went from a fixed vertical stack to
+  `flex-wrap` with each `.card-art` at `flex: 1 1 150px` / `min-width:
+  150px` — two images share a row and shrink together once the
+  container is wide enough (no media query; responds to the card's
+  actual rendered width), otherwise the second wraps below at full
+  width.
+- **User's screenshot: a 2-image Partner pair next to a 1-image
+  commander in a real duel** showed the pair's images shrunk to half
+  width each while the opponent's single image stayed full width —
+  same total slot width for both sides made the 2-card side's art
+  read as "tiny," not "two cards." First fix attempt force-stacked
+  the 2-image side instead (equal per-image width, but a much taller
+  button) — better but still not what was asked for.
+- **"i think we want two full cards side by side"**: replaced the
+  force-stack with proportional sizing instead — `renderPairing()` in
+  `app.js` now sets `flexGrow` on each duel `card-btn` equal to its
+  own image count (min 1), so a 2-image side's button is roughly
+  twice as wide as a 1-image opponent's on the desktop row layout.
+  Each image then lands at the same per-image size as the opponent's
+  single image, genuinely side by side. Only affects the row layout;
+  the mobile stacked layout gives every card-btn the full viewport
+  width regardless of flex-grow, so nothing to unbalance there.
+- **Results screen: bigger card view.** Added a lightbox
+  (`#lightbox` in `index.html`, `openLightbox`/`closeLightbox` in
+  `app.js`) — clicking a ranked commander with art (`.rank-row.has-
+  art`, keyboard-accessible via `tabindex`/`role="button"`/Enter or
+  Space) shows its card(s) at real size against a dark backdrop;
+  closes via the ✕ button, clicking the backdrop, or Escape.
+  `.lightbox` scrolls (`overflow-y: auto`) so a 2-image commander's
+  second card isn't silently cropped on a short viewport. Also bumped
+  the inline `rank-thumb` size (28×39 → 36×50) for a small default
+  legibility improvement independent of the lightbox.
+- **"dont use the circles with wubrg, actually use the color pip
+  symbol"** (project-wide): `pipsHTML()` in `app.js` now renders each
+  color as an `<img>` pointing at Scryfall's own mana symbol SVGs
+  (`https://svgs.scryfall.io/card-symbols/{W,U,B,R,G,C}.svg`) — the
+  actual sun/water-drop/skull/fireball/tree glyphs players recognize
+  from the cards themselves — instead of a plain colored circle with
+  a letter in it. Removed the now-unused `--mana-w`/`-u`/`-b`/`-r`/
+  `-g`/`-c` CSS variables and the per-letter `.pip.*` background
+  rules along with it. Loaded directly by the browser like Scryfall
+  card art already is, so it works the same way once reachable on the
+  user's machine.
+
+Verified: full suite unaffected (96 passed, these are pure frontend
+changes). Visually confirmed via Playwright screenshots: the
+side-by-side vs. stacked wrap threshold at 230px/340px/520px card
+widths; the proportional 2-vs-1 duel layout at desktop width (both
+partner-pair images matching the opponent's single image in size);
+and a standalone results-list + lightbox mockup (open, scroll to
+reveal a cropped second image, close) using local placeholder art,
+since `svgs.scryfall.io`/`cards.scryfall.io` aren't reachable from
+this sandbox — real rendering to be confirmed on the user's machine
+as with every other Scryfall-dependent piece of this project.
+
 ### Not yet started
 
 - Session history across visits (which commanders have already been

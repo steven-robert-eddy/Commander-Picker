@@ -138,9 +138,16 @@
     return Math.max(1, Math.round(n * Math.log2(n)));
   }
 
+  // Scryfall's own mana symbol art -- the real sun/water-drop/skull/
+  // fireball/tree glyphs players recognize from the cards themselves,
+  // not a plain colored circle with a letter in it.
+  const MANA_SYMBOL_BASE_URL = "https://svgs.scryfall.io/card-symbols/";
+
   function pipsHTML(colors) {
     const list = !colors ? ["C"] : colors.split("");
-    return list.map((c) => `<span class="pip ${c.toLowerCase()}">${c}</span>`).join("");
+    return list
+      .map((c) => `<img class="pip" src="${MANA_SYMBOL_BASE_URL}${c}.svg" alt="${c}" loading="lazy" />`)
+      .join("");
   }
 
   function cardInnerHTML(c) {
@@ -277,13 +284,15 @@
         const delta = c.rating - 1000;
         const deltaClass = delta > 0 ? "up" : "";
         const sign = delta > 0 ? "+" : "";
-        const thumb = c.image_urls && c.image_urls.length
+        const hasArt = c.image_urls && c.image_urls.length;
+        const thumb = hasArt
           ? `<div class="rank-thumb-group">${c.image_urls
               .map((url) => `<img class="rank-thumb" src="${url}" alt="" loading="lazy" onerror="this.remove()" />`)
               .join("")}</div>`
           : "";
+        const interactiveAttrs = hasArt ? 'tabindex="0" role="button"' : "";
         return `
-          <div class="rank-row ${i === 0 ? "top1" : ""}">
+          <div class="rank-row ${i === 0 ? "top1" : ""} ${hasArt ? "has-art" : ""}" data-idx="${i}" ${interactiveAttrs}>
             <div class="rank-num">${i + 1}</div>
             <div class="rank-name-line">
               ${thumb}
@@ -295,7 +304,36 @@
         `;
       })
       .join("");
+    // Click a ranked commander to see its card(s) full size, rather
+    // than the compact list thumbnail -- listeners reference `rankings`
+    // by closure (data-idx just identifies which row, not the data
+    // itself) so there's no HTML-attribute escaping to worry about for
+    // image URLs or names.
+    list.querySelectorAll(".rank-row.has-art").forEach((row) => {
+      const c = rankings[Number(row.dataset.idx)];
+      row.addEventListener("click", () => openLightbox(c.image_urls, c.name));
+      row.addEventListener("keydown", (e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault(); // stop the page from scrolling on Space
+          openLightbox(c.image_urls, c.name);
+        }
+      });
+    });
     showScreen("screen-results");
+  }
+
+  function openLightbox(imageUrls, name) {
+    if (!imageUrls || !imageUrls.length) return;
+    $("lightbox-name").textContent = name || "";
+    $("lightbox-images").innerHTML = imageUrls
+      .map((url) => `<img src="${url}" alt="${name || ""}" />`)
+      .join("");
+    $("lightbox").classList.remove("hidden");
+  }
+
+  function closeLightbox() {
+    $("lightbox").classList.add("hidden");
+    $("lightbox-images").innerHTML = "";
   }
 
   $("card-a").addEventListener("click", () => {
@@ -307,6 +345,13 @@
     pick(currentPairing.candidates[1].name, currentPairing.candidates[0].name, $("card-b"), $("card-a"));
   });
   $("finish-btn").addEventListener("click", finishSession);
+  $("lightbox-close").addEventListener("click", closeLightbox);
+  $("lightbox").addEventListener("click", (e) => {
+    if (e.target.id === "lightbox") closeLightbox(); // click on backdrop, not the card image itself
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") closeLightbox();
+  });
   $("again-btn").addEventListener("click", () => {
     sessionId = null;
     currentPairing = null;

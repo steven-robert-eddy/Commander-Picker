@@ -15,14 +15,6 @@
   --good: #6fae72;
   --bad: #c96a5a;
 
-  --mana-w: #e8dec0;
-  --mana-w-ink: #3a3220;
-  --mana-u: #3e7fd1;
-  --mana-b: #6b5a82;
-  --mana-r: #d9552e;
-  --mana-g: #4c8c55;
-  --mana-c: #93a199;
-
   --serif: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
   --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   --mono: ui-monospace, "SF Mono", "Cascadia Code", "Roboto Mono", monospace;
@@ -40,7 +32,6 @@
   --ink-faint: #948d78;
   --good: #3f7a43;
   --bad: #a8432f;
-  --mana-w-ink: #3a3220;
 }
 
 @media (prefers-color-scheme: light) {
@@ -56,7 +47,6 @@
     --ink-faint: #948d78;
     --good: #3f7a43;
     --bad: #a8432f;
-    --mana-w-ink: #3a3220;
   }
 }
 
@@ -422,25 +412,16 @@ header {
   text-wrap: balance;
 }
 
-.pips { display: flex; gap: 4px; flex-shrink: 0; }
+.pips { display: flex; gap: 3px; flex-shrink: 0; }
+/* Scryfall's own mana symbol SVGs (see MANA_SYMBOL_BASE_URL in app.js)
+   -- each already carries its correct color, so no per-letter class
+   or background is needed here, unlike the plain colored-circle
+   version this replaced. */
 .pip {
-  width: 20px;
-  height: 20px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-family: var(--mono);
-  font-size: 0.62rem;
-  font-weight: 700;
-  color: white;
+  display: block;
+  width: 18px;
+  height: 18px;
 }
-.pip.w { background: var(--mana-w); color: var(--mana-w-ink); }
-.pip.u { background: var(--mana-u); }
-.pip.b { background: var(--mana-b); }
-.pip.r { background: var(--mana-r); }
-.pip.g { background: var(--mana-g); }
-.pip.c { background: var(--mana-c); color: var(--mana-w-ink); }
 
 .card-stats {
   display: flex;
@@ -492,6 +473,12 @@ header {
   border-bottom: 1px solid var(--card-border);
 }
 .rank-row:last-child { border-bottom: none; }
+/* Rows for a commander with art open the full-size lightbox on click
+   (see openLightbox() in app.js) -- rows with no art (no Scryfall
+   match) aren't clickable, so no hover affordance for those. */
+.rank-row.has-art { cursor: pointer; border-radius: 8px; }
+.rank-row.has-art:hover { background: var(--felt-hi); }
+.rank-row.has-art:focus-visible { outline: 2px solid var(--gold); outline-offset: -2px; }
 
 .rank-num {
   font-family: var(--serif);
@@ -504,8 +491,8 @@ header {
 .rank-name-line { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .rank-thumb-group { display: flex; gap: 2px; flex-shrink: 0; }
 .rank-thumb {
-  width: 28px;
-  height: 39px; /* real Magic card ratio (63/88), not a square crop */
+  width: 36px;
+  height: 50px; /* real Magic card ratio (63/88), not a square crop */
   border-radius: 4px;
   object-fit: cover;
   flex-shrink: 0;
@@ -566,3 +553,58 @@ footer code {
   color: var(--ink-faint);
   padding: 20px 0;
 }
+
+/* Full-size card view, opened by clicking a ranked commander on the
+   results screen (see openLightbox()/closeLightbox() in app.js). */
+.lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  padding: 32px 16px;
+  background: rgba(0, 0, 0, 0.78);
+  overflow-y: auto; /* two tall images (a Partner pair/DFC) can exceed
+                        viewport height on a short screen -- scroll
+                        rather than silently cropping the second card */
+}
+.lightbox-name {
+  font-family: var(--serif);
+  font-size: 1.15rem;
+  color: #efe7d8; /* fixed light ink -- always sits on the dark backdrop, not the page's own theme background */
+  text-align: center;
+}
+.lightbox-images {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 16px;
+  max-width: 100%;
+  max-height: 80vh;
+}
+.lightbox-images img {
+  max-width: min(90vw, 480px);
+  max-height: 80vh;
+  border-radius: 14px;
+  box-shadow: 0 24px 60px -12px rgba(0, 0, 0, 0.6);
+  object-fit: contain;
+}
+.lightbox-close {
+  position: absolute;
+  top: 18px;
+  right: 20px;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 1px solid rgba(239, 231, 216, 0.35);
+  background: rgba(255, 255, 255, 0.06);
+  color: #efe7d8;
+  font-size: 1.1rem;
+  line-height: 1;
+  cursor: pointer;
+}
+.lightbox-close:hover { background: rgba(255, 255, 255, 0.14); }
+.lightbox-close:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }

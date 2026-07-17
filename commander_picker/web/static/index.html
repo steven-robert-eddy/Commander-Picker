@@ -83,7 +83,7 @@
 
     <!-- RESULTS SCREEN -->
     <section id="screen-results" class="hidden">
-      <p class="lede">Final standings for this run — ratings reset if you play again.</p>
+      <p class="lede">Final standings for this run — ratings reset if you play again. Tap a commander to see its card(s) full size.</p>
       <div class="panel" id="rank-list"></div>
       <button class="again-btn" id="again-btn">Duel again</button>
     </section>
@@ -93,6 +93,13 @@
       own <code>data/commanders.db</code>.
     </footer>
   </main>
+
+  <!-- LIGHTBOX: full-size card view, opened from a results row -->
+  <div class="lightbox hidden" id="lightbox" role="dialog" aria-modal="true" aria-label="Card view">
+    <button class="lightbox-close" id="lightbox-close" aria-label="Close">✕</button>
+    <div class="lightbox-name" id="lightbox-name"></div>
+    <div class="lightbox-images" id="lightbox-images"></div>
+  </div>
 
   <script src="/static/app.js"></script>
 </body>
