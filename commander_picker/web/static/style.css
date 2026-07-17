@@ -375,6 +375,7 @@ header {
 
 .card-art-group {
   display: flex;
+  flex-direction: column;
   width: calc(100% + 36px);
   margin: -18px -18px 0;
   border-radius: 16px 16px 0 0;
@@ -382,16 +383,16 @@ header {
 }
 .card-art {
   display: block;
-  flex: 1 1 0;
-  min-width: 0;
+  width: 100%;
   aspect-ratio: 63 / 88; /* real Magic card ratio -- show the whole card, not a cropped illustration */
   object-fit: contain;
   background: var(--felt-hi);
 }
-/* Two images (Partner/Background pair, or a DFC's two faces) share the
-   banner side by side; a hairline seam keeps them visually distinct. */
+/* Two images (Partner/Background pair, or a DFC's two faces) stack full
+   size rather than shrinking side by side -- each card should stay
+   readable at its real size. A hairline seam keeps them visually distinct. */
 .card-art-group .card-art:first-child:not(:last-child) {
-  border-right: 1px solid var(--card-border);
+  border-bottom: 1px solid var(--card-border);
 }
 @keyframes sweep {
   from { background-position: 120% -20%; }
