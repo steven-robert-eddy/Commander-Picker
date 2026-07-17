@@ -8,12 +8,12 @@ ratings to narrow the pool to a ranked shortlist.
 
 ## Status
 
-Phases 1–3 are done: EDHREC data ingestion (live-verified — a real
+Phases 1–4 are done: EDHREC data ingestion (live-verified — a real
 `update-data` run pulls 3,797+ commanders with correct color
 identities, deck counts, and theme tags), filtering / candidate pools,
-and the Elo-style swipe picker itself, playable from the terminal.
-Phases 4–5 (the web UI and polish) are not started yet — see
-`PLAN.md`.
+the Elo-style swipe picker, and a web UI on top of the same engine —
+playable from the terminal (`play`) or a browser (`serve`). Phase 5
+(stretch polish) is not started yet — see `PLAN.md`.
 
 **Known gap:** this dev sandbox's egress policy blocks edhrec.com
 (403) — `update-data` was verified by the project owner running it
@@ -118,6 +118,29 @@ Sessions live in `data/sessions.db` — a separate file from
 `commanders.db`, so re-running `update-data` never wipes your
 in-progress or past picker sessions. Also gitignored.
 
+## Web UI
+
+The same picker, in a browser instead of the terminal:
+
+```bash
+commander-picker serve
+```
+
+Then open http://127.0.0.1:8000. Filter by color/theme/deck-count
+ceiling, tap through duels, see final standings — same Elo engine and
+`data/sessions.db` as `play`/`resume`/`results`, so sessions started
+in one are visible from the other. Flags: `--host`, `--port`,
+`--reload` (auto-restart on code changes, for development).
+
+Local-only, no auth, no rate limiting — fine for a single-user local
+tool, would need attention before exposing beyond localhost.
+
+API endpoints, if you want to hit them directly or build another
+client: `GET /api/themes`, `POST /api/pool`, `POST /api/sessions`,
+`GET /api/sessions`, `GET /api/sessions/{id}`, `GET
+/api/sessions/{id}/pairing`, `POST /api/sessions/{id}/pick`, `POST
+/api/sessions/{id}/finish`, `GET /api/sessions/{id}/results`.
+
 ## Project layout
 
 ```
@@ -130,6 +153,9 @@ commander_picker/
   elo.py            # Elo rating math + pairing selection (no DB dependency)
   sessions.py       # persist picker sessions in data/sessions.db
   cli.py            # `commander-picker` command-line entry point
+  web/
+    app.py           # FastAPI app (JSON API + serves the static frontend)
+    static/          # index.html / app.js / style.css — no build step
 tests/
   fixtures/          # hand-built/captured sample EDHREC pages for offline tests
   test_colors.py
@@ -138,6 +164,7 @@ tests/
   test_pool.py
   test_elo.py
   test_sessions.py
+  test_web.py
 PLAN.md              # phased project plan + progress notes
 ```
 

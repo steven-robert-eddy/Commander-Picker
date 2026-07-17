@@ -269,23 +269,61 @@ color identities, deck counts, and theme tags.
   end-to-end (play → pause → resume → finish → results) via piped
   stdin against a real fixture-built catalog DB.
 
-## Phase 4 — Web UI (not started)
+## Phase 4 — Web UI ✅ done
 
-- FastAPI + plain HTML/JS, local-only to start, no build step — same
-  proven pattern as `commander-synergy`'s Phase 4, chosen independently
-  here for the same reasons (fast to build, no frontend tooling
-  overhead) even though the two projects don't share code.
-- Screens:
-  1. **Filter** — color identity picker, archetype/theme checkboxes,
-     deck-count slider (default ceiling ~10k), start session.
-  2. **Swipe/compare** — two commander cards side by side (image, name,
-     deck count, themes), click (or arrow keys) to pick a winner;
-     progress indicator (round N of ~M); "I'm done" to end early.
-  3. **Results** — ranked shortlist with ratings, links out to EDHREC
-     page per commander.
-- API: `POST /api/sessions` (filters → new session + first pairing),
-  `POST /api/sessions/{id}/pick` (record a pick → next pairing or
-  final results), `GET /api/sessions/{id}` (resume/inspect).
+- FastAPI + plain HTML/JS, local-only, no build step — same proven
+  pattern as `commander-synergy`'s Phase 4, chosen independently here
+  for the same reasons even though the two projects don't share code.
+- Before building the real thing, published an **interactive Artifact
+  preview** (client-side only, real EDHREC data from earlier in this
+  build) so the project owner — on their phone, no terminal access —
+  could actually try the duel mechanic and sign off on the visual
+  direction before the FastAPI backend existed. That validated design
+  (dark "table felt" ground, gold foil accent, mana-color pip badges,
+  a serif/sans/mono type pairing) is what the real frontend below
+  ports, now wired to the live backend instead of hardcoded data.
+- `commander_picker/web/app.py`: JSON API —
+  `GET /api/themes`, `POST /api/pool` (preview a filtered pool),
+  `POST /api/sessions` (create + first pairing), `GET /api/sessions`
+  (list), `GET /api/sessions/{id}` (info), `GET
+  /api/sessions/{id}/pairing`, `POST /api/sessions/{id}/pick`, `POST
+  /api/sessions/{id}/finish`, `GET /api/sessions/{id}/results`. 503 if
+  `commanders.db` doesn't exist yet, 422 if a filter combo is too
+  small, 404 for an unknown session — same "clean error, not a raw
+  traceback" posture as the CLI.
+- `commander_picker/web/static/`: `index.html` + `app.js` (thin
+  fetch-based client — no local Elo/data duplication, the server is
+  authoritative) + `style.css` (ported from the validated Artifact).
+  Three screens: filter (color/theme chips, deck-count slider, live
+  pool-size preview) → duel (two cards, tap to pick, foil-sweep
+  transition, progress bar) → results (ranked ledger with rating
+  deltas).
+- CLI: `commander-picker serve [--host] [--port] [--reload]`, refuses
+  to start with a clear error if `commanders.db` is missing.
+- **Two real bugs caught by actually clicking through it in a
+  browser**, not just API-testing in isolation:
+  1. The live filter preview enabled "Start dueling" once ≥2
+     candidates matched, but session creation actually requires ≥4
+     (`pool.DEFAULT_MIN_POOL_SIZE`) — so a 2-3 match filter looked
+     startable and then failed confusingly on click. Fixed by gating
+     the button on the same threshold server-side enforces, with a
+     proactive "need at least N, have M" message instead of a
+     post-click failure.
+  2. `db.connect()` and `sessions.connect()` both defaulted their
+     `db_path` parameter directly to the module-level path constant
+     (`= DB_PATH`) — a classic Python gotcha where the default binds
+     at function-*definition* time, so monkeypatching the module
+     constant in tests silently had no effect on calls that didn't
+     pass `db_path` explicitly. `test_web.py`'s fixtures hit this
+     immediately. Fixed both to a `None`-sentinel pattern.
+- Tests: `tests/test_web.py`, 11 cases via FastAPI's `TestClient`
+  against a fixture-built catalog — full session lifecycle (create →
+  pick → finish → pairing returns null once complete), 422/404/503
+  error paths, static file serving. Also manually verified via a real
+  `uvicorn` run + Playwright screenshots at every screen (filter with
+  a too-small pool showing the fix in action, an in-progress duel, the
+  winner foil-sweep, and final results) — not just curl, an actual
+  rendered browser check end to end.
 
 ## Phase 5 — Stretch (not started)
 

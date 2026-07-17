@@ -181,7 +181,13 @@ def build_database(
     return db_path
 
 
-def connect(db_path: Path = DB_PATH) -> sqlite3.Connection:
+def connect(db_path: Path | None = None) -> sqlite3.Connection:
+    # `db_path`'s default can't just be `= DB_PATH` -- that binds the
+    # value at function-definition time, so monkeypatching the module
+    # attribute later (as tests do) would silently have no effect on
+    # calls that don't pass db_path explicitly.
+    if db_path is None:
+        db_path = DB_PATH
     if not db_path.exists():
         raise DbError(f"{db_path} does not exist yet. Run `commander-picker update-data` first.")
     conn = sqlite3.connect(db_path)

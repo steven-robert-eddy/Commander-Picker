@@ -42,6 +42,7 @@ def _ensure_schema(conn: sqlite3.Connection) -> None:
             color_identity TEXT,
             num_decks INTEGER,
             edhrec_url TEXT,
+            themes TEXT NOT NULL DEFAULT '',
             rating REAL NOT NULL,
             PRIMARY KEY (session_id, commander_name)
         );
@@ -55,10 +56,20 @@ def _ensure_schema(conn: sqlite3.Connection) -> None:
         );
         """
     )
+    # Migration for sessions.db files created before the `themes` column
+    # existed (CREATE TABLE IF NOT EXISTS doesn't add columns to an
+    # already-existing table).
+    existing_columns = {row["name"] for row in conn.execute("PRAGMA table_info(candidates)")}
+    if "themes" not in existing_columns:
+        conn.execute("ALTER TABLE candidates ADD COLUMN themes TEXT NOT NULL DEFAULT ''")
     conn.commit()
 
 
-def connect(db_path: Path = SESSIONS_DB_PATH) -> sqlite3.Connection:
+def connect(db_path: Path | None = None) -> sqlite3.Connection:
+    # See db.py::connect for why this can't default to `= SESSIONS_DB_PATH`
+    # directly -- that binds at def-time and breaks monkeypatching.
+    if db_path is None:
+        db_path = SESSIONS_DB_PATH
     db_path.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(db_path)
     conn.row_factory = sqlite3.Row
@@ -77,10 +88,10 @@ def create_session(conn: sqlite3.Connection, candidates: list[Commander], descri
         (session_id, time.time(), description, target_rounds),
     )
     conn.executemany(
-        "INSERT INTO candidates (session_id, commander_name, color_identity, num_decks, edhrec_url, rating) "
-        "VALUES (?, ?, ?, ?, ?, ?)",
+        "INSERT INTO candidates (session_id, commander_name, color_identity, num_decks, edhrec_url, themes, rating) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?)",
         [
-            (session_id, c.name, c.color_identity, c.num_decks, c.edhrec_url, elo.DEFAULT_RATING)
+            (session_id, c.name, c.color_identity, c.num_decks, c.edhrec_url, ",".join(c.themes), elo.DEFAULT_RATING)
             for c in candidates
         ],
     )
@@ -134,6 +145,33 @@ def _already_paired(conn: sqlite3.Connection, session_id: str) -> set[frozenset]
     return {frozenset((r["winner"], r["loser"])) for r in rows}
 
 
+@dataclass
+class CandidateDetail:
+    name: str
+    color_identity: str
+    num_decks: int
+    edhrec_url: str | None
+    themes: tuple[str, ...]
+    rating: float
+
+
+def get_candidates(conn: sqlite3.Connection, session_id: str) -> dict[str, CandidateDetail]:
+    """Full candidate details for a session, keyed by commander name -- used to
+    render a pairing (name alone isn't enough for the UI to show colors/decks/themes)."""
+    rows = conn.execute("SELECT * FROM candidates WHERE session_id = ?", (session_id,)).fetchall()
+    return {
+        r["commander_name"]: CandidateDetail(
+            name=r["commander_name"],
+            color_identity=r["color_identity"],
+            num_decks=r["num_decks"],
+            edhrec_url=r["edhrec_url"],
+            themes=tuple(t for t in (r["themes"] or "").split(",") if t),
+            rating=r["rating"],
+        )
+        for r in rows
+    }
+
+
 def next_pairing(conn: sqlite3.Connection, session_id: str, rng=None) -> tuple[str, str] | None:
     """The next pair to present, or None if the session isn't active."""
     info = get_session(conn, session_id)
@@ -180,11 +218,12 @@ class RankedCommander:
     color_identity: str
     num_decks: int
     edhrec_url: str | None
+    themes: tuple[str, ...]
 
 
 def get_rankings(conn: sqlite3.Connection, session_id: str) -> list[RankedCommander]:
     rows = conn.execute(
-        "SELECT commander_name, rating, color_identity, num_decks, edhrec_url FROM candidates "
+        "SELECT commander_name, rating, color_identity, num_decks, edhrec_url, themes FROM candidates "
         "WHERE session_id = ? ORDER BY rating DESC",
         (session_id,),
     ).fetchall()
@@ -195,6 +234,7 @@ def get_rankings(conn: sqlite3.Connection, session_id: str) -> list[RankedComman
             color_identity=r["color_identity"],
             num_decks=r["num_decks"],
             edhrec_url=r["edhrec_url"],
+            themes=tuple(t for t in (r["themes"] or "").split(",") if t),
         )
         for r in rows
     ]

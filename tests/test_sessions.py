@@ -6,13 +6,13 @@ from commander_picker import sessions
 from commander_picker.pool import Commander
 
 
-def _commander(name, decks=1000, colors="BR"):
+def _commander(name, decks=1000, colors="BR", themes=()):
     return Commander(
         name=name,
         color_identity=colors,
         num_decks=decks,
         edhrec_url=f"https://edhrec.com/commanders/{name.lower()}",
-        themes=(),
+        themes=themes,
     )
 
 
@@ -123,3 +123,55 @@ def test_pairing_avoids_repeats_until_exhausted(conn):
     # A 4th round has no fresh pair left -- should still return a pair.
     pair = sessions.next_pairing(conn, session_id, rng=rng)
     assert pair is not None
+
+
+def test_get_candidates_includes_themes(conn):
+    candidates = [
+        _commander("Tagged", themes=("tokens", "aristocrats")),
+        _commander("Untagged", themes=()),
+    ]
+    session_id = sessions.create_session(conn, candidates)
+
+    details = sessions.get_candidates(conn, session_id)
+    assert details["Tagged"].themes == ("tokens", "aristocrats")
+    assert details["Untagged"].themes == ()
+    assert details["Tagged"].rating == pytest.approx(1000.0)
+
+
+def test_get_rankings_includes_themes(conn):
+    candidates = [_commander("A", themes=("voltron",)), _commander("B")]
+    session_id = sessions.create_session(conn, candidates)
+
+    ranked = {r.name: r for r in sessions.get_rankings(conn, session_id)}
+    assert ranked["A"].themes == ("voltron",)
+    assert ranked["B"].themes == ()
+
+
+def test_schema_migration_adds_themes_column_to_old_db(tmp_path):
+    import sqlite3
+
+    db_path = tmp_path / "old_sessions.db"
+    raw = sqlite3.connect(db_path)
+    raw.executescript(
+        """
+        CREATE TABLE sessions (
+            id TEXT PRIMARY KEY, created_at REAL NOT NULL, description TEXT NOT NULL DEFAULT '',
+            status TEXT NOT NULL, target_rounds INTEGER NOT NULL, rounds_completed INTEGER NOT NULL DEFAULT 0
+        );
+        CREATE TABLE candidates (
+            session_id TEXT NOT NULL, commander_name TEXT NOT NULL, color_identity TEXT,
+            num_decks INTEGER, edhrec_url TEXT, rating REAL NOT NULL,
+            PRIMARY KEY (session_id, commander_name)
+        );
+        CREATE TABLE comparisons (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, session_id TEXT NOT NULL, round_num INTEGER NOT NULL,
+            winner TEXT NOT NULL, loser TEXT NOT NULL, created_at REAL NOT NULL
+        );
+        """
+    )
+    raw.commit()
+    raw.close()
+
+    conn = sessions.connect(db_path=db_path)
+    session_id = sessions.create_session(conn, [_commander("A", themes=("tokens",)), _commander("B")])
+    assert sessions.get_candidates(conn, session_id)["A"].themes == ("tokens",)

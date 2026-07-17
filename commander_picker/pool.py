@@ -130,3 +130,17 @@ def build_pool(
         candidates = rng.sample(candidates, max_pool_size)
 
     return candidates
+
+
+def describe_filters(filters: PoolFilters) -> str:
+    """Human-readable summary of a PoolFilters, used as a session's stored description."""
+    parts = []
+    if filters.colors:
+        parts.append(f"colors={filters.colors} ({filters.color_mode})")
+    if filters.max_decks is not None:
+        parts.append(f"max_decks={filters.max_decks}")
+    if filters.min_decks is not None:
+        parts.append(f"min_decks={filters.min_decks}")
+    if filters.themes:
+        parts.append(f"themes={','.join(filters.themes)} ({filters.themes_mode})")
+    return " ".join(parts) or "no filters"

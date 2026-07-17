@@ -89,19 +89,6 @@ def _filters_from_args(args: argparse.Namespace) -> pool.PoolFilters:
     )
 
 
-def _describe_filters(filters: pool.PoolFilters) -> str:
-    parts = []
-    if filters.colors:
-        parts.append(f"colors={filters.colors} ({filters.color_mode})")
-    if filters.max_decks is not None:
-        parts.append(f"max_decks={filters.max_decks}")
-    if filters.min_decks is not None:
-        parts.append(f"min_decks={filters.min_decks}")
-    if filters.themes:
-        parts.append(f"themes={','.join(filters.themes)} ({filters.themes_mode})")
-    return " ".join(parts) or "no filters"
-
-
 def _print_rankings(ranked: list[sessions.RankedCommander], limit: int | None = None) -> None:
     shown = ranked[:limit] if limit else ranked
     for i, c in enumerate(shown, start=1):
@@ -189,9 +176,9 @@ def _cmd_play(args: argparse.Namespace) -> int:
         catalog_conn.close()
 
     session_conn = sessions.connect()
-    session_id = sessions.create_session(session_conn, candidates, description=_describe_filters(filters))
+    session_id = sessions.create_session(session_conn, candidates, description=pool.describe_filters(filters))
     info = sessions.get_session(session_conn, session_id)
-    print(f"Started session {session_id} with {info.pool_size} candidates ({_describe_filters(filters)}).")
+    print(f"Started session {session_id} with {info.pool_size} candidates ({pool.describe_filters(filters)}).")
     print(f"Suggested ~{info.target_rounds} rounds -- pick your favorite each round.")
 
     _interactive_loop(session_conn, session_id)
@@ -237,6 +224,19 @@ def _cmd_results(args: argparse.Namespace) -> int:
         print(f"error: {exc}", file=sys.stderr)
         return 1
     _print_rankings(sessions.get_rankings(conn, args.session_id))
+    return 0
+
+
+def _cmd_serve(args: argparse.Namespace) -> int:
+    try:
+        db.connect()
+    except db.DbError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+
+    import uvicorn
+
+    uvicorn.run("commander_picker.web.app:app", host=args.host, port=args.port, reload=args.reload)
     return 0
 
 
@@ -307,6 +307,12 @@ def build_parser() -> argparse.ArgumentParser:
 
     list_themes = subparsers.add_parser("list-themes", help="print all known theme slugs")
     list_themes.set_defaults(func=_cmd_list_themes)
+
+    serve = subparsers.add_parser("serve", help="run the web UI (FastAPI + browser frontend)")
+    serve.add_argument("--host", default="127.0.0.1")
+    serve.add_argument("--port", type=int, default=8000)
+    serve.add_argument("--reload", action="store_true", help="auto-restart on code changes (development)")
+    serve.set_defaults(func=_cmd_serve)
 
     return parser
 
