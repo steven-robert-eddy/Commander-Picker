@@ -9,6 +9,7 @@ in-progress or completed picker sessions if they shared a file.
 from __future__ import annotations
 
 import json
+import os
 import sqlite3
 import time
 import uuid
@@ -24,6 +25,87 @@ SESSIONS_DB_PATH = DATA_DIR / "sessions.db"
 
 class SessionError(RuntimeError):
     pass
+
+
+class _TursoRow(tuple):
+    """`row["col"]` access on top of libsql's plain-tuple rows.
+
+    The `libsql` package (used to reach a remote Turso database -- see
+    connect() below) doesn't implement sqlite3's `row_factory`, so every
+    `row["commander_name"]`-style access elsewhere in this module would
+    break against it otherwise. Only used for the Turso connection path;
+    plain local sqlite3 keeps using the stdlib's own `sqlite3.Row`.
+    """
+
+    def __new__(cls, values, columns):
+        obj = super().__new__(cls, values)
+        obj._columns = columns
+        return obj
+
+    def __getitem__(self, key):
+        if isinstance(key, str):
+            return tuple.__getitem__(self, self._columns.index(key))
+        return tuple.__getitem__(self, key)
+
+    def keys(self):
+        return self._columns
+
+
+class _TursoCursor:
+    def __init__(self, cursor):
+        self._cursor = cursor
+
+    def _columns(self) -> tuple:
+        return tuple(d[0] for d in self._cursor.description) if self._cursor.description else ()
+
+    def execute(self, sql, params=()):
+        self._cursor.execute(sql, params)
+        return self
+
+    def executemany(self, sql, seq_of_params):
+        self._cursor.executemany(sql, seq_of_params)
+        return self
+
+    def fetchone(self):
+        row = self._cursor.fetchone()
+        return _TursoRow(row, self._columns()) if row is not None else None
+
+    def fetchall(self):
+        columns = self._columns()
+        return [_TursoRow(row, columns) for row in self._cursor.fetchall()]
+
+    def __iter__(self):
+        return iter(self.fetchall())
+
+    @property
+    def lastrowid(self):
+        return self._cursor.lastrowid
+
+
+class _TursoConnection:
+    """Wraps a `libsql` remote connection so the rest of this module can keep
+    using the same sqlite3-style calling convention (`conn.execute(...)`
+    returning something with dict-style `fetchall()`/`fetchone()` rows,
+    direct cursor iteration) it already used for local sqlite3.
+    """
+
+    def __init__(self, conn):
+        self._conn = conn
+
+    def execute(self, sql, params=()):
+        return _TursoCursor(self._conn.cursor()).execute(sql, params)
+
+    def executemany(self, sql, seq_of_params):
+        return _TursoCursor(self._conn.cursor()).executemany(sql, seq_of_params)
+
+    def executescript(self, script):
+        self._conn.executescript(script)
+
+    def commit(self):
+        self._conn.commit()
+
+    def close(self):
+        self._conn.close()
 
 
 def _ensure_schema(conn: sqlite3.Connection) -> None:
@@ -87,10 +169,23 @@ def _ensure_schema(conn: sqlite3.Connection) -> None:
 
 
 def connect(db_path: Path | None = None) -> sqlite3.Connection:
+    # An explicit db_path (tests, or any future caller that wants a specific
+    # local file) always wins and stays plain sqlite3 -- Turso auto-detection
+    # only kicks in for the zero-arg call cli.py/web/app.py actually use in
+    # production, so a stray TURSO_DATABASE_URL in someone's shell can't
+    # silently redirect a test run at the real remote database.
+    if db_path is None:
+        turso_url = os.environ.get("TURSO_DATABASE_URL")
+        if turso_url:
+            import libsql
+
+            conn = _TursoConnection(libsql.connect(database=turso_url, auth_token=os.environ.get("TURSO_AUTH_TOKEN")))
+            _ensure_schema(conn)
+            return conn
+        db_path = SESSIONS_DB_PATH
+
     # See db.py::connect for why this can't default to `= SESSIONS_DB_PATH`
     # directly -- that binds at def-time and breaks monkeypatching.
-    if db_path is None:
-        db_path = SESSIONS_DB_PATH
     db_path.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(db_path)
     conn.row_factory = sqlite3.Row

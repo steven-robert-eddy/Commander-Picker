@@ -184,22 +184,48 @@ card required.
 3. Confirm Render detected **Docker** as the environment (not a
    Python buildpack — that would skip the Dockerfile and the
    baked-in `update-data` step).
-4. Branch: whichever you want deployed. Instance type: Free. No
-   environment variables needed — `PORT` is injected automatically
-   and the Dockerfile's `CMD` already reads it.
+4. Branch: whichever you want deployed. Instance type: Free. `PORT`
+   is injected automatically and the Dockerfile's `CMD` already reads
+   it, so no environment variables are *required* — but see below
+   for the two that make session/Elo data survive redeploys.
 5. Create the service and watch the build log — `update-data` runs
    here, against Render's real internet access; the Scryfall bulk
    download is the slowest part.
 6. Once "Live", Render shows your public `https://commander-picker-957g.onrender.com`
    URL — open it from any phone or PC browser, no further setup.
 
-Known free-tier limitations, accepted rather than engineered around
-for now: the service sleeps after ~15 min idle (30-60s cold start on
-the next visit), and there's no persistent disk, so `data/sessions.db`
-resets on every redeploy or sleep/wake restart (`data/commanders.db`
-is unaffected — it's rebuilt fresh from `update-data` on every
-deploy). Every future `git push` to the connected branch
-auto-rebuilds and redeploys.
+Known free-tier limitations: the service sleeps after ~15 min idle
+(30-60s cold start on the next visit), and there's no persistent
+disk. `data/commanders.db` is unaffected by this — it's rebuilt
+fresh from `update-data` on every deploy — but `data/sessions.db`
+(picker sessions + the cross-session Elo leaderboard) would reset on
+every redeploy or sleep/wake restart if left as a plain local file.
+Every future `git push` to the connected branch auto-rebuilds and
+redeploys.
+
+### Persisting sessions/Elo data with Turso
+
+To keep `sessions.db`'s data (in-progress sessions, the all-time Elo
+leaderboard) across redeploys and restarts, point it at a
+[Turso](https://turso.tech) database instead of a local file:
+
+1. Sign up at turso.tech (GitHub login works) and create a database
+   from their web dashboard — no CLI needed (their CLI requires WSL
+   on Windows anyway).
+2. From the dashboard, copy the database URL
+   (`libsql://<name>.turso.io`) and generate an auth token.
+3. On Render: your service's Environment tab → add `TURSO_DATABASE_URL`
+   and `TURSO_AUTH_TOKEN`.
+4. Locally, if you want `commander-picker play`/`serve` to hit the
+   same remote database instead of `data/sessions.db`, set the same
+   two environment variables in your shell before running the
+   command. Leave them unset for local dev against the plain local
+   file — `sessions.connect()` only reaches for Turso when
+   `TURSO_DATABASE_URL` is set and no explicit `db_path` was passed.
+
+`commanders.db` (the EDHREC/Scryfall catalog) intentionally stays a
+local file rebuilt on every deploy — it never needed persistence,
+only `sessions.db` did.
 
 ## Project layout
 

@@ -7,11 +7,11 @@ ceiling), then runs a swipe-style head-to-head picker with Elo ratings
 to narrow the pool to a ranked shortlist — playable from the terminal
 or a browser, with ratings that persist and compound across sessions.
 
-Stack: Python, SQLite (local cache + queryable DB + session storage),
-EDHREC's JSON data as the source, Scryfall for card art. Standalone
-project — no dependency on the sibling `commander-synergy` repo's
-package, though the two may link later (e.g. "find synergy for this
-pick" once a commander is chosen).
+Stack: Python, SQLite (local cache + queryable DB), Turso (managed
+libSQL) for session storage, EDHREC's JSON data as the source, Scryfall
+for card art. Standalone project — no dependency on the sibling
+`commander-synergy` repo's package, though the two may link later
+(e.g. "find synergy for this pick" once a commander is chosen).
 
 ## Status: all core functionality done and live-verified
 
@@ -37,6 +37,12 @@ pick" once a commander is chosen).
   `sessions.db`, instead of resetting to 1000 every time. An all-time
   leaderboard (CLI, API, and web UI) shows this cross-session
   ranking, filterable by color the same way the duel picker is.
+- **Sessions/Elo data on Turso**: `sessions.py` connects to a managed
+  Turso (libSQL) database when `TURSO_DATABASE_URL`/`TURSO_AUTH_TOKEN`
+  are set, instead of a plain local file — so picker sessions and the
+  all-time leaderboard survive redeploys/restarts on hosts with no
+  persistent disk (e.g. Render's free tier). Falls back to the local
+  file when unset, so local dev/tests are unaffected.
 - **CLI** (`cli.py`): `update-data`, `pool`, `play`, `resume`,
   `sessions`, `results`, `leaderboard`, `list-colors`, `list-themes`,
   `serve`.
@@ -54,11 +60,26 @@ this project, not a play-by-play changelog.
 
 ## Architecture notes
 
-- **Two separate SQLite files, deliberately**: `commanders.db` (the
-  catalog) is fully dropped and rebuilt on every `update-data` run;
-  `sessions.db` (picker sessions + the all-time leaderboard) persists
-  independently so rebuilding the catalog never wipes session
-  history or ratings.
+- **Two separate SQLite-family stores, deliberately**: `commanders.db`
+  (the catalog) is a local file, fully dropped and rebuilt on every
+  `update-data` run; `sessions.db` (picker sessions + the all-time
+  leaderboard) persists independently — locally as a SQLite file by
+  default, or on Turso when configured — so rebuilding the catalog
+  never wipes session history or ratings.
+- **`sessions.py`'s Turso path is an adapter, not a rewrite**: libSQL
+  is a SQLite fork, so the schema and every query (upserts, a
+  `ROW_NUMBER() OVER (PARTITION BY ...)` window function, etc.) are
+  unchanged between the two backends. The `libsql` Python package's
+  one real gap versus stdlib `sqlite3` is no `row_factory` (rows come
+  back as plain tuples) and no direct cursor iteration — `_TursoRow`/
+  `_TursoCursor`/`_TursoConnection` restore just those two behaviors,
+  isolated entirely inside `connect()`, so no other function in the
+  module branches on which backend it's talking to. An **explicit**
+  `db_path` argument to `connect()` always wins and stays plain local
+  sqlite3 regardless of ambient env vars — only the zero-arg call
+  `cli.py`/`web/app.py` use in production auto-detects Turso — so a
+  developer's own shell env can't accidentally redirect a test run at
+  the real remote database.
 - **Color matching** (`pool._color_identity_matches`, reused directly
   by `sessions.get_leaderboard`): `subset` mode means a commander's
   identity fits within the selected colors (e.g. picking B+R shows
@@ -90,8 +111,8 @@ this project, not a play-by-play changelog.
   share one global session list. Real accounts (auth, `/api/sessions`
   scoped to the logged-in user, a user column on `sessions.db`) are
   the planned fix once this needs to support more than one person —
-  likely paired with moving off a single local SQLite file to a real
-  managed DB at the same time.
+  no longer blocked on moving off local SQLite first, since
+  `sessions.db` can already live on Turso.
 
 ## Not yet started
 
@@ -101,6 +122,14 @@ this project, not a play-by-play changelog.
 - Cross-link to `commander-synergy`: once a commander is chosen, jump
   straight into that project's synergy finder for it.
 - Real multi-user accounts (see above).
+- Backfilling the all-time leaderboard from pre-leaderboard-feature
+  session history: the ~65 local sessions played before
+  `commander_ratings` existed have their full `comparisons` history
+  (every winner/loser pair with a timestamp) but no reconstructed
+  rating — could be replayed through the Elo math to backfill, but
+  deliberately skipped when Turso was set up (started that leaderboard
+  fresh instead, by request) — the local history remains available if
+  this is revisited later.
 
 ## Known limitations
 
@@ -113,11 +142,12 @@ this project, not a play-by-play changelog.
   fresh without hammering the site on every session.
 - Elo K-factor and round-count scaling are hand-picked priors — worth
   tuning once there's real usage to observe.
-- Render's free tier has no persistent disk, so `data/sessions.db`
-  (session history + the all-time leaderboard) resets on redeploy or
-  a sleep/wake restart. `commanders.db` is unaffected since it's
-  rebuilt fresh on every deploy anyway. See README's Deploying
-  section.
+- Render's free tier has no persistent disk. `commanders.db` is
+  unaffected since it's rebuilt fresh on every deploy anyway;
+  `sessions.db` only survives redeploys/restarts if `TURSO_DATABASE_URL`/
+  `TURSO_AUTH_TOKEN` are set on the service — see README's Deploying
+  section. Without them it falls back to a local file that resets on
+  every redeploy, same as before Turso was added.
 
 ## Repo/branch notes
 
