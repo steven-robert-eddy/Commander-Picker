@@ -2,7 +2,7 @@
 
 Reads from ``data/commanders.db`` (built by ``db.py`` / `update-data`)
 and narrows it down by color identity, deck-count range, and theme
-tags into a bounded pool ready to hand to the picker engine (Phase 3).
+tags into a bounded pool ready to hand to the Elo picker engine.
 """
 
 from __future__ import annotations
@@ -30,7 +30,7 @@ class Commander:
     themes: tuple[str, ...]
     salt: float | None = None
     image_urls: list = field(default_factory=list)  # 2 entries for partner pairs / DFCs, else 0 or 1
-    price: float | None = None  # not populated until Phase 5
+    price: float | None = None  # never populated -- see db.py::CommanderRecord
 
 
 @dataclass
@@ -41,9 +41,9 @@ class PoolFilters:
     min_decks: int | None = None
     themes: tuple[str, ...] = ()
     themes_mode: str = "any"  # "any" (OR) or "all" (AND)
-    # max_price is deliberately not a field here yet -- price is
-    # unpopulated (always NULL) until Phase 5, so a real filter would
-    # silently exclude every commander. Add it once price is populated.
+    # max_price is deliberately not a field here -- price is never
+    # populated (always NULL), so a real filter would silently exclude
+    # every commander. Add it if/when price gets populated.
 
 
 def _color_identity_matches(color_identity: str, allowed: set[str], mode: str) -> bool:

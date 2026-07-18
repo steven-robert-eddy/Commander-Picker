@@ -42,9 +42,9 @@ class CommanderRecord:
     num_decks: int
     edhrec_url: str | None
     themes: set = field(default_factory=set)
-    salt: float | None = None  # not populated in Phase 1 — see "Known gap" below
+    salt: float | None = None  # never populated -- not on EDHREC's color/theme list endpoints
     image_urls: list = field(default_factory=list)  # 2 entries for partner pairs / DFCs, else 0 or 1
-    price: float | None = None  # not populated in Phase 1 — see PLAN.md Phase 5
+    price: float | None = None  # never populated
 
 
 def _cardviews_from_page(page_json: dict) -> list[dict]:
@@ -88,7 +88,7 @@ def load_commanders(
     Color pages are authoritative for identity/deck-count fields; theme
     pages only contribute theme tags for commanders already found on a
     color page (a commander missing its color page is skipped with no
-    error, since Phase 1's contract is "load what's cached").
+    error -- the contract here is "load what's cached").
     """
     color_slugs = _available_slugs("color", all_slugs() if color_slugs is None else color_slugs)
     theme_slugs = _available_slugs("theme", THEME_SLUGS if theme_slugs is None else theme_slugs)

@@ -1,12 +1,14 @@
 """FastAPI app: JSON API for the commander picker + serves the static frontend.
 
-Local-only for now, same posture as the sibling `commander-synergy`
-project's Phase 4: no auth, no rate limiting -- fine for a single-user
-local tool, would need attention before exposing beyond localhost.
+No auth, no rate limiting, no per-user scoping -- fine for a
+single-user or personal-link deployment (see PLAN.md's "Known
+limitations"), would need real accounts before supporting more than
+one person concurrently.
 """
 
 from __future__ import annotations
 
+from contextlib import contextmanager
 from dataclasses import asdict
 from pathlib import Path
 
@@ -48,11 +50,25 @@ def _to_pool_filters(body: FiltersBody) -> pool_module.PoolFilters:
     )
 
 
+@contextmanager
 def _catalog_conn():
     try:
-        return db.connect()
+        conn = db.connect()
     except db.DbError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
+    try:
+        yield conn
+    finally:
+        conn.close()
+
+
+@contextmanager
+def _sessions_conn():
+    conn = sessions.connect()
+    try:
+        yield conn
+    finally:
+        conn.close()
 
 
 def _build_pool_or_422(conn, body: FiltersBody) -> list[pool_module.Commander]:
@@ -87,66 +103,50 @@ def api_themes():
 
 @app.post("/api/pool")
 def api_pool(body: FiltersBody):
-    conn = _catalog_conn()
-    try:
+    with _catalog_conn() as conn:
         filters = _to_pool_filters(body)
         total_matches = pool_module.count_matches(conn, filters)
         candidates = _build_pool_or_422(conn, body)
-    finally:
-        conn.close()
     return {"total_matches": total_matches, "candidates": [asdict(c) for c in candidates]}
 
 
 @app.post("/api/sessions")
 def api_create_session(body: FiltersBody):
-    conn = _catalog_conn()
-    try:
+    with _catalog_conn() as conn:
         candidates = _build_pool_or_422(conn, body)
-    finally:
-        conn.close()
 
-    session_conn = sessions.connect()
-    try:
+    with _sessions_conn() as session_conn:
         description = pool_module.describe_filters(_to_pool_filters(body))
         session_id = sessions.create_session(session_conn, candidates, description=description)
         info = sessions.get_session(session_conn, session_id)
         pairing = _pairing_payload(session_conn, session_id)
-    finally:
-        session_conn.close()
     return {"session_id": session_id, "info": asdict(info), "pairing": pairing}
 
 
 @app.get("/api/sessions")
 def api_list_sessions():
-    conn = sessions.connect()
-    try:
+    with _sessions_conn() as conn:
         return {"sessions": [asdict(s) for s in sessions.list_sessions(conn)]}
-    finally:
-        conn.close()
 
 
 @app.get("/api/sessions/{session_id}")
 def api_get_session(session_id: str):
-    conn = sessions.connect()
-    try:
-        info = sessions.get_session(conn, session_id)
-    except sessions.SessionError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
-    finally:
-        conn.close()
+    with _sessions_conn() as conn:
+        try:
+            info = sessions.get_session(conn, session_id)
+        except sessions.SessionError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
     return asdict(info)
 
 
 @app.get("/api/sessions/{session_id}/pairing")
 def api_get_pairing(session_id: str):
-    conn = sessions.connect()
-    try:
-        sessions.get_session(conn, session_id)
-        return _pairing_payload(conn, session_id)
-    except sessions.SessionError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
-    finally:
-        conn.close()
+    with _sessions_conn() as conn:
+        try:
+            sessions.get_session(conn, session_id)
+            return _pairing_payload(conn, session_id)
+        except sessions.SessionError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
 class PickBody(BaseModel):
@@ -156,39 +156,33 @@ class PickBody(BaseModel):
 
 @app.post("/api/sessions/{session_id}/pick")
 def api_pick(session_id: str, body: PickBody):
-    conn = sessions.connect()
-    try:
-        sessions.record_pick(conn, session_id, body.winner, body.loser)
-        return _pairing_payload(conn, session_id)
-    except sessions.SessionError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-    finally:
-        conn.close()
+    with _sessions_conn() as conn:
+        try:
+            sessions.record_pick(conn, session_id, body.winner, body.loser)
+            return _pairing_payload(conn, session_id)
+        except sessions.SessionError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @app.post("/api/sessions/{session_id}/finish")
 def api_finish(session_id: str):
-    conn = sessions.connect()
-    try:
-        sessions.get_session(conn, session_id)
-        sessions.finish_session(conn, session_id)
-        return {"rankings": [asdict(r) for r in sessions.get_rankings(conn, session_id)]}
-    except sessions.SessionError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
-    finally:
-        conn.close()
+    with _sessions_conn() as conn:
+        try:
+            sessions.get_session(conn, session_id)
+            sessions.finish_session(conn, session_id)
+            return {"rankings": [asdict(r) for r in sessions.get_rankings(conn, session_id)]}
+        except sessions.SessionError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
 @app.get("/api/sessions/{session_id}/results")
 def api_results(session_id: str):
-    conn = sessions.connect()
-    try:
-        sessions.get_session(conn, session_id)
-        return {"rankings": [asdict(r) for r in sessions.get_rankings(conn, session_id)]}
-    except sessions.SessionError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
-    finally:
-        conn.close()
+    with _sessions_conn() as conn:
+        try:
+            sessions.get_session(conn, session_id)
+            return {"rankings": [asdict(r) for r in sessions.get_rankings(conn, session_id)]}
+        except sessions.SessionError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
 @app.get("/api/leaderboard")
@@ -197,12 +191,9 @@ def api_leaderboard(
     colors: str | None = None,
     color_mode: str = "subset",
 ):
-    conn = sessions.connect()
-    try:
+    with _sessions_conn() as conn:
         ranked = sessions.get_leaderboard(conn, limit=limit, colors=colors, color_mode=color_mode)
         return {"leaderboard": [asdict(r) for r in ranked]}
-    finally:
-        conn.close()
 
 
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
