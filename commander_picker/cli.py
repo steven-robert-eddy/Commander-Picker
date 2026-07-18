@@ -240,9 +240,12 @@ def _cmd_results(args: argparse.Namespace) -> int:
 
 def _cmd_leaderboard(args: argparse.Namespace) -> int:
     conn = sessions.connect()
-    ranked = sessions.get_leaderboard(conn, limit=args.limit)
+    ranked = sessions.get_leaderboard(conn, limit=args.limit, colors=args.colors, color_mode=args.color_mode)
     if not ranked:
-        print("No all-time ratings yet -- play a session with `commander-picker play` first.")
+        if args.colors:
+            print("No commanders match that color filter yet.")
+        else:
+            print("No all-time ratings yet -- play a session with `commander-picker play` first.")
         return 0
     for i, c in enumerate(ranked, start=1):
         color_display = c.color_identity or "C"
@@ -331,6 +334,13 @@ def build_parser() -> argparse.ArgumentParser:
         "leaderboard", help="show the all-time Elo ranking, built up across every session ever played"
     )
     leaderboard.add_argument("--limit", type=int, default=25, help="max entries to show (default: 25)")
+    leaderboard.add_argument("--colors", help="only show commanders whose colors match, e.g. BRG (default: no filter)")
+    leaderboard.add_argument(
+        "--color-mode",
+        choices=["subset", "exact"],
+        default="subset",
+        help="'subset' (commander's colors fit within --colors) or 'exact' match (default: subset)",
+    )
     leaderboard.set_defaults(func=_cmd_leaderboard)
 
     list_colors = subparsers.add_parser("list-colors", help="print all known color-identity slugs")

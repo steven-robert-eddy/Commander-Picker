@@ -98,6 +98,17 @@
         instead of resetting each session. Tap a commander to see its
         card(s) full size.
       </p>
+      <div class="panel">
+        <div class="filter-label">Colors</div>
+        <div class="filter-row" id="leaderboard-color-chips"></div>
+
+        <div class="filter-label">Color match</div>
+        <div class="segmented" id="leaderboard-color-mode-toggle">
+          <button type="button" class="segmented-btn" data-mode="subset" aria-pressed="true">Any combo within colors</button>
+          <button type="button" class="segmented-btn" data-mode="exact" aria-pressed="false">Exact colors only</button>
+        </div>
+      </div>
+
       <div class="panel" id="leaderboard-list"></div>
       <button class="ghost-btn" id="leaderboard-back-btn" type="button">← Back to filters</button>
     </section>

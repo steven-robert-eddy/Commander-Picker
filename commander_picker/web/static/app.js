@@ -16,6 +16,13 @@
   let maxDecks = 10000;
   let poolSize = 40;
 
+  // ---- leaderboard filter state -- deliberately separate from the
+  // duel-pool filter state above. Checking "how do my mono-red
+  // commanders rank all-time" shouldn't also change what colors your
+  // next duel session gets built from. ----
+  const leaderboardActiveColors = new Set();
+  let leaderboardColorMode = "subset";
+
   // ---- session state ----
   let sessionId = null;
   let currentPairing = null; // { round, target_rounds, candidates: [a, b] }
@@ -51,8 +58,12 @@
     return data;
   }
 
-  function renderColorChips() {
-    const wrap = $("color-chips");
+  // Generalized so both the duel-pool filter (#color-chips) and the
+  // leaderboard filter (#leaderboard-color-chips) can each drive their
+  // own independent Set of active colors without duplicating the chip-
+  // building logic.
+  function renderColorChips(containerId, activeSet, onChange) {
+    const wrap = $(containerId);
     wrap.innerHTML = "";
     MANA_ORDER.forEach((col) => {
       const b = document.createElement("button");
@@ -64,12 +75,27 @@
       b.innerHTML = `<img class="chip-pip" src="${MANA_SYMBOL_BASE_URL}${col}.svg" alt="" />${label}`;
       b.setAttribute("aria-pressed", "false");
       b.addEventListener("click", () => {
-        if (activeColors.has(col)) activeColors.delete(col);
-        else activeColors.add(col);
-        b.setAttribute("aria-pressed", String(activeColors.has(col)));
-        refreshPoolPreview();
+        if (activeSet.has(col)) activeSet.delete(col);
+        else activeSet.add(col);
+        b.setAttribute("aria-pressed", String(activeSet.has(col)));
+        onChange();
       });
       wrap.appendChild(b);
+    });
+  }
+
+  // Same generalization for the subset/exact segmented toggle -- one
+  // wiring function, two independent instances (duel-pool filter,
+  // leaderboard filter).
+  function wireColorModeToggle(containerId, setMode, onChange) {
+    document.querySelectorAll(`#${containerId} .segmented-btn`).forEach((btn) => {
+      btn.addEventListener("click", () => {
+        setMode(btn.dataset.mode);
+        document.querySelectorAll(`#${containerId} .segmented-btn`).forEach((b) => {
+          b.setAttribute("aria-pressed", String(b === btn));
+        });
+        onChange();
+      });
     });
   }
 
@@ -351,10 +377,18 @@
 
   async function showLeaderboard() {
     try {
-      const { leaderboard } = await api("GET", "/api/leaderboard");
+      const params = new URLSearchParams();
+      if (leaderboardActiveColors.size) params.set("colors", [...leaderboardActiveColors].join(""));
+      params.set("color_mode", leaderboardColorMode);
+      const { leaderboard } = await api("GET", `/api/leaderboard?${params.toString()}`);
       if (!leaderboard.length) {
-        $("leaderboard-list").innerHTML =
-          '<div class="spinner-note">No all-time ratings yet — finish a duel session first.</div>';
+        // Distinguish "nothing's ever been rated" from "your color
+        // filter excludes everything currently rated" -- the first
+        // needs "go play a session," the second just needs a looser
+        // filter.
+        $("leaderboard-list").innerHTML = leaderboardActiveColors.size
+          ? '<div class="spinner-note">No commanders match that color filter yet.</div>'
+          : '<div class="spinner-note">No all-time ratings yet — finish a duel session first.</div>';
         showScreen("screen-leaderboard");
         return;
       }
@@ -436,17 +470,11 @@
     refreshPoolPreview();
   });
 
-  document.querySelectorAll("#color-mode-toggle .segmented-btn").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      colorMode = btn.dataset.mode;
-      document.querySelectorAll("#color-mode-toggle .segmented-btn").forEach((b) => {
-        b.setAttribute("aria-pressed", String(b === btn));
-      });
-      refreshPoolPreview();
-    });
-  });
+  wireColorModeToggle("color-mode-toggle", (m) => { colorMode = m; }, refreshPoolPreview);
+  wireColorModeToggle("leaderboard-color-mode-toggle", (m) => { leaderboardColorMode = m; }, showLeaderboard);
 
-  renderColorChips();
+  renderColorChips("color-chips", activeColors, refreshPoolPreview);
+  renderColorChips("leaderboard-color-chips", leaderboardActiveColors, showLeaderboard);
   refreshPoolPreview();
   showScreen("screen-intro");
 })();

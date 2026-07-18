@@ -888,6 +888,57 @@ the first session (970.06, not 1000) -- the actual cross-session
 carry-over, confirmed against a live server rather than only unit
 tests. Full suite: 107 passed.
 
+### Leaderboard color filtering ✅ done
+
+Requested directly: "Can we add the ability to filter the leaderboard
+based on color like how we do for picking the start [of a duel]."
+
+`sessions.get_leaderboard()` gained `colors`/`color_mode` parameters,
+reusing `pool._color_identity_matches` directly (already imported
+into `sessions.py` for `Commander`, so no new circular-import risk) —
+same subset-vs-exact/colorless-as-"C" semantics as the duel-pool
+filter, applied in Python after the query runs (color identity comes
+from the joined `candidates` snapshot, not a column on
+`commander_ratings` itself). Filtering happens *before* `limit` is
+applied — "top 25" means the top 25 matching the filter, not the top
+25 overall further trimmed by color; a dedicated test
+(`test_leaderboard_color_filter_applies_before_limit`) locks this in.
+`GET /api/leaderboard` gained matching `colors`/`color_mode` query
+params; `commander-picker leaderboard` gained matching
+`--colors`/`--color-mode` flags (added directly to the `leaderboard`
+subparser rather than pulling in `_add_pool_filter_args()`, which
+also adds irrelevant flags like `--themes`/`--max-decks` that don't
+apply to a global cross-session ranking).
+
+Frontend: the leaderboard screen gets its own independent color
+chips + subset/exact toggle (`leaderboardActiveColors`/
+`leaderboardColorMode` in `app.js`, deliberately separate module-
+scope state from the duel-pool filter's `activeColors`/`colorMode`)
+— checking "how do my mono-red commanders rank all-time" shouldn't
+also change what colors your next duel session gets built from.
+`renderColorChips()` and a new `wireColorModeToggle()` were
+generalized to take a container ID + state Set/setter + change
+callback instead of being hardcoded to the intro screen's elements,
+so both screens share the same chip-building logic without
+duplicating it. Filtering re-fetches automatically on every chip/mode
+toggle (matching the intro screen's live-preview pattern), and the
+empty state distinguishes "nothing's ever been rated" from "your
+filter excludes everything currently rated."
+
+Verified: 6 new tests in `test_sessions.py` (subset mode, exact mode,
+no-filter-returns-everything, colorless handling incl. the
+doesn't-leak-into-unrelated-filters regression class, filter-before-
+limit ordering, empty-result case) and 1 in `test_web.py`
+(`/api/leaderboard?colors=...&color_mode=...` end to end). Also
+manually verified against a real running server: built fixture data
+with a deliberate color split (2 BR commanders, 2 mono-B), played a
+full session to rate all 4, then confirmed via direct API calls and
+a Playwright walkthrough of the actual UI that `B`+exact showed only
+the mono-B pair, `BR`+subset showed all 4 (mono-B is a subset of BR),
+`BR`+exact showed only the BR pair, and that toggling the leaderboard
+chips left the intro screen's own color filter completely untouched.
+Full suite: 114 passed.
+
 ### Not yet started
 
 - Session history across visits (which commanders have already been

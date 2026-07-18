@@ -192,10 +192,15 @@ def api_results(session_id: str):
 
 
 @app.get("/api/leaderboard")
-def api_leaderboard(limit: int = Query(default=100, ge=1, le=500)):
+def api_leaderboard(
+    limit: int = Query(default=100, ge=1, le=500),
+    colors: str | None = None,
+    color_mode: str = "subset",
+):
     conn = sessions.connect()
     try:
-        return {"leaderboard": [asdict(r) for r in sessions.get_leaderboard(conn, limit=limit)]}
+        ranked = sessions.get_leaderboard(conn, limit=limit, colors=colors, color_mode=color_mode)
+        return {"leaderboard": [asdict(r) for r in ranked]}
     finally:
         conn.close()
 

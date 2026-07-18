@@ -16,7 +16,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from commander_picker import elo
-from commander_picker.pool import Commander
+from commander_picker.pool import Commander, _color_identity_matches
 
 DATA_DIR = Path(__file__).resolve().parent.parent / "data"
 SESSIONS_DB_PATH = DATA_DIR / "sessions.db"
@@ -362,7 +362,12 @@ class GlobalRanking:
     image_urls: tuple[str, ...]
 
 
-def get_leaderboard(conn: sqlite3.Connection, limit: int | None = None) -> list[GlobalRanking]:
+def get_leaderboard(
+    conn: sqlite3.Connection,
+    limit: int | None = None,
+    colors: str | None = None,
+    color_mode: str = "subset",
+) -> list[GlobalRanking]:
     """All-time ranking across every session ever played, highest rating first.
 
     Distinct from get_rankings(), which is scoped to a single session's
@@ -379,6 +384,15 @@ def get_leaderboard(conn: sqlite3.Connection, limit: int | None = None) -> list[
     ranking view in this module already uses (there's no live
     dependency on `commanders.db` here, which is a separate file that
     gets fully rebuilt on every `update-data` run).
+
+    `colors`/`color_mode` reuse `pool._color_identity_matches` --
+    exact same subset-vs-exact/colorless-as-"C" semantics as the duel
+    pool filter, applied here in Python after the query (color
+    identity isn't a SQL column, it comes from the joined snapshot).
+    `colors=None` means no filter at all, same convention as
+    `pool.PoolFilters.colors`. Filtering happens *before* `limit` is
+    applied -- "top 25" means the top 25 matching the color filter,
+    not the top 25 overall further trimmed by color.
     """
     query = """
         SELECT
@@ -398,11 +412,8 @@ def get_leaderboard(conn: sqlite3.Connection, limit: int | None = None) -> list[
         ) latest ON latest.commander_name = cr.commander_name AND latest.rn = 1
         ORDER BY cr.rating DESC
     """
-    if limit is not None:
-        rows = conn.execute(query + " LIMIT ?", (limit,)).fetchall()
-    else:
-        rows = conn.execute(query).fetchall()
-    return [
+    rows = conn.execute(query).fetchall()
+    ranked = [
         GlobalRanking(
             name=r["commander_name"],
             rating=r["rating"],
@@ -415,3 +426,9 @@ def get_leaderboard(conn: sqlite3.Connection, limit: int | None = None) -> list[
         )
         for r in rows
     ]
+    if colors:
+        allowed = set(colors.upper())
+        ranked = [r for r in ranked if _color_identity_matches(r.color_identity, allowed, color_mode)]
+    if limit is not None:
+        ranked = ranked[:limit]
+    return ranked

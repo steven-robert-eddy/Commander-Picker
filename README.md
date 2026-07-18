@@ -117,6 +117,7 @@ commander-picker sessions                 # list all sessions (active + finished
 commander-picker resume <session-id>       # continue a paused session
 commander-picker results <session-id>      # show current/final ranking without playing
 commander-picker leaderboard              # all-time Elo across every session ever played
+commander-picker leaderboard --colors BR --color-mode exact  # filter it by color, same as pool/play
 ```
 
 `play` accepts the same filter flags as `pool` (`--colors`,
@@ -164,7 +165,8 @@ client: `GET /api/themes`, `POST /api/pool`, `POST /api/sessions`,
 `GET /api/sessions`, `GET /api/sessions/{id}`, `GET
 /api/sessions/{id}/pairing`, `POST /api/sessions/{id}/pick`, `POST
 /api/sessions/{id}/finish`, `GET /api/sessions/{id}/results`, `GET
-/api/leaderboard` (all-time ranking, `?limit=` optional, default 100).
+/api/leaderboard` (all-time ranking; optional `?limit=` default 100,
+`?colors=`/`?color_mode=` same as `/api/pool`).
 
 ## Deploying
 

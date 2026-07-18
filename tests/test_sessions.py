@@ -397,3 +397,76 @@ def test_leaderboard_carries_display_metadata_from_latest_session(conn):
 def test_empty_leaderboard_before_any_picks(conn):
     sessions.create_session(conn, [_commander("A"), _commander("B")])
     assert sessions.get_leaderboard(conn) == []
+
+
+def test_leaderboard_color_subset_mode(conn):
+    # BR should include a mono-B commander (subset of BR) but not a
+    # 3-color one -- same semantics as pool._color_identity_matches.
+    session_id = sessions.create_session(
+        conn,
+        [_commander("BigRakdos", colors="BR"), _commander("MonoB", colors="B"), _commander("Jund", colors="BRG")],
+    )
+    sessions.record_pick(conn, session_id, winner="BigRakdos", loser="MonoB")
+    sessions.record_pick(conn, session_id, winner="MonoB", loser="Jund")
+
+    names = {r.name for r in sessions.get_leaderboard(conn, colors="BR", color_mode="subset")}
+    assert names == {"BigRakdos", "MonoB"}
+
+
+def test_leaderboard_color_exact_mode(conn):
+    session_id = sessions.create_session(
+        conn, [_commander("BigRakdos", colors="BR"), _commander("MonoB", colors="B")]
+    )
+    sessions.record_pick(conn, session_id, winner="BigRakdos", loser="MonoB")
+
+    names = {r.name for r in sessions.get_leaderboard(conn, colors="BR", color_mode="exact")}
+    assert names == {"BigRakdos"}
+
+
+def test_leaderboard_no_color_filter_returns_everything(conn):
+    session_id = sessions.create_session(
+        conn, [_commander("BigRakdos", colors="BR"), _commander("MonoB", colors="B")]
+    )
+    sessions.record_pick(conn, session_id, winner="BigRakdos", loser="MonoB")
+
+    names = {r.name for r in sessions.get_leaderboard(conn)}
+    assert names == {"BigRakdos", "MonoB"}
+
+
+def test_leaderboard_colorless_handling(conn):
+    session_id = sessions.create_session(
+        conn, [_commander("Golem", colors=""), _commander("MonoB", colors="B")]
+    )
+    sessions.record_pick(conn, session_id, winner="Golem", loser="MonoB")
+
+    exact_colorless = {r.name for r in sessions.get_leaderboard(conn, colors="C", color_mode="exact")}
+    assert exact_colorless == {"Golem"}
+
+    # Colorless shouldn't leak into an unrelated color filter (regression
+    # class already guarded in pool.py -- same underlying function).
+    subset_b = {r.name for r in sessions.get_leaderboard(conn, colors="B", color_mode="subset")}
+    assert "Golem" not in subset_b
+
+
+def test_leaderboard_color_filter_applies_before_limit(conn):
+    # Two BR commanders rated above a mono-B one -- limit=1 with a "B"
+    # exact filter should still surface the mono-B commander, not cut
+    # it before the filter had a chance to apply.
+    session_id = sessions.create_session(
+        conn,
+        [_commander("BigRakdos", colors="BR"), _commander("SmallRakdos", colors="BR"), _commander("MonoB", colors="B")],
+    )
+    sessions.record_pick(conn, session_id, winner="BigRakdos", loser="MonoB")
+    sessions.record_pick(conn, session_id, winner="SmallRakdos", loser="MonoB")
+    sessions.record_pick(conn, session_id, winner="BigRakdos", loser="SmallRakdos")
+
+    board = sessions.get_leaderboard(conn, limit=1, colors="B", color_mode="exact")
+    assert len(board) == 1
+    assert board[0].name == "MonoB"
+
+
+def test_leaderboard_empty_when_color_filter_matches_nothing(conn):
+    session_id = sessions.create_session(conn, [_commander("MonoB", colors="B"), _commander("MonoG", colors="G")])
+    sessions.record_pick(conn, session_id, winner="MonoB", loser="MonoG")
+
+    assert sessions.get_leaderboard(conn, colors="U", color_mode="exact") == []

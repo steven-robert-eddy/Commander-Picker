@@ -212,3 +212,26 @@ def test_leaderboard_reflects_picks_and_persists_across_sessions(client):
     second_candidates = {c["name"]: c["rating"] for c in second["pairing"]["candidates"]}
     if a in second_candidates:
         assert second_candidates[a] == pytest.approx(board[a]["rating"])
+
+
+def test_leaderboard_filters_by_color(client):
+    resp = client.post(
+        "/api/sessions",
+        json=_pool_body(colors="BR", color_mode="subset", max_decks=None, pool_size=4, min_pool_size=2),
+    )
+    session_id = resp.json()["session_id"]
+    pairing = resp.json()["pairing"]
+    while pairing:
+        a, b = pairing["candidates"]
+        pick = client.post(f"/api/sessions/{session_id}/pick", json={"winner": a["name"], "loser": b["name"]})
+        pairing = pick.json()
+
+    # Fixture data (see _pool_body/sample_color_page.json) is all
+    # BR/Rakdos-identity commanders, so an exact-BR filter should
+    # return everything rated, and an unrelated color should return
+    # nothing.
+    matching = client.get("/api/leaderboard?colors=BR&color_mode=exact").json()["leaderboard"]
+    assert len(matching) > 0
+
+    non_matching = client.get("/api/leaderboard?colors=U&color_mode=exact").json()["leaderboard"]
+    assert non_matching == []
