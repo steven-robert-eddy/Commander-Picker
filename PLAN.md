@@ -832,6 +832,84 @@ even though the color-cliché complaint was correctly addressed.
 - Cross-link to `commander-synergy`: once a commander is chosen, jump
   straight into that project's synergy finder for it.
 
+## Phase 6 — Containerized deployment
+
+User asked to get this reachable from a phone or PC via a plain link,
+with no repo clone or CLI commands needed going forward (only the
+one-time deploy setup, done once by the project owner).
+
+Added `Dockerfile` and `.dockerignore` at the repo root. Key design
+points:
+
+- **`update-data` runs as a Docker build step**, not at container
+  startup — `RUN commander-picker update-data` happens during image
+  build, against whatever real internet access the *build host* has
+  (Render's build servers, not this dev sandbox). This works cleanly
+  because of a fact already true from Phase 5: `db.py`'s
+  `build_database()` resolves every commander's Scryfall
+  `image_urls` once at build time and stores them directly in
+  `commanders.db` — the running app never touches
+  `data/scryfall/oracle_cards.json` (the large raw bulk file) again
+  at request-serving time, only the small, self-contained
+  `commanders.db`. So the image only needs `update-data` transiently
+  during build, not as a runtime dependency.
+- The transient `data/scryfall/` and `data/edhrec/` caches are
+  deleted in the **same** `RUN` instruction that creates them
+  (`RUN commander-picker update-data && rm -rf data/scryfall
+  data/edhrec data/edhrec_meta.json`) rather than a later one —
+  Docker layers are append-only diffs, so deleting in a separate
+  `RUN` would still leave the multi-hundred-MB Scryfall file baked
+  into an earlier layer regardless of what the final filesystem view
+  shows.
+- `CMD ["sh", "-c", "exec commander-picker serve --host 0.0.0.0
+  --port ${PORT:-8000}"]` — the `exec` matters: without it, `sh` (not
+  uvicorn) is PID 1 and doesn't forward `SIGTERM`, so a
+  restart/shutdown would hang until a hard `SIGKILL` timeout instead
+  of shutting down cleanly. `${PORT:-8000}` picks up Render's
+  injected `PORT` env var at runtime, falling back to 8000 for a
+  plain local `docker run` — no application code changes needed,
+  `cli.py`'s existing `--host`/`--port` flags are sufficient as-is.
+- `.dockerignore` excludes `data/` entirely (among the usual
+  `.git`/`.venv`/`__pycache__`/etc.) — this checkout has local dev
+  `data/commanders.db` and `data/sessions.db` sitting on disk, and
+  without this exclusion a plain `COPY . .` would ship stale local
+  data into the image instead of building fresh data via
+  `update-data`.
+- Host: **Render**, free Docker-based Web Service, deployed via
+  their dashboard connected directly to this GitHub repo/branch — no
+  credit card required for their free tier (the reason Render was
+  picked over Fly.io, which also has a free allowance but requires
+  billing details on file). Every future `git push` to the connected
+  branch auto-rebuilds and redeploys with no further action.
+- Known, deliberately-accepted limitations of Render's free tier: it
+  sleeps after ~15 min idle (30-60s cold start on the next visit
+  after that), and has **no persistent disk** — `data/sessions.db`
+  (the only thing mutated at runtime; `commanders.db` is rebuilt
+  fresh on every deploy) is wiped on every redeploy or sleep/wake
+  restart. Accepted rather than engineered around for now, since real
+  persistence will naturally come with the multi-user rework noted
+  below rather than being worth a standalone stopgap.
+
+**Verification boundary, explicit:** this dev sandbox's egress
+policy blocks not just edhrec.com/api.scryfall.com but Docker Hub's
+own CDN too (confirmed: `docker build` fails to even pull the
+`python:3.12-slim` base image, 403 from `production.cloudfront.docker.com`)
+— so nothing about this Dockerfile could be build-tested here at
+all, not even the network-independent parts. The Dockerfile/
+`.dockerignore` were written and reviewed by careful manual
+inspection against the actual repo layout (confirmed real paths:
+`commander_picker/`, `pyproject.toml`, the `commander-picker`
+console-script entry point, `--host`/`--port` CLI flags; confirmed
+`commander-picker serve` requires `data/commanders.db` to exist
+first via `db.connect()` raising otherwise, so ordering `update-data`
+before `serve` in the image is required, not optional; confirmed
+`edhrec_client.py`/`scryfall_client.py` already have request
+timeouts — 30s/30s/180s — so a stalled build-time connection won't
+hang indefinitely). The actual `docker build` succeeding, real build
+time, final image size, and the live URL working end-to-end from a
+real phone/PC browser all need the user's own verification once
+deployed — record the live `*.onrender.com` URL here once confirmed.
+
 ## Known open questions / risks
 
 - This dev sandbox still can't reach edhrec.com/Scryfall itself (403
@@ -850,6 +928,20 @@ even though the color-cliché complaint was correctly addressed.
   same as `commander-synergy`'s tag weights — expect to tune once
   there's real usage to observe (are sessions converging too fast/slow,
   does the shortlist feel right).
+- **No real multi-user support yet — deliberately deferred, not
+  forgotten.** `web/app.py`'s own docstring already says "no auth, no
+  rate limiting -- fine for a single-user local tool." That was
+  harmless on `localhost`; now that the app is reachable via a public
+  link (Phase 6), it's a live gap: `GET /api/sessions` returns *every*
+  session ever created, globally, with no ownership scoping — two
+  simultaneous visitors share one global session list and can
+  view/resume/interfere with each other's picker sessions. Accepted
+  for now as an intentional trade-off (free public link, no login,
+  single shared state). Eventual goal: real per-user accounts,
+  `/api/sessions` scoped to the logged-in user, and a user/account
+  column added to `sessions.db`'s schema — likely paired with a move
+  off a single local SQLite file to a real managed DB at the same
+  time persistence is revisited.
 
 ## Repo/branch notes
 

@@ -156,6 +156,43 @@ client: `GET /api/themes`, `POST /api/pool`, `POST /api/sessions`,
 /api/sessions/{id}/pairing`, `POST /api/sessions/{id}/pick`, `POST
 /api/sessions/{id}/finish`, `GET /api/sessions/{id}/results`.
 
+## Deploying
+
+The included `Dockerfile` builds `data/commanders.db` **during the
+image build** (`RUN commander-picker update-data`), so the resulting
+container is fully self-contained — no separate data-fetching step
+and no repo clone needed by anyone using the deployed link. This
+means the *build* needs to happen somewhere with real internet
+access to edhrec.com and api.scryfall.com (a restricted dev sandbox
+won't work for this step — see `PLAN.md` Phase 6).
+
+Recommended: **Render**, free Docker-based Web Service, no credit
+card required.
+
+1. Push this repo to GitHub (already done if you're reading this from
+   the repo).
+2. render.com → sign in with GitHub → "New +" → "Web Service" →
+   select this repo.
+3. Confirm Render detected **Docker** as the environment (not a
+   Python buildpack — that would skip the Dockerfile and the
+   baked-in `update-data` step).
+4. Branch: whichever you want deployed. Instance type: Free. No
+   environment variables needed — `PORT` is injected automatically
+   and the Dockerfile's `CMD` already reads it.
+5. Create the service and watch the build log — `update-data` runs
+   here, against Render's real internet access; the Scryfall bulk
+   download is the slowest part.
+6. Once "Live", Render shows your public `https://*.onrender.com`
+   URL — open it from any phone or PC browser, no further setup.
+
+Known free-tier limitations, accepted rather than engineered around
+for now: the service sleeps after ~15 min idle (30-60s cold start on
+the next visit), and there's no persistent disk, so `data/sessions.db`
+resets on every redeploy or sleep/wake restart (`data/commanders.db`
+is unaffected — it's rebuilt fresh from `update-data` on every
+deploy). Every future `git push` to the connected branch
+auto-rebuilds and redeploys.
+
 ## Project layout
 
 ```
