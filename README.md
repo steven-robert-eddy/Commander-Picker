@@ -8,14 +8,13 @@ ratings to narrow the pool to a ranked shortlist.
 
 ## Status
 
-Phases 1–4 are done: EDHREC data ingestion (live-verified — a real
-`update-data` run pulls 3,797+ commanders with correct color
-identities, deck counts, and theme tags), filtering / candidate pools,
-the Elo-style swipe picker, and a web UI on top of the same engine —
-playable from the terminal (`play`) or a browser (`serve`). Phase 5
-(card images from Scryfall, plus a UX pass on the web UI — typed
-deck-count entry, editable duel pool size, total-vs-capped match
-counts) is partially done — see `PLAN.md`.
+Fully built and live-verified: EDHREC data ingestion (a real
+`update-data` run pulls 3,800+ commanders with correct color
+identities, deck counts, theme tags, and card art), filtering /
+candidate pools, the Elo-style swipe picker with cross-session
+persistent ratings and an all-time leaderboard, a web UI on top of
+the same engine, and a Docker deployment for a public URL — see
+`PLAN.md` for architecture notes and what's not yet started.
 
 ## Setup
 
@@ -50,9 +49,7 @@ results ledger. Most commanders get one image; Partner/Background
 pairs (EDHREC's "A // B" combined name) and double-faced/transform
 commanders get two, shown side by side — the two halves of a
 partner pair are separate Scryfall cards, while a transform card's
-front and back are two faces of the same card. **Unverified against
-live Scryfall** in this dev sandbox (same egress block as
-edhrec.com) — see PLAN.md Phase 5.
+front and back are two faces of the same card.
 
 Useful flags:
 
@@ -175,8 +172,7 @@ image build** (`RUN commander-picker update-data`), so the resulting
 container is fully self-contained — no separate data-fetching step
 and no repo clone needed by anyone using the deployed link. This
 means the *build* needs to happen somewhere with real internet
-access to edhrec.com and api.scryfall.com (a restricted dev sandbox
-won't work for this step — see `PLAN.md` Phase 6).
+access to edhrec.com and api.scryfall.com.
 
 Recommended: **Render**, free Docker-based Web Service, no credit
 card required.
