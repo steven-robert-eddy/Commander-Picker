@@ -190,7 +190,7 @@ card required.
 5. Create the service and watch the build log — `update-data` runs
    here, against Render's real internet access; the Scryfall bulk
    download is the slowest part.
-6. Once "Live", Render shows your public `https://*.onrender.com`
+6. Once "Live", Render shows your public `https://commander-picker-957g.onrender.com`
    URL — open it from any phone or PC browser, no further setup.
 
 Known free-tier limitations, accepted rather than engineered around
