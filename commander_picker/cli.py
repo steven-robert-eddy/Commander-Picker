@@ -240,6 +240,21 @@ def _cmd_results(args: argparse.Namespace) -> int:
 
 def _cmd_leaderboard(args: argparse.Namespace) -> int:
     conn = sessions.connect()
+
+    if args.reset:
+        if not args.yes:
+            answer = input(
+                "This permanently erases every commander's all-time rating and "
+                "games-played count (session history itself is unaffected). "
+                "Type 'yes' to confirm: "
+            ).strip().lower()
+            if answer != "yes":
+                print("Cancelled.")
+                return 0
+        sessions.reset_leaderboard(conn)
+        print("All-time leaderboard reset.")
+        return 0
+
     ranked = sessions.get_leaderboard(conn, limit=args.limit, colors=args.colors, color_mode=args.color_mode)
     if not ranked:
         if args.colors:
@@ -341,6 +356,10 @@ def build_parser() -> argparse.ArgumentParser:
         default="subset",
         help="'subset' (commander's colors fit within --colors) or 'exact' match (default: subset)",
     )
+    leaderboard.add_argument(
+        "--reset", action="store_true", help="permanently erase all-time ratings (asks for confirmation)"
+    )
+    leaderboard.add_argument("--yes", action="store_true", help="skip the confirmation prompt for --reset")
     leaderboard.set_defaults(func=_cmd_leaderboard)
 
     list_colors = subparsers.add_parser("list-colors", help="print all known color-identity slugs")

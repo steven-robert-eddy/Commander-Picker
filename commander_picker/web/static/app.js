@@ -454,6 +454,23 @@
     });
     showLeaderboard();
   });
+  $("leaderboard-reset-data-btn").addEventListener("click", async () => {
+    // Destructive and irreversible -- confirm before touching the
+    // server, same pattern as window.alert() for errors elsewhere in
+    // this file (a native browser dialog, not a custom in-app one).
+    const confirmed = window.confirm(
+      "This permanently erases every commander's all-time rating and games-played " +
+        "count. Past session results themselves aren't affected -- only the all-time " +
+        "leaderboard built from them. This can't be undone. Continue?"
+    );
+    if (!confirmed) return;
+    try {
+      await api("DELETE", "/api/leaderboard");
+      showLeaderboard();
+    } catch (e) {
+      window.alert(e.message);
+    }
+  });
 
   // Slider and number input both drive maxDecks -- the slider is fast
   // for coarse adjustment, the number input is exact (no more fighting

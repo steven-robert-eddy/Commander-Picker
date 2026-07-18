@@ -527,3 +527,16 @@ def get_leaderboard(
     if limit is not None:
         ranked = ranked[:limit]
     return ranked
+
+
+def reset_leaderboard(conn: sqlite3.Connection) -> None:
+    """Permanently erase every commander's all-time rating/games_played.
+
+    Only touches `commander_ratings` -- past sessions and their own
+    results (`sessions`/`candidates`/`comparisons`) are untouched, so
+    session history/resume/results still work exactly as before. A
+    commander picked again after this starts fresh from
+    `elo.DEFAULT_RATING`, same as one with no history at all.
+    """
+    conn.execute("DELETE FROM commander_ratings")
+    conn.commit()

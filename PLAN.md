@@ -104,6 +104,14 @@ this project, not a play-by-play changelog.
   history; `record_pick` updates both the session-local rating and
   the global one on every single pick, so a paused/abandoned
   session's partial progress still counts toward the all-time rating.
+  `sessions.reset_leaderboard()` (CLI: `leaderboard --reset`, API:
+  `DELETE /api/leaderboard`, web UI: a confirm-gated "Reset all-time
+  leaderboard…" link) wipes only `commander_ratings` — past sessions
+  and their own results are untouched, so session history/resume/
+  results still work exactly as before a reset. Confirmation lives
+  client-side (CLI prompt, browser `confirm()`); the API endpoint
+  itself has no confirmation step, consistent with this app having no
+  auth to gate a "some day" separate confirmation UI behind anyway.
 - **No auth / no multi-user support yet** — deliberate, not
   forgotten. `GET /api/sessions` and the leaderboard currently return
   global state with no per-user scoping; fine for a single-user or

@@ -235,3 +235,21 @@ def test_leaderboard_filters_by_color(client):
 
     non_matching = client.get("/api/leaderboard?colors=U&color_mode=exact").json()["leaderboard"]
     assert non_matching == []
+
+
+def test_reset_leaderboard_clears_ratings_but_not_session_results(client):
+    created = client.post("/api/sessions", json=_pool_body()).json()
+    session_id = created["session_id"]
+    a = created["pairing"]["candidates"][0]["name"]
+    b = created["pairing"]["candidates"][1]["name"]
+    client.post(f"/api/sessions/{session_id}/pick", json={"winner": a, "loser": b})
+
+    assert client.get("/api/leaderboard").json()["leaderboard"] != []
+
+    resp = client.delete("/api/leaderboard")
+    assert resp.status_code == 200
+    assert client.get("/api/leaderboard").json()["leaderboard"] == []
+
+    # The session's own results are untouched.
+    info = client.get(f"/api/sessions/{session_id}").json()
+    assert info["rounds_completed"] == 1

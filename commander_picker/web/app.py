@@ -196,6 +196,16 @@ def api_leaderboard(
         return {"leaderboard": [asdict(r) for r in ranked]}
 
 
+@app.delete("/api/leaderboard")
+def api_reset_leaderboard():
+    # Confirmation happens client-side (the web UI asks before calling
+    # this) -- there's no undo once it runs, same posture as every
+    # other destructive action this local-only, no-auth app exposes.
+    with _sessions_conn() as conn:
+        sessions.reset_leaderboard(conn)
+    return {"ok": True}
+
+
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 

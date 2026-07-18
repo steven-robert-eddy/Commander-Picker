@@ -470,3 +470,38 @@ def test_leaderboard_empty_when_color_filter_matches_nothing(conn):
     sessions.record_pick(conn, session_id, winner="MonoB", loser="MonoG")
 
     assert sessions.get_leaderboard(conn, colors="U", color_mode="exact") == []
+
+
+def test_reset_leaderboard_clears_ratings(conn):
+    session_id = sessions.create_session(conn, [_commander("A"), _commander("B")])
+    sessions.record_pick(conn, session_id, winner="A", loser="B")
+    assert sessions.get_leaderboard(conn) != []
+
+    sessions.reset_leaderboard(conn)
+    assert sessions.get_leaderboard(conn) == []
+
+
+def test_reset_leaderboard_does_not_touch_session_history(conn):
+    session_id = sessions.create_session(conn, [_commander("A"), _commander("B")])
+    sessions.record_pick(conn, session_id, winner="A", loser="B")
+
+    sessions.reset_leaderboard(conn)
+
+    # The session itself, its rounds_completed, and its own per-session
+    # rankings are all untouched -- only the cross-session
+    # commander_ratings table was wiped.
+    info = sessions.get_session(conn, session_id)
+    assert info.rounds_completed == 1
+    ranked = {r.name: r.rating for r in sessions.get_rankings(conn, session_id)}
+    assert ranked["A"] > 1000.0
+    assert ranked["B"] < 1000.0
+
+
+def test_new_session_after_reset_seeds_at_default_rating(conn):
+    session_id = sessions.create_session(conn, [_commander("A"), _commander("B")])
+    sessions.record_pick(conn, session_id, winner="A", loser="B")
+    sessions.reset_leaderboard(conn)
+
+    second = sessions.create_session(conn, [_commander("A"), _commander("C")])
+    details = sessions.get_candidates(conn, second)
+    assert details["A"].rating == pytest.approx(1000.0)

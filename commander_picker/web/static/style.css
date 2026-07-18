@@ -510,12 +510,20 @@ header {
 #leaderboard-link,
 #results-leaderboard-link,
 #leaderboard-back-btn,
-#leaderboard-reset-btn {
+#leaderboard-reset-btn,
+#leaderboard-reset-data-btn {
   display: block;
   width: 100%;
   text-align: center;
   margin-top: 10px;
 }
+
+/* Destructive action -- tinted with --bad (already used for negative
+   rating deltas) instead of the usual --accent hover, so it doesn't
+   read as just another nav link. */
+.danger-btn { color: var(--bad); opacity: 0.75; }
+.danger-btn:hover { color: var(--bad); opacity: 1; }
+.danger-btn:focus-visible { outline: 2px solid var(--bad); outline-offset: 2px; }
 
 .rank-row {
   display: grid;
