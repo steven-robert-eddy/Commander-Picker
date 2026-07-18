@@ -503,12 +503,14 @@ header {
 .ghost-btn:hover { color: var(--accent); }
 .ghost-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
-/* Standalone nav links to/from the all-time leaderboard -- centered,
-   full-width, with breathing room below whatever's above them, unlike
-   .ghost-btn's default inline placement within .duel-actions. */
+/* Standalone nav/reset links around the all-time leaderboard --
+   centered, full-width, with breathing room below whatever's above
+   them, unlike .ghost-btn's default inline placement within
+   .duel-actions. */
 #leaderboard-link,
 #results-leaderboard-link,
-#leaderboard-back-btn {
+#leaderboard-back-btn,
+#leaderboard-reset-btn {
   display: block;
   width: 100%;
   text-align: center;

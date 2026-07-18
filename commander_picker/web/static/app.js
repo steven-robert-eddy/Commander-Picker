@@ -441,6 +441,19 @@
     showScreen("screen-intro");
     refreshPoolPreview();
   });
+  $("leaderboard-reset-btn").addEventListener("click", () => {
+    leaderboardActiveColors.clear();
+    leaderboardColorMode = "subset";
+    // Rebuild the chips fresh (renderColorChips always starts every
+    // chip unpressed) and reset the toggle's visual state directly,
+    // since wireColorModeToggle only wires clicks, it has no reset of
+    // its own.
+    renderColorChips("leaderboard-color-chips", leaderboardActiveColors, showLeaderboard);
+    document.querySelectorAll("#leaderboard-color-mode-toggle .segmented-btn").forEach((b) => {
+      b.setAttribute("aria-pressed", String(b.dataset.mode === "subset"));
+    });
+    showLeaderboard();
+  });
 
   // Slider and number input both drive maxDecks -- the slider is fast
   // for coarse adjustment, the number input is exact (no more fighting
