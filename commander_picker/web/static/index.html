@@ -59,6 +59,7 @@
         <div class="error-note hidden" id="filter-error"></div>
         <button class="start-btn" id="start-btn" disabled>Start dueling</button>
       </div>
+      <button class="ghost-btn" id="leaderboard-link" type="button">All-time leaderboard →</button>
     </section>
 
     <!-- DUEL SCREEN -->
@@ -83,9 +84,22 @@
 
     <!-- RESULTS SCREEN -->
     <section id="screen-results" class="hidden">
-      <p class="lede">Final standings for this run — ratings reset if you play again. Tap a commander to see its card(s) full size.</p>
+      <p class="lede">Final standings for this run — every pick also feeds the all-time leaderboard below. Tap a commander to see its card(s) full size.</p>
       <div class="panel" id="rank-list"></div>
       <button class="again-btn" id="again-btn">Duel again</button>
+      <button class="ghost-btn" id="results-leaderboard-link" type="button">All-time leaderboard →</button>
+    </section>
+
+    <!-- LEADERBOARD SCREEN -->
+    <section id="screen-leaderboard" class="hidden">
+      <p class="lede">
+        All-time Elo across every session ever played — each commander's
+        rating carries forward and keeps refining the more it's picked,
+        instead of resetting each session. Tap a commander to see its
+        card(s) full size.
+      </p>
+      <div class="panel" id="leaderboard-list"></div>
+      <button class="ghost-btn" id="leaderboard-back-btn" type="button">← Back to filters</button>
     </section>
 
     <footer>

@@ -56,6 +56,12 @@ def _ensure_schema(conn: sqlite3.Connection) -> None:
             loser TEXT NOT NULL,
             created_at REAL NOT NULL
         );
+        CREATE TABLE IF NOT EXISTS commander_ratings (
+            commander_name TEXT PRIMARY KEY,
+            rating REAL NOT NULL,
+            games_played INTEGER NOT NULL DEFAULT 0,
+            updated_at REAL NOT NULL
+        );
         """
     )
     # Migration for sessions.db files created before these columns
@@ -92,6 +98,45 @@ def connect(db_path: Path | None = None) -> sqlite3.Connection:
     return conn
 
 
+def _global_ratings(conn: sqlite3.Connection, names: list[str]) -> dict[str, float]:
+    """Current all-time rating for each name that has one, keyed by name.
+
+    A name with no history yet (never picked/passed-over in any
+    session before) simply isn't in the returned dict -- callers fall
+    back to elo.DEFAULT_RATING for those.
+    """
+    if not names:
+        return {}
+    placeholders = ",".join("?" * len(names))
+    rows = conn.execute(
+        f"SELECT commander_name, rating FROM commander_ratings WHERE commander_name IN ({placeholders})",
+        names,
+    ).fetchall()
+    return {r["commander_name"]: r["rating"] for r in rows}
+
+
+def _bump_global_rating(conn: sqlite3.Connection, name: str, new_rating: float) -> None:
+    """Persist a commander's post-pick rating into the all-time table.
+
+    Called once per side of every pick (see record_pick), so a
+    commander's all-time rating keeps compounding across every session
+    it's ever appeared in, rather than resetting to DEFAULT_RATING each
+    time a new session starts (create_session seeds each candidate's
+    starting rating from here via _global_ratings).
+    """
+    conn.execute(
+        """
+        INSERT INTO commander_ratings (commander_name, rating, games_played, updated_at)
+        VALUES (?, ?, 1, ?)
+        ON CONFLICT(commander_name) DO UPDATE SET
+            rating = excluded.rating,
+            games_played = games_played + 1,
+            updated_at = excluded.updated_at
+        """,
+        (name, new_rating, time.time()),
+    )
+
+
 def create_session(conn: sqlite3.Connection, candidates: list[Commander], description: str = "") -> str:
     if len(candidates) < 2:
         raise SessionError("Need at least 2 candidates to start a picker session.")
@@ -102,6 +147,7 @@ def create_session(conn: sqlite3.Connection, candidates: list[Commander], descri
         "VALUES (?, ?, ?, 'active', ?, 0)",
         (session_id, time.time(), description, target_rounds),
     )
+    global_ratings = _global_ratings(conn, [c.name for c in candidates])
     conn.executemany(
         "INSERT INTO candidates (session_id, commander_name, color_identity, num_decks, edhrec_url, themes, image_urls, rating) "
         "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
@@ -114,7 +160,7 @@ def create_session(conn: sqlite3.Connection, candidates: list[Commander], descri
                 c.edhrec_url,
                 ",".join(c.themes),
                 json.dumps(list(c.image_urls)),
-                elo.DEFAULT_RATING,
+                global_ratings.get(c.name, elo.DEFAULT_RATING),
             )
             for c in candidates
         ],
@@ -252,6 +298,11 @@ def record_pick(conn: sqlite3.Connection, session_id: str, winner: str, loser: s
         "UPDATE candidates SET rating = ? WHERE session_id = ? AND commander_name = ?",
         (new_loser, session_id, loser),
     )
+    # Every pick also feeds the cross-session all-time rating -- this is
+    # what lets a commander's Elo keep compounding across every session
+    # it's ever been in, instead of resetting to DEFAULT_RATING each time.
+    _bump_global_rating(conn, winner, new_winner)
+    _bump_global_rating(conn, loser, new_loser)
 
     info = get_session(conn, session_id)
     conn.execute(
@@ -293,6 +344,73 @@ def get_rankings(conn: sqlite3.Connection, session_id: str) -> list[RankedComman
             num_decks=r["num_decks"],
             edhrec_url=r["edhrec_url"],
             themes=tuple(t for t in (r["themes"] or "").split(",") if t),
+            image_urls=tuple(json.loads(r["image_urls"])) if r["image_urls"] else (),
+        )
+        for r in rows
+    ]
+
+
+@dataclass
+class GlobalRanking:
+    name: str
+    rating: float
+    games_played: int
+    updated_at: float
+    color_identity: str
+    num_decks: int
+    edhrec_url: str | None
+    image_urls: tuple[str, ...]
+
+
+def get_leaderboard(conn: sqlite3.Connection, limit: int | None = None) -> list[GlobalRanking]:
+    """All-time ranking across every session ever played, highest rating first.
+
+    Distinct from get_rankings(), which is scoped to a single session's
+    pool -- this reads straight from `commander_ratings`, the
+    cross-session table `_bump_global_rating` keeps updated on every
+    pick and `_global_ratings` seeds new sessions from, so a
+    commander's rating keeps compounding the more it's played rather
+    than resetting each session.
+
+    `commander_ratings` itself only has name/rating/games_played -- the
+    display fields (color, deck count, art) are pulled from that
+    commander's most recent `candidates` row across any session, since
+    that's the same denormalized-at-session-creation data every other
+    ranking view in this module already uses (there's no live
+    dependency on `commanders.db` here, which is a separate file that
+    gets fully rebuilt on every `update-data` run).
+    """
+    query = """
+        SELECT
+            cr.commander_name,
+            cr.rating,
+            cr.games_played,
+            cr.updated_at,
+            latest.color_identity,
+            latest.num_decks,
+            latest.edhrec_url,
+            latest.image_urls
+        FROM commander_ratings cr
+        LEFT JOIN (
+            SELECT commander_name, color_identity, num_decks, edhrec_url, image_urls,
+                   ROW_NUMBER() OVER (PARTITION BY commander_name ORDER BY rowid DESC) AS rn
+            FROM candidates
+        ) latest ON latest.commander_name = cr.commander_name AND latest.rn = 1
+        ORDER BY cr.rating DESC
+    """
+    if limit is not None:
+        rows = conn.execute(query + " LIMIT ?", (limit,)).fetchall()
+    else:
+        rows = conn.execute(query).fetchall()
+    return [
+        GlobalRanking(
+            name=r["commander_name"],
+            rating=r["rating"],
+            games_played=r["games_played"],
+            updated_at=r["updated_at"],
+            color_identity=r["color_identity"] or "",
+            num_decks=r["num_decks"] or 0,
+            edhrec_url=r["edhrec_url"],
             image_urls=tuple(json.loads(r["image_urls"])) if r["image_urls"] else (),
         )
         for r in rows

@@ -238,6 +238,19 @@ def _cmd_results(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_leaderboard(args: argparse.Namespace) -> int:
+    conn = sessions.connect()
+    ranked = sessions.get_leaderboard(conn, limit=args.limit)
+    if not ranked:
+        print("No all-time ratings yet -- play a session with `commander-picker play` first.")
+        return 0
+    for i, c in enumerate(ranked, start=1):
+        color_display = c.color_identity or "C"
+        games = "1 game" if c.games_played == 1 else f"{c.games_played} games"
+        print(f"  {i}. {c.name} ({color_display}, {c.num_decks} decks) -- rating {c.rating:.0f} ({games})")
+    return 0
+
+
 def _cmd_serve(args: argparse.Namespace) -> int:
     try:
         db.connect()
@@ -313,6 +326,12 @@ def build_parser() -> argparse.ArgumentParser:
     results = subparsers.add_parser("results", help="show the current/final ranking for a session")
     results.add_argument("session_id")
     results.set_defaults(func=_cmd_results)
+
+    leaderboard = subparsers.add_parser(
+        "leaderboard", help="show the all-time Elo ranking, built up across every session ever played"
+    )
+    leaderboard.add_argument("--limit", type=int, default=25, help="max entries to show (default: 25)")
+    leaderboard.set_defaults(func=_cmd_leaderboard)
 
     list_colors = subparsers.add_parser("list-colors", help="print all known color-identity slugs")
     list_colors.set_defaults(func=_cmd_list_colors)

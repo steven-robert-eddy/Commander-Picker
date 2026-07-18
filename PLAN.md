@@ -824,6 +824,70 @@ even though the color-cliché complaint was correctly addressed.
   across both themes/all breakpoints with zero console errors/failed
   requests. Full suite still 98/98 passing (CSS-only change).
 
+### Persistent, cross-session Elo ratings ✅ done
+
+Requested directly: "I want to have elo results saved. Ideally it can
+build off past scores to continually develop a comprehensive elo."
+Every session previously started every candidate at
+`elo.DEFAULT_RATING` (1000) and threw that away once the session
+ended — no memory across sessions at all, so a commander's "true"
+standing could never sharpen with more play.
+
+Added a `commander_ratings` table to `sessions.db` (name, rating,
+games_played, updated_at), separate from the existing per-session
+`candidates.rating` column:
+
+- `create_session()` now seeds each candidate's starting rating from
+  `commander_ratings` (via a new `_global_ratings()` bulk lookup) when
+  it has one, falling back to `DEFAULT_RATING` for a commander with no
+  history yet — this is the actual "build off past scores" part.
+- `record_pick()` updates the session-local `candidates.rating` as
+  before, and now *also* upserts both the winner's and loser's global
+  rating into `commander_ratings` via a new `_bump_global_rating()`
+  (`ON CONFLICT ... DO UPDATE`, incrementing `games_played`) --
+  happens on every single pick, not just at session end, so a paused/
+  abandoned session's partial progress still counts.
+- New `get_leaderboard(conn, limit=None)` / `GlobalRanking` dataclass:
+  reads `commander_ratings` directly, left-joined against each
+  commander's most recent `candidates` row (via `ROW_NUMBER() OVER
+  (PARTITION BY commander_name ...)`) purely for display metadata
+  (color, deck count, art) -- `commander_ratings` itself only tracks
+  the rating/games_played, consistent with how every other ranking
+  view in `sessions.py` already denormalizes display data at
+  session-creation time rather than joining live against
+  `commanders.db` (a separate file, fully rebuilt on every
+  `update-data` run).
+- New CLI command: `commander-picker leaderboard [--limit N]`.
+- New endpoint: `GET /api/leaderboard?limit=N` (default 100, bounded
+  1-500).
+- New web UI screen (`#screen-leaderboard`): reachable via an
+  "All-time leaderboard →" link on both the intro screen and the
+  results screen. `renderResults`/the old duplicated row-building
+  logic were refactored into a shared `renderRankList()` +
+  `rankRowHTML`-equivalent helper that both the per-session results
+  screen and the new leaderboard screen call, differing only in what
+  the right-hand stat column shows (session delta-from-1000 vs.
+  all-time rating + games played) -- same card art, pips, lightbox-
+  on-click behavior as results got in the earlier lightbox work.
+  Results screen's lede copy updated (it used to say "ratings reset
+  if you play again", no longer accurate).
+
+Verified: 9 new tests in `test_sessions.py` (seeding from history, a
+brand-new commander still starting at 1000, accumulation across
+multiple sessions, ordering, `limit`, display-metadata carry-over, and
+the empty-leaderboard-before-any-picks case) and 2 in `test_web.py`
+(empty state, and a real end-to-end round-trip through the API
+confirming a second session seeds from the first session's earned
+rating). Also manually verified against a real running server
+(`uvicorn`, not just `TestClient`): played a full duel session via
+Playwright, confirmed the results screen's numbers exactly match the
+leaderboard's afterward, then created a second session directly via
+the API and confirmed the winning commander's starting `rating` in
+the new session's pairing payload matched its leaderboard rating from
+the first session (970.06, not 1000) -- the actual cross-session
+carry-over, confirmed against a live server rather than only unit
+tests. Full suite: 107 passed.
+
 ### Not yet started
 
 - Session history across visits (which commanders have already been

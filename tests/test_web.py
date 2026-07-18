@@ -184,3 +184,31 @@ def test_list_sessions(client):
     client.post("/api/sessions", json=_pool_body())
     resp = client.get("/api/sessions")
     assert len(resp.json()["sessions"]) == 2
+
+
+def test_leaderboard_empty_before_any_picks(client):
+    resp = client.get("/api/leaderboard")
+    assert resp.status_code == 200
+    assert resp.json() == {"leaderboard": []}
+
+
+def test_leaderboard_reflects_picks_and_persists_across_sessions(client):
+    created = client.post("/api/sessions", json=_pool_body()).json()
+    session_id = created["session_id"]
+    a = created["pairing"]["candidates"][0]["name"]
+    b = created["pairing"]["candidates"][1]["name"]
+    client.post(f"/api/sessions/{session_id}/pick", json={"winner": a, "loser": b})
+
+    resp = client.get("/api/leaderboard")
+    assert resp.status_code == 200
+    board = {row["name"]: row for row in resp.json()["leaderboard"]}
+    assert board[a]["rating"] > 1000.0
+    assert board[a]["games_played"] == 1
+    assert board[b]["rating"] < 1000.0
+
+    # A brand-new session should seed the winner's rating from its
+    # global history instead of resetting to 1000.
+    second = client.post("/api/sessions", json=_pool_body()).json()
+    second_candidates = {c["name"]: c["rating"] for c in second["pairing"]["candidates"]}
+    if a in second_candidates:
+        assert second_candidates[a] == pytest.approx(board[a]["rating"])

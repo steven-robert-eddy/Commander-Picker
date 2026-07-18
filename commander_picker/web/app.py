@@ -10,7 +10,7 @@ from __future__ import annotations
 from dataclasses import asdict
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
@@ -187,6 +187,15 @@ def api_results(session_id: str):
         return {"rankings": [asdict(r) for r in sessions.get_rankings(conn, session_id)]}
     except sessions.SessionError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+    finally:
+        conn.close()
+
+
+@app.get("/api/leaderboard")
+def api_leaderboard(limit: int = Query(default=100, ge=1, le=500)):
+    conn = sessions.connect()
+    try:
+        return {"leaderboard": [asdict(r) for r in sessions.get_leaderboard(conn, limit=limit)]}
     finally:
         conn.close()
 

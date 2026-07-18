@@ -116,6 +116,7 @@ before that to stop sooner.
 commander-picker sessions                 # list all sessions (active + finished)
 commander-picker resume <session-id>       # continue a paused session
 commander-picker results <session-id>      # show current/final ranking without playing
+commander-picker leaderboard              # all-time Elo across every session ever played
 ```
 
 `play` accepts the same filter flags as `pool` (`--colors`,
@@ -125,6 +126,14 @@ commander-picker results <session-id>      # show current/final ranking without 
 Sessions live in `data/sessions.db` — a separate file from
 `commanders.db`, so re-running `update-data` never wipes your
 in-progress or past picker sessions. Also gitignored.
+
+Ratings persist across sessions, not just within one: each
+commander's Elo carries forward from `data/sessions.db`'s
+`commander_ratings` table and keeps refining the more it's picked,
+instead of resetting to 1000 every time you start a new session.
+`commander-picker leaderboard` (or the web UI's "All-time
+leaderboard" link) shows this cross-session ranking, separate from
+any one session's own final standings.
 
 ## Web UI
 
@@ -154,7 +163,8 @@ API endpoints, if you want to hit them directly or build another
 client: `GET /api/themes`, `POST /api/pool`, `POST /api/sessions`,
 `GET /api/sessions`, `GET /api/sessions/{id}`, `GET
 /api/sessions/{id}/pairing`, `POST /api/sessions/{id}/pick`, `POST
-/api/sessions/{id}/finish`, `GET /api/sessions/{id}/results`.
+/api/sessions/{id}/finish`, `GET /api/sessions/{id}/results`, `GET
+/api/leaderboard` (all-time ranking, `?limit=` optional, default 100).
 
 ## Deploying
 

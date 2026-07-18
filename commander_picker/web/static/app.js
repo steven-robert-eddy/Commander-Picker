@@ -193,11 +193,14 @@
   }
 
   function showScreen(id) {
-    ["screen-intro", "screen-duel", "screen-results"].forEach((s) => {
+    ["screen-intro", "screen-duel", "screen-results", "screen-leaderboard"].forEach((s) => {
       $(s).classList.toggle("hidden", s !== id);
     });
     $("phase-label").textContent =
-      id === "screen-intro" ? "Filter" : id === "screen-duel" ? "Dueling" : "Results";
+      id === "screen-intro" ? "Filter"
+      : id === "screen-duel" ? "Dueling"
+      : id === "screen-results" ? "Results"
+      : "Leaderboard";
   }
 
   function renderPairing(pairing) {
@@ -278,13 +281,17 @@
     }
   }
 
-  function renderResults(rankings) {
-    const list = $("rank-list");
+  // Shared between the per-session results screen and the all-time
+  // leaderboard -- same row shape (rank, art, pips, name), the only
+  // real difference is what goes in the right-hand stat column, which
+  // the caller supplies via `statFor` so each screen can show what's
+  // actually meaningful there (session delta-from-1000 vs. all-time
+  // games played).
+  function renderRankList(containerId, rankings, statFor) {
+    const list = $(containerId);
     list.innerHTML = rankings
       .map((c, i) => {
-        const delta = c.rating - 1000;
-        const deltaClass = delta > 0 ? "up" : "";
-        const sign = delta > 0 ? "+" : "";
+        const { cls, html } = statFor(c);
         const hasArt = c.image_urls && c.image_urls.length;
         const thumb = hasArt
           ? `<div class="rank-thumb-group">${c.image_urls
@@ -300,7 +307,7 @@
               <div class="pips">${pipsHTML(c.color_identity)}</div>
               <div class="rank-name">${c.name}</div>
             </div>
-            <div class="rank-rating ${deltaClass}">${Math.round(c.rating)} <span style="opacity:.6">(${sign}${Math.round(delta)})</span></div>
+            <div class="rank-rating ${cls}">${html}</div>
           </div>
         `;
       })
@@ -320,7 +327,41 @@
         }
       });
     });
+  }
+
+  function renderResults(rankings) {
+    renderRankList("rank-list", rankings, (c) => {
+      const delta = c.rating - 1000;
+      const sign = delta > 0 ? "+" : "";
+      return {
+        cls: delta > 0 ? "up" : "",
+        html: `${Math.round(c.rating)} <span style="opacity:.6">(${sign}${Math.round(delta)})</span>`,
+      };
+    });
     showScreen("screen-results");
+  }
+
+  function renderLeaderboard(rankings) {
+    renderRankList("leaderboard-list", rankings, (c) => {
+      const games = c.games_played === 1 ? "1 game" : `${c.games_played} games`;
+      return { cls: "", html: `${Math.round(c.rating)} <span style="opacity:.6">(${games})</span>` };
+    });
+    showScreen("screen-leaderboard");
+  }
+
+  async function showLeaderboard() {
+    try {
+      const { leaderboard } = await api("GET", "/api/leaderboard");
+      if (!leaderboard.length) {
+        $("leaderboard-list").innerHTML =
+          '<div class="spinner-note">No all-time ratings yet — finish a duel session first.</div>';
+        showScreen("screen-leaderboard");
+        return;
+      }
+      renderLeaderboard(leaderboard);
+    } catch (e) {
+      window.alert(e.message);
+    }
   }
 
   function openLightbox(imageUrls, name) {
@@ -360,6 +401,12 @@
     refreshPoolPreview();
   });
   $("start-btn").addEventListener("click", startSession);
+  $("leaderboard-link").addEventListener("click", showLeaderboard);
+  $("results-leaderboard-link").addEventListener("click", showLeaderboard);
+  $("leaderboard-back-btn").addEventListener("click", () => {
+    showScreen("screen-intro");
+    refreshPoolPreview();
+  });
 
   // Slider and number input both drive maxDecks -- the slider is fast
   // for coarse adjustment, the number input is exact (no more fighting

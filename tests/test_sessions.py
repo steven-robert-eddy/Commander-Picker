@@ -312,3 +312,88 @@ def test_record_pick_on_already_finished_session_raises(conn):
 
     with pytest.raises(sessions.SessionError):
         sessions.record_pick(conn, session_id, "A", "B")
+
+
+def test_new_session_seeds_ratings_from_global_history(conn):
+    # A's rating should carry over from a prior session instead of
+    # resetting to DEFAULT_RATING; a commander with no history yet
+    # still starts fresh.
+    first = sessions.create_session(conn, [_commander("A"), _commander("B")])
+    sessions.record_pick(conn, first, winner="A", loser="B")
+    sessions.record_pick(conn, first, winner="A", loser="B")  # target_rounds=2, auto-finishes
+
+    global_a_rating = sessions.get_leaderboard(conn)[0].rating
+    assert global_a_rating > 1000.0
+
+    second = sessions.create_session(conn, [_commander("A"), _commander("C")])
+    details = sessions.get_candidates(conn, second)
+    assert details["A"].rating == pytest.approx(global_a_rating)
+    assert details["C"].rating == pytest.approx(1000.0)
+
+
+def test_record_pick_updates_global_leaderboard(conn):
+    session_id = sessions.create_session(conn, [_commander("A"), _commander("B"), _commander("C")])
+    sessions.record_pick(conn, session_id, winner="A", loser="B")
+
+    board = {r.name: r for r in sessions.get_leaderboard(conn)}
+    assert board["A"].rating > 1000.0
+    assert board["A"].games_played == 1
+    assert board["B"].rating < 1000.0
+    assert board["B"].games_played == 1
+    # C never played a round yet -- no leaderboard entry for it at all,
+    # not a phantom 1000-rating row.
+    assert "C" not in board
+
+
+def test_leaderboard_accumulates_across_multiple_sessions(conn):
+    s1 = sessions.create_session(conn, [_commander("A"), _commander("B")])
+    sessions.record_pick(conn, s1, winner="A", loser="B")
+    sessions.record_pick(conn, s1, winner="A", loser="B")
+
+    s2 = sessions.create_session(conn, [_commander("A"), _commander("D")])
+    sessions.record_pick(conn, s2, winner="A", loser="D")
+    sessions.record_pick(conn, s2, winner="A", loser="D")
+
+    board = {r.name: r for r in sessions.get_leaderboard(conn)}
+    # A played 4 total rounds across two sessions (2 in each) --
+    # games_played and rating should reflect all of it, not just the
+    # most recent session.
+    assert board["A"].games_played == 4
+    assert board["A"].rating > board["B"].rating
+    assert board["A"].rating > board["D"].rating
+
+
+def test_leaderboard_ordered_highest_rating_first(conn):
+    session_id = sessions.create_session(conn, [_commander("A"), _commander("B"), _commander("C")])
+    sessions.record_pick(conn, session_id, winner="A", loser="B")
+    sessions.record_pick(conn, session_id, winner="A", loser="C")
+
+    board = sessions.get_leaderboard(conn)
+    ratings = [r.rating for r in board]
+    assert ratings == sorted(ratings, reverse=True)
+    assert board[0].name == "A"
+
+
+def test_leaderboard_respects_limit(conn):
+    session_id = sessions.create_session(conn, [_commander("A"), _commander("B"), _commander("C")])
+    sessions.record_pick(conn, session_id, winner="A", loser="B")
+    sessions.record_pick(conn, session_id, winner="B", loser="C")
+
+    assert len(sessions.get_leaderboard(conn, limit=1)) == 1
+    assert len(sessions.get_leaderboard(conn)) == 3
+
+
+def test_leaderboard_carries_display_metadata_from_latest_session(conn):
+    session_id = sessions.create_session(
+        conn, [_commander("A", colors="UB", image_urls=["https://img/a.jpg"]), _commander("B")]
+    )
+    sessions.record_pick(conn, session_id, winner="A", loser="B")
+
+    board = {r.name: r for r in sessions.get_leaderboard(conn)}
+    assert board["A"].color_identity == "UB"
+    assert board["A"].image_urls == ("https://img/a.jpg",)
+
+
+def test_empty_leaderboard_before_any_picks(conn):
+    sessions.create_session(conn, [_commander("A"), _commander("B")])
+    assert sessions.get_leaderboard(conn) == []
