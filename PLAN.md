@@ -112,6 +112,18 @@ this project, not a play-by-play changelog.
   client-side (CLI prompt, browser `confirm()`); the API endpoint
   itself has no confirmation step, consistent with this app having no
   auth to gate a "some day" separate confirmation UI behind anyway.
+- **Static assets served `Cache-Control: no-cache`** (`web/app.py`'s
+  `NoCacheStaticFiles`, also applied to `/`'s `index.html` response):
+  FastAPI's default `StaticFiles` sends no explicit `Cache-Control`, so
+  browsers fall back to their own heuristic caching -- mobile browsers
+  hold onto a cached `app.js` far more stubbornly than a desktop tab
+  with dev tools open. That could pair a freshly fetched `index.html`
+  (new button markup renders) with a stale cached `app.js` (that
+  markup's click handlers don't exist yet) right after a deploy --
+  exactly the "button's there but tapping it does nothing" report that
+  prompted this. `no-cache` still allows cheap ETag/Last-Modified
+  conditional GETs (304s), it just forces the revalidation check
+  instead of trusting a browser's own freshness heuristic.
 - **No auth / no multi-user support yet** — deliberate, not
   forgotten. `GET /api/sessions` and the leaderboard currently return
   global state with no per-user scoping; fine for a single-user or

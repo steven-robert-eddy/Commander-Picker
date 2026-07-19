@@ -206,9 +206,29 @@ def api_reset_leaderboard():
     return {"ok": True}
 
 
-app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+class NoCacheStaticFiles(StaticFiles):
+    """Force browsers to revalidate static assets on every request.
+
+    Without this, FastAPI's default StaticFiles sends no explicit
+    Cache-Control, so browsers fall back to their own heuristic caching --
+    mobile Safari/Chrome hang onto a cached app.js far more stubbornly
+    than a desktop tab with dev tools open. That can pair a freshly
+    fetched index.html (so new UI markup renders) with a stale cached
+    app.js (so that markup's click handlers don't exist yet) right after
+    a deploy, which looks exactly like "the button's there but does
+    nothing." ETag/Last-Modified conditional GETs still make revalidation
+    cheap -- this only forces the check, not a full re-download.
+    """
+
+    async def get_response(self, path: str, scope):
+        response = await super().get_response(path, scope)
+        response.headers["Cache-Control"] = "no-cache"
+        return response
+
+
+app.mount("/static", NoCacheStaticFiles(directory=STATIC_DIR), name="static")
 
 
 @app.get("/")
 def index():
-    return FileResponse(STATIC_DIR / "index.html")
+    return FileResponse(STATIC_DIR / "index.html", headers={"Cache-Control": "no-cache"})
