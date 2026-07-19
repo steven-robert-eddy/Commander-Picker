@@ -616,6 +616,32 @@ header {
 }
 .rank-rating.up { color: var(--good); }
 
+/* Sessions list (screen-sessions) -- each row is a past/active picker
+   session, "Resume"/"View results" jumps back into it via app.js's
+   resumeSession(). No art/pips here (a session isn't one commander), so
+   a simpler two-column row than .rank-row rather than reusing it as-is. */
+.session-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 4px;
+  border-bottom: 1px solid var(--border);
+}
+.session-row:last-child { border-bottom: none; }
+.session-info { min-width: 0; }
+.session-desc {
+  font-size: 0.92rem;
+  overflow-wrap: break-word;
+}
+.session-meta {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  color: var(--ink-faint);
+  margin-top: 2px;
+}
+.session-action { flex-shrink: 0; white-space: nowrap; }
+
 /* Bracket champion banner (results screen, bracket mode only). */
 .champion-banner {
   text-align: center;

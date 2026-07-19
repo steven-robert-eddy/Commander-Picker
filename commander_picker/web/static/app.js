@@ -326,13 +326,14 @@
   }
 
   function showScreen(id) {
-    ["screen-intro", "screen-duel", "screen-results", "screen-leaderboard"].forEach((s) => {
+    ["screen-intro", "screen-duel", "screen-results", "screen-leaderboard", "screen-sessions"].forEach((s) => {
       $(s).classList.toggle("hidden", s !== id);
     });
     $("phase-label").textContent =
       id === "screen-intro" ? "Filter"
       : id === "screen-duel" ? "Dueling"
       : id === "screen-results" ? "Results"
+      : id === "screen-sessions" ? "Sessions"
       : "Leaderboard";
   }
 
@@ -358,6 +359,20 @@
     cardB.innerHTML = cardInnerHTML(candB);
   }
 
+  // Shared by startSession and resumeSession -- both end up with a
+  // session id/mode and a pairing to show, just from different sources
+  // (a fresh POST /api/sessions vs. an existing session's current state).
+  function enterDuelScreen(info, pairing) {
+    sessionMode = info.mode;
+    $("pool-label").textContent = `${info.pool_size} candidates`;
+    $("finish-btn").classList.toggle("hidden", sessionMode === "bracket");
+    $("undo-btn").classList.toggle("hidden", sessionMode === "bracket");
+    $("bracket-tree-live").classList.toggle("hidden", sessionMode !== "bracket");
+    showScreen("screen-duel");
+    renderPairing(pairing); // also sets undo-btn.disabled correctly (round 1 vs. resumed mid-session)
+    if (sessionMode === "bracket") refreshLiveBracketTree();
+  }
+
   async function startSession() {
     $("start-btn").disabled = true;
     try {
@@ -367,20 +382,69 @@
           : currentFiltersBody({ mode: "duel" });
       const data = await api("POST", "/api/sessions", body);
       sessionId = data.session_id;
-      sessionMode = data.info.mode;
-      $("pool-label").textContent = `${data.info.pool_size} candidates`;
-      $("finish-btn").classList.toggle("hidden", sessionMode === "bracket");
-      $("undo-btn").classList.toggle("hidden", sessionMode === "bracket");
-      $("undo-btn").disabled = true; // nothing to undo at the start of a fresh session
-      $("bracket-tree-live").classList.toggle("hidden", sessionMode !== "bracket");
-      showScreen("screen-duel");
-      renderPairing(data.pairing);
-      if (sessionMode === "bracket") refreshLiveBracketTree();
+      enterDuelScreen(data.info, data.pairing);
     } catch (e) {
       $("filter-error").textContent = e.message;
       $("filter-error").classList.remove("hidden");
     } finally {
       $("start-btn").disabled = false;
+    }
+  }
+
+  async function showSessions() {
+    try {
+      const { sessions } = await api("GET", "/api/sessions");
+      renderSessionsList(sessions);
+      showScreen("screen-sessions");
+    } catch (e) {
+      window.alert(e.message);
+    }
+  }
+
+  function renderSessionsList(sessionList) {
+    const list = $("sessions-list");
+    if (!sessionList.length) {
+      list.innerHTML = '<div class="spinner-note">No sessions yet — start a duel or bracket from the filter screen.</div>';
+      return;
+    }
+    list.innerHTML = sessionList
+      .map((s) => {
+        const modeLabel = s.mode === "bracket" ? "Bracket" : "Duel";
+        const actionLabel = s.status === "active" ? "Resume →" : "View results →";
+        return `
+          <div class="session-row" data-id="${s.id}">
+            <div class="session-info">
+              <div class="session-desc">${s.description || "No filters"}</div>
+              <div class="session-meta">${modeLabel} · ${s.rounds_completed}/${s.target_rounds} rounds · ${s.pool_size} candidates · ${s.status}</div>
+            </div>
+            <button class="ghost-btn session-action" type="button">${actionLabel}</button>
+          </div>
+        `;
+      })
+      .join("");
+    list.querySelectorAll(".session-row").forEach((row) => {
+      row.querySelector(".session-action").addEventListener("click", () => resumeSession(row.dataset.id));
+    });
+  }
+
+  async function resumeSession(id) {
+    try {
+      const info = await api("GET", `/api/sessions/${id}`);
+      sessionId = id;
+      if (info.status === "active") {
+        const pairing = await api("GET", `/api/sessions/${id}/pairing`);
+        if (pairing) {
+          enterDuelScreen(info, pairing);
+          return;
+        }
+        // Shouldn't normally happen (an active session always has a next
+        // pairing, or auto-finishes) -- fall through to results rather
+        // than leaving the screen stuck if it somehow does.
+      }
+      sessionMode = info.mode;
+      await showFinalResults();
+    } catch (e) {
+      window.alert(e.message);
     }
   }
 
@@ -709,6 +773,11 @@
   $("leaderboard-link").addEventListener("click", showLeaderboard);
   $("results-leaderboard-link").addEventListener("click", showLeaderboard);
   $("leaderboard-back-btn").addEventListener("click", () => {
+    showScreen("screen-intro");
+    refreshPoolPreview();
+  });
+  $("sessions-link").addEventListener("click", showSessions);
+  $("sessions-back-btn").addEventListener("click", () => {
     showScreen("screen-intro");
     refreshPoolPreview();
   });

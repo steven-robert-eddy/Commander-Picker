@@ -210,6 +210,11 @@ leaderboard) to see its card(s) full size in a lightbox, with links to
 view it on EDHREC, or search for it on Moxfield/Archidekt to start
 building.
 
+**My sessions →** (filter screen) lists every session you've started,
+active or finished. Tap an active one to resume it right where you left
+off (same as `commander-picker resume` on the CLI); tap a finished one
+to see its results/bracket again.
+
 A **Duel / Bracket** toggle on the filter screen switches to bracket
 mode (see "Bracket mode" above) -- picking Bracket swaps the free pool-size
 input for a row of power-of-two size presets (4/8/16/32/64), disabling

@@ -103,6 +103,18 @@ for card art. Standalone project — no dependency on the sibling
   feature on its own, not yet built. CLI: `u` during `play`/`resume`.
   Web: an "← Undo" button next to "Finish now" (disabled until there's
   something to undo), or press `u`.
+- **Web UI session list/resume**: a "My sessions →" link (filter screen)
+  lists every session (`GET /api/sessions`, already existed for the
+  CLI's `sessions` command -- no new backend needed), tapping an active
+  one resumes it (fetches its current pairing via the same
+  `GET /api/sessions/{id}/pairing` the duel screen already polls, mode-
+  aware since `_pairing_payload` already dispatches on duel vs. bracket)
+  and a finished one re-shows its results/bracket tree. `startSession`
+  and this share a new `enterDuelScreen(info, pairing)` helper so both
+  entry points toggle the same finish/undo/bracket-tree visibility and
+  land on the correctly-resumed round (undo's enabled/disabled state
+  falls out of `renderPairing`'s existing `pairing.round <= 1` check, so
+  resuming mid-session correctly re-enables it with no extra code).
 - **Persistent, cross-session ratings**: a commander's Elo carries
   forward from session to session via a `commander_ratings` table in
   `sessions.db`, instead of resetting to 1000 every time. An all-time
@@ -236,8 +248,6 @@ deckbuilder links, keyboard shortcuts). The rest, sized for whenever
 they're picked up next:
 
 **Picker polish**
-- Web UI session list/resume — medium. `resume` only exists in the CLI
-  today; the web UI has no way to pick back up a paused session.
 - Exclude recently-seen commanders across sessions — medium, already
   covered above under "Session history across visits."
 
