@@ -27,57 +27,82 @@
           <button type="button" class="segmented-btn" data-mode="bracket" aria-pressed="false">Bracket</button>
         </div>
 
-        <div class="filter-label">Colors</div>
-        <div class="filter-row" id="color-chips"></div>
-
-        <div class="filter-label">Color match</div>
-        <div class="segmented" id="color-mode-toggle">
-          <button type="button" class="segmented-btn" data-mode="subset" aria-pressed="true">Any combo within colors</button>
-          <button type="button" class="segmented-btn" data-mode="exact" aria-pressed="false">Exact colors only</button>
+        <div class="filter-label">Pool source</div>
+        <div class="segmented" id="pool-source-toggle">
+          <button type="button" class="segmented-btn" data-source="filtered" aria-pressed="true">Filtered</button>
+          <button type="button" class="segmented-btn" data-source="custom" aria-pressed="false">Custom list</button>
         </div>
 
-        <div class="filter-label">Max decks (underbuilt ceiling)</div>
-        <div class="deck-range">
-          <input type="range" id="max-decks-slider" min="100" max="60000" step="100" value="10000" />
-          <input type="number" id="max-decks-input" class="num-input" min="1" max="1000000" step="1" value="10000" inputmode="numeric" />
+        <div id="filter-controls">
+          <div class="filter-label">Colors</div>
+          <div class="filter-row" id="color-chips"></div>
+
+          <div class="filter-label">Color match</div>
+          <div class="segmented" id="color-mode-toggle">
+            <button type="button" class="segmented-btn" data-mode="subset" aria-pressed="true">Any combo within colors</button>
+            <button type="button" class="segmented-btn" data-mode="exact" aria-pressed="false">Exact colors only</button>
+          </div>
+
+          <div class="filter-label">Max decks (underbuilt ceiling)</div>
+          <div class="deck-range">
+            <input type="range" id="max-decks-slider" min="100" max="60000" step="100" value="10000" />
+            <input type="number" id="max-decks-input" class="num-input" min="1" max="1000000" step="1" value="10000" inputmode="numeric" />
+          </div>
+
+          <!--
+            Price filtering is hidden for now, not removed -- fully built
+            server-side and in the CLI (`pool --max-price`, `PoolFilters.max_price`,
+            the API's `max_price` field). Re-shown briefly, then pulled back
+            out of the web UI while other things get simplified -- no data
+            issue, easy to bring back here if/when that changes.
+          -->
+
+          <!--
+            Archetype/theme filtering is hidden for now, not removed --
+            EDHREC's tag pages only expose a shallow (~30 commander)
+            "top commanders" list per archetype regardless of color
+            filtering, unlike the much deeper color pages we paginate.
+            Not much signal to filter on yet. The backend/CLI (`pool
+            --themes`, `play --themes`) still fully supports it -- easy
+            to bring back here if EDHREC's data or our sourcing improves.
+            Briefly re-shown and re-hidden after live testing confirmed
+            this is still the limiting factor -- see PLAN.md's "Feature
+            roadmap" for the deeper-sourcing follow-up.
+          -->
+
+          <div class="filter-label" id="pool-size-label-row">Duel pool size</div>
+          <div class="pool-size-row" id="pool-size-row">
+            <input type="number" id="pool-size-input" class="num-input" min="4" max="200" step="1" value="40" inputmode="numeric" />
+            <span class="pool-size-hint">candidates per session</span>
+          </div>
+          <!--
+            Bracket mode swaps the free numeric input above for a fixed
+            set of power-of-two presets (see app.js renderBracketSizeChips)
+            -- a bracket size can only ever be one of these, so there's no
+            "not a power of two" error state to design for.
+          -->
+          <div class="filter-row hidden" id="bracket-size-chips"></div>
         </div>
 
         <!--
-          Price filtering is hidden for now, not removed -- fully built
-          server-side and in the CLI (`pool --max-price`, `PoolFilters.max_price`,
-          the API's `max_price` field). Re-shown briefly, then pulled back
-          out of the web UI while other things get simplified -- no data
-          issue, easy to bring back here if/when that changes.
+          Custom list mode: hand-pick specific commanders by name instead
+          of filtering, via search/autocomplete (see app.js searchCommanders/
+          renderCustomList). Duel needs >=2 added; bracket needs an exact
+          power-of-two count (same BRACKET_SIZES as filtered-bracket mode).
         -->
+        <div id="custom-list-controls" class="hidden">
+          <div class="filter-label">Search commanders</div>
+          <div class="autocomplete-wrap">
+            <input type="text" id="commander-search-input" class="num-input" placeholder="Search by name…" autocomplete="off" />
+            <div class="autocomplete-dropdown hidden" id="commander-search-results"></div>
+          </div>
 
-        <!--
-          Archetype/theme filtering is hidden for now, not removed --
-          EDHREC's tag pages only expose a shallow (~30 commander)
-          "top commanders" list per archetype regardless of color
-          filtering, unlike the much deeper color pages we paginate.
-          Not much signal to filter on yet. The backend/CLI (`pool
-          --themes`, `play --themes`) still fully supports it -- easy
-          to bring back here if EDHREC's data or our sourcing improves.
-          Briefly re-shown and re-hidden after live testing confirmed
-          this is still the limiting factor -- see PLAN.md's "Feature
-          roadmap" for the deeper-sourcing follow-up.
-        -->
-
-        <div class="filter-label" id="pool-size-label-row">Duel pool size</div>
-        <div class="pool-size-row" id="pool-size-row">
-          <input type="number" id="pool-size-input" class="num-input" min="4" max="200" step="1" value="40" inputmode="numeric" />
-          <span class="pool-size-hint">candidates per session</span>
+          <div class="filter-label">Your list (<span id="custom-list-count">0</span>)</div>
+          <div class="panel custom-list-panel" id="custom-list-items"></div>
         </div>
-        <!--
-          Bracket mode swaps the free numeric input above for a fixed
-          set of power-of-two presets (see app.js renderBracketSizeChips)
-          -- a bracket size can only ever be one of these, so there's no
-          "not a power of two" error state to design for.
-        -->
-        <div class="filter-row hidden" id="bracket-size-chips"></div>
 
         <div class="pool-count">
-          <div><b id="total-matches">–</b> commanders match your filters</div>
+          <div id="pool-count-line1"><b id="total-matches">–</b> commanders match your filters</div>
           <div id="pool-count-line2">Dueling with up to <b>40</b>, <b>–</b> rounds</div>
         </div>
         <div class="error-note hidden" id="filter-error"></div>

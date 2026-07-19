@@ -178,6 +178,78 @@ def build_pool(
     return candidates
 
 
+class CommanderLookupError(RuntimeError):
+    pass
+
+
+def search_commanders(conn: sqlite3.Connection, query: str, limit: int = 20):
+    """Lightweight name search for the custom-list autocomplete.
+
+    Returns raw rows (name, color_identity, num_decks) rather than full
+    Commander objects -- the dropdown only needs enough to tell
+    similarly-named commanders apart, not themes/images/price.
+    """
+    like = f"%{query}%"
+    return conn.execute(
+        "SELECT name, color_identity, num_decks FROM commanders "
+        "WHERE name LIKE ? ORDER BY num_decks DESC LIMIT ?",
+        (like, limit),
+    ).fetchall()
+
+
+def commanders_by_names(conn: sqlite3.Connection, names: list[str]) -> list[Commander]:
+    """Exact-name lookup for custom lists -- bypasses filtering entirely.
+
+    Preserves the caller's order (the order the user added them) and
+    raises CommanderLookupError on any unknown name or duplicate, rather
+    than silently deduping/dropping -- a session should either match
+    exactly what the user built, or fail clearly.
+    """
+    seen = set()
+    duplicates = set()
+    for name in names:
+        if name in seen:
+            duplicates.add(name)
+        seen.add(name)
+    if duplicates:
+        raise CommanderLookupError(f"Duplicate commander name(s): {', '.join(sorted(duplicates))}")
+
+    themes_by_commander = _load_themes_by_commander(conn)
+    rows_by_name = {
+        row["name"]: row
+        for row in conn.execute(
+            "SELECT name, color_identity, num_decks, edhrec_url, salt, image_urls, price, rank, mana_cost, type_line "
+            "FROM commanders"
+        )
+    }
+
+    candidates = []
+    missing = []
+    for name in names:
+        row = rows_by_name.get(name)
+        if row is None:
+            missing.append(name)
+            continue
+        candidates.append(
+            Commander(
+                name=row["name"],
+                color_identity=row["color_identity"],
+                num_decks=row["num_decks"],
+                edhrec_url=row["edhrec_url"],
+                themes=tuple(sorted(themes_by_commander.get(row["name"], set()))),
+                salt=row["salt"],
+                image_urls=json.loads(row["image_urls"]) if row["image_urls"] else [],
+                price=row["price"],
+                rank=row["rank"],
+                mana_cost=row["mana_cost"],
+                type_line=row["type_line"],
+            )
+        )
+    if missing:
+        raise CommanderLookupError(f"Unknown commander name(s): {', '.join(missing)}")
+    return candidates
+
+
 def describe_filters(filters: PoolFilters) -> str:
     """Human-readable summary of a PoolFilters, used as a session's stored description."""
     parts = []

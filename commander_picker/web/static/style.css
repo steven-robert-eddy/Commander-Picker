@@ -642,6 +642,66 @@ header {
 }
 .session-action { flex-shrink: 0; white-space: nowrap; }
 
+/* Custom-list mode (screen-intro) -- search/autocomplete + the picked
+   list, see app.js searchCommanders/renderCustomList. */
+.autocomplete-wrap {
+  position: relative;
+  margin-top: 10px;
+}
+.autocomplete-wrap .num-input {
+  width: 100%;
+  text-align: left;
+}
+.autocomplete-dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  z-index: 5;
+  max-height: 260px;
+  overflow-y: auto;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: 0 12px 32px -16px rgba(0, 0, 0, 0.5);
+}
+.autocomplete-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 9px 12px;
+  border: none;
+  background: transparent;
+  color: var(--ink);
+  font-size: 0.85rem;
+  text-align: left;
+  cursor: pointer;
+}
+.autocomplete-item:hover,
+.autocomplete-item:focus-visible { background: var(--primary-soft); }
+.autocomplete-item .pip { width: 14px; height: 14px; }
+.autocomplete-item-decks {
+  margin-left: auto;
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  color: var(--ink-faint);
+  white-space: nowrap;
+}
+
+.custom-list-panel { margin-top: 10px; }
+.custom-list-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 4px;
+  border-bottom: 1px solid var(--border);
+}
+.custom-list-row:last-child { border-bottom: none; }
+.custom-list-name { font-size: 0.88rem; display: flex; align-items: center; gap: 6px; }
+.custom-list-remove { flex-shrink: 0; white-space: nowrap; }
+
 /* Bracket champion banner (results screen, bracket mode only). */
 .champion-banner {
   text-align: center;

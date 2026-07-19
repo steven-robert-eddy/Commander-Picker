@@ -115,6 +115,19 @@ for card art. Standalone project — no dependency on the sibling
   land on the correctly-resumed round (undo's enabled/disabled state
   falls out of `renderPairing`'s existing `pairing.round <= 1` check, so
   resuming mid-session correctly re-enables it with no extra code).
+- **Custom commander list** (web UI only): a "Pool source: Filtered /
+  Custom list" toggle on the filter screen swaps the color/deck-count
+  filter for a search box (`GET /api/commanders/search?q=...`, name
+  substring match) with autocomplete showing colors and deck count per
+  result. Adding commanders builds a list that starts a session via a
+  new `POST /api/sessions/custom` (`pool.commanders_by_names` -- exact-
+  name lookup, order-preserving, 422 on unknown/duplicate names) instead
+  of the filter-based `/api/sessions`. Works for duel (>=2 commanders)
+  and bracket (exact power-of-two count, same `elo.is_valid_bracket_size`
+  rule as filtered bracket sizing, no byes/padding). No changes needed to
+  `sessions.create_session`, Elo, undo, bracket engine, or resume --
+  they already operate on a plain `list[Commander]` regardless of how it
+  was built. CLI equivalent (`--names`) intentionally deferred.
 - **Persistent, cross-session ratings**: a commander's Elo carries
   forward from session to session via a `commander_ratings` table in
   `sessions.db`, instead of resetting to 1000 every time. An all-time

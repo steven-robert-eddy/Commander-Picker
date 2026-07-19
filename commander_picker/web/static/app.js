@@ -33,6 +33,13 @@
   const BRACKET_SIZES = [4, 8, 16, 32, 64];
   let bracketPoolSize = null; // chosen preset from BRACKET_SIZES, or null until picked
 
+  // ---- custom-list mode: hand-picked commanders instead of a filtered
+  // pool (see searchCommanders/renderCustomList). Independent of
+  // selectedMode -- a custom list can still be duel or bracket. ----
+  let poolSource = "filtered"; // "filtered" or "custom"
+  const customList = []; // [{name, color_identity, num_decks}, ...], insertion order preserved
+  let searchDebounceTimer = null;
+
   function currentFiltersBody(overrides) {
     return Object.assign(
       {
@@ -237,7 +244,121 @@
     $("bracket-size-chips").classList.toggle("hidden", mode !== "bracket");
     $("start-btn").textContent = mode === "bracket" ? "Start bracket" : "Start dueling";
     if (mode === "bracket") renderBracketSizeChips();
-    refreshPoolPreview();
+    if (poolSource === "custom") renderCustomList();
+    else refreshPoolPreview();
+  }
+
+  function setPoolSource(source) {
+    poolSource = source;
+    $("filter-controls").classList.toggle("hidden", source === "custom");
+    $("custom-list-controls").classList.toggle("hidden", source !== "custom");
+    if (source === "custom") {
+      renderCustomList();
+    } else {
+      // renderCustomList() overwrites #pool-count-line1's markup (including
+      // the #total-matches element refreshPoolPreview depends on) -- restore
+      // it before handing back to the filtered-mode preview.
+      $("pool-count-line1").innerHTML = '<b id="total-matches">–</b> commanders match your filters';
+      refreshPoolPreview();
+    }
+  }
+
+  async function searchCommanders() {
+    const q = $("commander-search-input").value.trim();
+    const resultsEl = $("commander-search-results");
+    if (!q) {
+      resultsEl.classList.add("hidden");
+      resultsEl.innerHTML = "";
+      return;
+    }
+    try {
+      const { results } = await api("GET", `/api/commanders/search?q=${encodeURIComponent(q)}`);
+      if (!results.length) {
+        resultsEl.innerHTML = '<div class="spinner-note" style="padding: 9px 12px;">No matches</div>';
+        resultsEl.classList.remove("hidden");
+        return;
+      }
+      const alreadyAdded = new Set(customList.map((c) => c.name));
+      resultsEl.innerHTML = results
+        .map(
+          (r) => `
+            <button type="button" class="autocomplete-item" data-name="${r.name}" ${alreadyAdded.has(r.name) ? "disabled" : ""}>
+              ${pipsHTML(r.color_identity)}
+              <span>${r.name}${alreadyAdded.has(r.name) ? " (added)" : ""}</span>
+              <span class="autocomplete-item-decks">${r.num_decks.toLocaleString()} decks</span>
+            </button>
+          `
+        )
+        .join("");
+      resultsEl.querySelectorAll(".autocomplete-item").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          if (btn.disabled) return;
+          const r = results.find((x) => x.name === btn.dataset.name);
+          customList.push(r);
+          $("commander-search-input").value = "";
+          resultsEl.classList.add("hidden");
+          resultsEl.innerHTML = "";
+          renderCustomList();
+        });
+      });
+      resultsEl.classList.remove("hidden");
+    } catch (e) {
+      resultsEl.innerHTML = `<div class="spinner-note" style="padding: 9px 12px;">${e.message}</div>`;
+      resultsEl.classList.remove("hidden");
+    }
+  }
+
+  function renderCustomList() {
+    $("custom-list-count").textContent = customList.length;
+    const itemsEl = $("custom-list-items");
+    if (!customList.length) {
+      itemsEl.innerHTML = '<div class="spinner-note">Search above and add commanders to build your list.</div>';
+    } else {
+      itemsEl.innerHTML = customList
+        .map(
+          (c, i) => `
+            <div class="custom-list-row" data-index="${i}">
+              <div class="custom-list-name">${pipsHTML(c.color_identity)}${c.name}</div>
+              <button type="button" class="ghost-btn custom-list-remove">✕ Remove</button>
+            </div>
+          `
+        )
+        .join("");
+      itemsEl.querySelectorAll(".custom-list-row").forEach((row) => {
+        row.querySelector(".custom-list-remove").addEventListener("click", () => {
+          customList.splice(Number(row.dataset.index), 1);
+          renderCustomList();
+        });
+      });
+    }
+
+    const errEl = $("filter-error");
+    errEl.classList.add("hidden");
+    $("pool-count-line1").innerHTML = `<b>${customList.length}</b> commander(s) in your list`;
+
+    if (selectedMode === "bracket") {
+      if (BRACKET_SIZES.includes(customList.length)) {
+        const rounds = Math.log2(customList.length);
+        $("pool-count-line2").innerHTML =
+          `Bracket of <b>${customList.length}</b>, <b>${rounds}</b> round${rounds === 1 ? "" : "s"} to a champion`;
+        $("start-btn").disabled = false;
+      } else {
+        $("pool-count-line2").textContent = "";
+        errEl.textContent =
+          `Bracket mode needs a power-of-two list size (4, 8, 16, 32, or 64) -- currently ${customList.length}.`;
+        errEl.classList.remove("hidden");
+        $("start-btn").disabled = true;
+      }
+    } else {
+      $("pool-count-line2").innerHTML = `Dueling with your <b>${customList.length}</b>-commander list`;
+      if (customList.length < 2) {
+        errEl.textContent = `Add at least 2 commanders to duel (${customList.length} so far).`;
+        errEl.classList.remove("hidden");
+        $("start-btn").disabled = true;
+      } else {
+        $("start-btn").disabled = false;
+      }
+    }
   }
 
   function targetRoundEstimate(n) {
@@ -376,11 +497,19 @@
   async function startSession() {
     $("start-btn").disabled = true;
     try {
-      const body =
-        selectedMode === "bracket"
-          ? currentFiltersBody({ mode: "bracket", pool_size: bracketPoolSize })
-          : currentFiltersBody({ mode: "duel" });
-      const data = await api("POST", "/api/sessions", body);
+      let data;
+      if (poolSource === "custom") {
+        data = await api("POST", "/api/sessions/custom", {
+          names: customList.map((c) => c.name),
+          mode: selectedMode,
+        });
+      } else {
+        const body =
+          selectedMode === "bracket"
+            ? currentFiltersBody({ mode: "bracket", pool_size: bracketPoolSize })
+            : currentFiltersBody({ mode: "duel" });
+        data = await api("POST", "/api/sessions", body);
+      }
       sessionId = data.session_id;
       enterDuelScreen(data.info, data.pairing);
     } catch (e) {
@@ -749,6 +878,10 @@
     colorMode = "subset";
     maxDecks = 10000;
     poolSize = 40;
+    customList.length = 0;
+    $("commander-search-input").value = "";
+    $("commander-search-results").classList.add("hidden");
+    $("commander-search-results").innerHTML = "";
 
     renderColorChips("color-chips", activeColors, refreshPoolPreview);
     document.querySelectorAll("#color-mode-toggle .segmented-btn").forEach((b) => {
@@ -767,6 +900,10 @@
     document.querySelectorAll("#mode-toggle .segmented-btn").forEach((b) => {
       b.setAttribute("aria-pressed", String(b.dataset.mode === "duel"));
     });
+    document.querySelectorAll("#pool-source-toggle .segmented-btn").forEach((b) => {
+      b.setAttribute("aria-pressed", String(b.dataset.source === "filtered"));
+    });
+    setPoolSource("filtered");
 
     refreshPoolPreview();
   });
@@ -843,6 +980,21 @@
   wireColorModeToggle("color-mode-toggle", (m) => { colorMode = m; }, refreshPoolPreview);
   wireColorModeToggle("leaderboard-color-mode-toggle", (m) => { leaderboardColorMode = m; }, showLeaderboard);
   wireColorModeToggle("mode-toggle", setFilterMode, () => {});
+
+  document.querySelectorAll("#pool-source-toggle .segmented-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      document.querySelectorAll("#pool-source-toggle .segmented-btn").forEach((b) => {
+        b.setAttribute("aria-pressed", String(b === btn));
+      });
+      setPoolSource(btn.dataset.source);
+    });
+  });
+
+  const searchInput = $("commander-search-input");
+  searchInput.addEventListener("input", () => {
+    clearTimeout(searchDebounceTimer);
+    searchDebounceTimer = setTimeout(searchCommanders, 250);
+  });
 
   renderColorChips("color-chips", activeColors, refreshPoolPreview);
   renderColorChips("leaderboard-color-chips", leaderboardActiveColors, showLeaderboard);

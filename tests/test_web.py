@@ -404,3 +404,82 @@ def test_reset_leaderboard_clears_ratings_but_not_session_results(client):
     # The session's own results are untouched.
     info = client.get(f"/api/sessions/{session_id}").json()
     assert info["rounds_completed"] == 1
+
+
+def test_search_commanders_endpoint(client):
+    resp = client.get("/api/commanders/search?q=rakdos")
+    assert resp.status_code == 200
+    results = resp.json()["results"]
+    assert [r["name"] for r in results] == ["Rakdos, Lord of Riots"]
+    assert "color_identity" in results[0]
+    assert "num_decks" in results[0]
+
+
+def test_search_commanders_requires_query(client):
+    resp = client.get("/api/commanders/search")
+    assert resp.status_code == 422
+
+
+def test_create_custom_duel_session(client):
+    resp = client.post(
+        "/api/sessions/custom",
+        json={"names": ["Rakdos, Lord of Riots", "Prosper, Tome-Bound"], "mode": "duel"},
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["info"]["mode"] == "duel"
+    assert data["info"]["pool_size"] == 2
+    assert "Custom list" in data["info"]["description"]
+    names = {c["name"] for c in data["pairing"]["candidates"]}
+    assert names == {"Rakdos, Lord of Riots", "Prosper, Tome-Bound"}
+
+
+def test_create_custom_bracket_session(client):
+    resp = client.post(
+        "/api/sessions/custom",
+        json={
+            "names": [
+                "Rakdos, Lord of Riots",
+                "Prosper, Tome-Bound",
+                "Valgavoth, Harrower of Souls",
+                "Krark, the Thumbless // Vial Smasher the Fierce",
+            ],
+            "mode": "bracket",
+        },
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["info"]["mode"] == "bracket"
+    assert data["info"]["pool_size"] == 4
+    assert data["info"]["target_rounds"] == 2
+
+
+def test_create_custom_bracket_session_rejects_non_power_of_two(client):
+    resp = client.post(
+        "/api/sessions/custom",
+        json={"names": ["Rakdos, Lord of Riots", "Prosper, Tome-Bound", "Valgavoth, Harrower of Souls"], "mode": "bracket"},
+    )
+    assert resp.status_code == 422
+
+
+def test_create_custom_session_rejects_unknown_name(client):
+    resp = client.post(
+        "/api/sessions/custom",
+        json={"names": ["Rakdos, Lord of Riots", "Not A Real Commander"], "mode": "duel"},
+    )
+    assert resp.status_code == 422
+    assert "Unknown commander" in resp.json()["detail"]
+
+
+def test_create_custom_session_rejects_duplicate_name(client):
+    resp = client.post(
+        "/api/sessions/custom",
+        json={"names": ["Rakdos, Lord of Riots", "Rakdos, Lord of Riots"], "mode": "duel"},
+    )
+    assert resp.status_code == 422
+    assert "Duplicate" in resp.json()["detail"]
+
+
+def test_create_custom_session_rejects_bad_mode(client):
+    resp = client.post("/api/sessions/custom", json={"names": ["Rakdos, Lord of Riots"], "mode": "nonsense"})
+    assert resp.status_code == 422

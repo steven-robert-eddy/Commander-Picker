@@ -242,3 +242,35 @@ def test_commander_carries_rank_mana_cost_type_line():
     assert detailed.rank == 3
     assert detailed.mana_cost == "{2}{B}{R}"
     assert detailed.type_line == "Legendary Creature — Devil"
+
+
+def test_search_commanders_substring_match_ordered_by_deck_count(conn):
+    results = pool.search_commanders(conn, "rakdos")
+    names = [r["name"] for r in results]
+    assert names == ["Big Rakdos", "Small Rakdos", "Tiny Rakdos"]
+
+
+def test_search_commanders_limit(conn):
+    results = pool.search_commanders(conn, "rakdos", limit=1)
+    assert [r["name"] for r in results] == ["Big Rakdos"]
+
+
+def test_search_commanders_no_match(conn):
+    assert pool.search_commanders(conn, "nonexistent-xyz") == []
+
+
+def test_commanders_by_names_preserves_order(conn):
+    candidates = pool.commanders_by_names(conn, ["Tiny Rakdos", "Big Rakdos", "Mono Black"])
+    assert [c.name for c in candidates] == ["Tiny Rakdos", "Big Rakdos", "Mono Black"]
+    assert candidates[0].color_identity == "BR"
+    assert candidates[0].themes == ("aristocrats", "tokens")
+
+
+def test_commanders_by_names_unknown_name_raises(conn):
+    with pytest.raises(pool.CommanderLookupError, match="Unknown commander"):
+        pool.commanders_by_names(conn, ["Big Rakdos", "Not A Real Commander"])
+
+
+def test_commanders_by_names_duplicate_raises(conn):
+    with pytest.raises(pool.CommanderLookupError, match="Duplicate"):
+        pool.commanders_by_names(conn, ["Big Rakdos", "Big Rakdos"])

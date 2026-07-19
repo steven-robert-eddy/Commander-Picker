@@ -138,6 +138,13 @@ def api_themes():
     return {"slugs": THEME_SLUGS}
 
 
+@app.get("/api/commanders/search")
+def api_search_commanders(q: str = Query(min_length=1), limit: int = Query(default=20, ge=1, le=50)):
+    with _catalog_conn() as conn:
+        rows = pool_module.search_commanders(conn, q, limit=limit)
+    return {"results": [{"name": r["name"], "color_identity": r["color_identity"], "num_decks": r["num_decks"]} for r in rows]}
+
+
 @app.post("/api/pool")
 def api_pool(body: FiltersBody):
     with _catalog_conn() as conn:
@@ -162,6 +169,35 @@ def api_create_session(body: FiltersBody):
 
     with _sessions_conn() as session_conn:
         description = pool_module.describe_filters(_to_pool_filters(body))
+        session_id = sessions.create_session(session_conn, candidates, description=description, mode=body.mode)
+        info = sessions.get_session(session_conn, session_id)
+        pairing = _pairing_payload(session_conn, session_id)
+    return {"session_id": session_id, "info": asdict(info), "pairing": pairing}
+
+
+class CustomSessionBody(BaseModel):
+    names: list[str]
+    mode: str = "duel"
+
+
+@app.post("/api/sessions/custom")
+def api_create_custom_session(body: CustomSessionBody):
+    if body.mode not in ("duel", "bracket"):
+        raise HTTPException(status_code=422, detail=f"mode must be 'duel' or 'bracket', got {body.mode!r}")
+    if body.mode == "bracket" and not elo.is_valid_bracket_size(len(body.names)):
+        raise HTTPException(
+            status_code=422,
+            detail=f"Bracket mode needs a custom list size that's a power of two (4, 8, 16, ...) -- got {len(body.names)}.",
+        )
+
+    with _catalog_conn() as conn:
+        try:
+            candidates = pool_module.commanders_by_names(conn, body.names)
+        except pool_module.CommanderLookupError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    with _sessions_conn() as session_conn:
+        description = f"Custom list ({len(candidates)} commanders)"
         session_id = sessions.create_session(session_conn, candidates, description=description, mode=body.mode)
         info = sessions.get_session(session_conn, session_id)
         pairing = _pairing_payload(session_conn, session_id)

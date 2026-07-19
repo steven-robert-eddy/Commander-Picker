@@ -215,6 +215,15 @@ active or finished. Tap an active one to resume it right where you left
 off (same as `commander-picker resume` on the CLI); tap a finished one
 to see its results/bracket again.
 
+A **Pool source: Filtered / Custom list** toggle on the filter screen
+switches from the color/deck-count filter above to a search box with
+autocomplete — type a name, results show colors and deck count so you
+can tell similarly-named commanders apart, tap one to add it to your
+list. Works for both duel (need at least 2) and bracket (needs an exact
+power-of-two count — 4, 8, 16, 32, or 64, same rule as filtered bracket
+sizing, no byes/padding). "Reset filters" clears the custom list back to
+empty too. Web UI only for now — no CLI equivalent yet.
+
 A **Duel / Bracket** toggle on the filter screen switches to bracket
 mode (see "Bracket mode" above) -- picking Bracket swaps the free pool-size
 input for a row of power-of-two size presets (4/8/16/32/64), disabling
@@ -227,8 +236,13 @@ Local-only, no auth, no rate limiting — fine for a single-user local
 tool, would need attention before exposing beyond localhost.
 
 API endpoints, if you want to hit them directly or build another
-client: `GET /api/themes`, `POST /api/pool`, `POST /api/sessions`
-(`mode: "duel"` or `"bracket"` in the body), `GET /api/sessions`, `GET
+client: `GET /api/themes`, `GET /api/commanders/search?q=...` (name
+search for the custom-list autocomplete), `POST /api/pool`, `POST
+/api/sessions` (`mode: "duel"` or `"bracket"` in the body), `POST
+/api/sessions/custom` (`{"names": [...], "mode": "duel"|"bracket"}` --
+builds a session from an exact hand-picked list instead of filters; 422
+on an unknown/duplicate name or a non-power-of-two bracket size), `GET
+/api/sessions`, `GET
 /api/sessions/{id}`, `GET /api/sessions/{id}/pairing`, `POST
 /api/sessions/{id}/pick`, `POST /api/sessions/{id}/undo` (reverts the
 most recent pick exactly; 400 for bracket sessions or when there's
