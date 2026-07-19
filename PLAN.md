@@ -87,6 +87,22 @@ for card art. Standalone project — no dependency on the sibling
   verified live from this sandbox — worth a click-test once deployed.
 - **Keyboard shortcuts**: `1`/`2` or the arrow keys pick a duel card on
   the web UI, mirroring the CLI's `1`/`2` input.
+- **Undo last pick** (duel mode only): reverts the most recently recorded
+  pick exactly -- both candidates' session-local ratings, the all-time
+  `commander_ratings` entry (deleted outright if that pick was the
+  commander's first-ever game, restored to its prior value/games_played
+  otherwise), and `rounds_completed` (un-finishing the session if that
+  pick was what completed it). `sessions.py`'s `comparisons` table now
+  stores each pick's pre-pick session-local and all-time ratings
+  (`*_rating_before` columns) specifically so this can restore exact
+  values instead of trying to invert the Elo formula. Repeatable --
+  each call reverses one more pick, like a normal undo stack. **Not
+  supported for bracket sessions**: a bracket pick also propagates its
+  winner into the next round's slot, and safely undoing that would need
+  to confirm nothing downstream has consumed that winner yet -- a real
+  feature on its own, not yet built. CLI: `u` during `play`/`resume`.
+  Web: an "← Undo" button next to "Finish now" (disabled until there's
+  something to undo), or press `u`.
 - **Persistent, cross-session ratings**: a commander's Elo carries
   forward from session to session via a `commander_ratings` table in
   `sessions.db`, instead of resetting to 1000 every time. An all-time
@@ -220,9 +236,6 @@ deckbuilder links, keyboard shortcuts). The rest, sized for whenever
 they're picked up next:
 
 **Picker polish**
-- Undo last pick — medium, contained to `sessions.py` (revert both
-  candidates' ratings, the `comparisons` row, and the global rating bump
-  for the reverted pick).
 - Web UI session list/resume — medium. `resume` only exists in the CLI
   today; the web UI has no way to pick back up a paused session.
 - Exclude recently-seen commanders across sessions — medium, already

@@ -212,6 +212,16 @@ def api_pick(session_id: str, body: PickBody):
             raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
+@app.post("/api/sessions/{session_id}/undo")
+def api_undo(session_id: str):
+    with _sessions_conn() as conn:
+        try:
+            sessions.undo_last_pick(conn, session_id)
+            return _pairing_payload(conn, session_id)
+        except sessions.SessionError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
 @app.post("/api/sessions/{session_id}/finish")
 def api_finish(session_id: str):
     with _sessions_conn() as conn:

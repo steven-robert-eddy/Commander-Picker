@@ -108,12 +108,19 @@ commander-picker play --colors BRG --themes tokens
 ```
 
 Each round shows two candidates; type `1` or `2` to pick your
-favorite, `f` to finish early and see the final ranking, or `q` to
-pause (the session stays saved and resumable). Ratings update via a
-standard Elo formula after each pick. A session automatically finishes
-once it reaches its target round count (roughly `pool_size *
-log2(pool_size)`) and shows the final ranking — use `f` any time
-before that to stop sooner.
+favorite, `u` to undo your last pick, `f` to finish early and see the
+final ranking, or `q` to pause (the session stays saved and
+resumable). Ratings update via a standard Elo formula after each pick.
+A session automatically finishes once it reaches its target round
+count (roughly `pool_size * log2(pool_size)`) and shows the final
+ranking — use `f` any time before that to stop sooner.
+
+`u` reverts your most recent pick exactly — both commanders' ratings
+(session-local and all-time) go back to precisely what they were
+before that pick, and the round count steps back by one (un-finishing
+the session if that pick was what completed it). Repeatable — press it
+again to step back further. Not available in bracket mode, since a
+bracket pick also advances the tournament tree, not just ratings.
 
 ```bash
 commander-picker sessions                 # list all sessions (active + finished)
@@ -177,19 +184,22 @@ commander-picker serve
 Then open http://127.0.0.1:8000. Filter by color — with a toggle for
 **any combo within your selected colors** (picking B+R shows mono-B,
 mono-R, and BR) vs. **exact colors only** (picking B+R shows only BR)
-— an exact-or-slider-adjusted deck-count ceiling, an opt-in price
-ceiling (commanders with no price data are never excluded, even with
-the filter set), an archetype/theme filter, and an editable duel pool
-size (the live preview shows both the total commanders matching your
-filters and how many will actually be sampled into the duel — the two
-can differ once a filter matches more than the pool size). Tap through
-duels — with card art, mana cost, and an EDHREC rank badge when that
-data is available — and see final standings. Press `1`/`2` or the
-arrow keys to pick a duel card instead of tapping, if you'd rather use
-the keyboard. Same Elo engine and `data/sessions.db` as
-`play`/`resume`/`results`, so sessions started in one are visible from
-the other. Flags: `--host`, `--port`, `--reload` (auto-restart on code
-changes, for development).
+— an exact-or-slider-adjusted deck-count ceiling, and an editable duel
+pool size (the live preview shows both the total commanders matching
+your filters and how many will actually be sampled into the duel — the
+two can differ once a filter matches more than the pool size). Price
+and archetype/theme filtering exist server-side and on the CLI
+(`--max-price`, `--themes`) but aren't currently shown in the web UI —
+EDHREC's theme data is too shallow to filter on meaningfully yet (see
+`PLAN.md`'s "Known limitations"), and price was pulled back out
+alongside it while the UI stays simple. Tap through duels — with card
+art, mana cost, and an EDHREC rank badge when that data is available —
+and see final standings. Press `1`/`2` or the arrow keys to pick a
+duel card instead of tapping, `u` (or the "← Undo" button) to revert
+your last pick exactly, if you'd rather use the keyboard. Same Elo
+engine and `data/sessions.db` as `play`/`resume`/`results`, so sessions
+started in one are visible from the other. Flags: `--host`, `--port`,
+`--reload` (auto-restart on code changes, for development).
 
 Tap a ranked commander (on the results screen or the all-time
 leaderboard) to see its card(s) full size in a lightbox, with links to
@@ -211,8 +221,10 @@ API endpoints, if you want to hit them directly or build another
 client: `GET /api/themes`, `POST /api/pool`, `POST /api/sessions`
 (`mode: "duel"` or `"bracket"` in the body), `GET /api/sessions`, `GET
 /api/sessions/{id}`, `GET /api/sessions/{id}/pairing`, `POST
-/api/sessions/{id}/pick`, `POST /api/sessions/{id}/finish` (bracket
-sessions 400 -- no early finish), `GET /api/sessions/{id}/results`, `GET
+/api/sessions/{id}/pick`, `POST /api/sessions/{id}/undo` (reverts the
+most recent pick exactly; 400 for bracket sessions or when there's
+nothing to undo), `POST /api/sessions/{id}/finish` (bracket sessions
+400 -- no early finish), `GET /api/sessions/{id}/results`, `GET
 /api/sessions/{id}/bracket` (full bracket tree + champion, bracket mode
 only), `GET /api/leaderboard` (all-time ranking; optional `?limit=`
 default 100, `?colors=`/`?color_mode=` same as `/api/pool`), `DELETE

@@ -91,6 +91,88 @@ def test_record_pick_rejects_unknown_commander(conn, candidates):
         sessions.record_pick(conn, session_id, winner="A", loser="Not In Pool")
 
 
+def test_undo_last_pick_restores_session_ratings_and_round_count(conn, candidates):
+    session_id = sessions.create_session(conn, candidates)
+    sessions.record_pick(conn, session_id, winner="A", loser="B")
+
+    sessions.undo_last_pick(conn, session_id)
+
+    info = sessions.get_session(conn, session_id)
+    assert info.rounds_completed == 0
+    ranked = {r.name: r.rating for r in sessions.get_rankings(conn, session_id)}
+    assert ranked["A"] == pytest.approx(1000.0)
+    assert ranked["B"] == pytest.approx(1000.0)
+
+
+def test_undo_last_pick_removes_first_ever_global_rating(conn, candidates):
+    session_id = sessions.create_session(conn, candidates)
+    sessions.record_pick(conn, session_id, winner="A", loser="B")
+    assert sessions.get_leaderboard(conn) != []
+
+    sessions.undo_last_pick(conn, session_id)
+
+    # Both commanders' first-ever game was this pick -- undoing it should
+    # remove them from the leaderboard entirely, same as never having played.
+    assert sessions.get_leaderboard(conn) == []
+
+
+def test_undo_last_pick_restores_prior_global_rating_not_removes_it(conn, candidates):
+    session_id = sessions.create_session(conn, candidates)
+    sessions.record_pick(conn, session_id, winner="A", loser="B")  # A's first game
+    sessions.record_pick(conn, session_id, winner="A", loser="C")  # A's second game
+
+    sessions.undo_last_pick(conn, session_id)  # undo A vs C only
+
+    board = {r.name: r for r in sessions.get_leaderboard(conn)}
+    assert "A" in board  # A still has its first game on record
+    assert board["A"].games_played == 1
+    assert "C" not in board  # C's only game was the undone one
+
+
+def test_undo_last_pick_only_reverses_most_recent(conn, candidates):
+    session_id = sessions.create_session(conn, candidates)
+    sessions.record_pick(conn, session_id, winner="A", loser="B")
+    sessions.record_pick(conn, session_id, winner="A", loser="C")
+
+    sessions.undo_last_pick(conn, session_id)
+
+    info = sessions.get_session(conn, session_id)
+    assert info.rounds_completed == 1  # first pick (A beat B) still stands
+    ranked = {r.name: r.rating for r in sessions.get_rankings(conn, session_id)}
+    assert ranked["A"] > 1000.0
+    assert ranked["B"] < 1000.0
+    assert ranked["C"] == pytest.approx(1000.0)
+
+
+def test_undo_last_pick_un_finishes_a_completed_session(conn):
+    session_id = sessions.create_session(conn, [_commander("A"), _commander("B")])
+    info = sessions.get_session(conn, session_id)
+    target = info.target_rounds
+    for _ in range(target):
+        sessions.record_pick(conn, session_id, winner="A", loser="B")
+    info = sessions.get_session(conn, session_id)
+    assert info.status == "complete"
+
+    sessions.undo_last_pick(conn, session_id)
+
+    info = sessions.get_session(conn, session_id)
+    assert info.status == "active"
+    assert info.rounds_completed == target - 1
+
+
+def test_undo_last_pick_with_no_picks_raises(conn, candidates):
+    session_id = sessions.create_session(conn, candidates)
+    with pytest.raises(sessions.SessionError):
+        sessions.undo_last_pick(conn, session_id)
+
+
+def test_undo_last_pick_rejects_bracket_mode(conn):
+    session_id = sessions.create_session(conn, [_commander(n) for n in "ABCD"], mode="bracket")
+    sessions.record_bracket_pick(conn, session_id, winner="A", loser="D")
+    with pytest.raises(sessions.SessionError):
+        sessions.undo_last_pick(conn, session_id)
+
+
 def test_finish_session_stops_pairing(conn, candidates):
     session_id = sessions.create_session(conn, candidates)
     sessions.finish_session(conn, session_id)

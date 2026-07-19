@@ -149,7 +149,11 @@ def _ensure_schema(conn: sqlite3.Connection) -> None:
             round_num INTEGER NOT NULL,
             winner TEXT NOT NULL,
             loser TEXT NOT NULL,
-            created_at REAL NOT NULL
+            created_at REAL NOT NULL,
+            winner_rating_before REAL,
+            loser_rating_before REAL,
+            winner_global_rating_before REAL,
+            loser_global_rating_before REAL
         );
         CREATE TABLE IF NOT EXISTS commander_ratings (
             commander_name TEXT PRIMARY KEY,
@@ -165,6 +169,19 @@ def _ensure_schema(conn: sqlite3.Connection) -> None:
     existing_session_columns = {row["name"] for row in conn.execute("PRAGMA table_info(sessions)")}
     if "mode" not in existing_session_columns:
         conn.execute("ALTER TABLE sessions ADD COLUMN mode TEXT NOT NULL DEFAULT 'duel'")
+
+    # Undo needs to know each pick's pre-pick state to revert exactly --
+    # rows from before this existed simply have NULL here, and
+    # undo_last_pick refuses to undo those rather than guessing.
+    existing_comparison_columns = {row["name"] for row in conn.execute("PRAGMA table_info(comparisons)")}
+    for column in (
+        "winner_rating_before",
+        "loser_rating_before",
+        "winner_global_rating_before",
+        "loser_global_rating_before",
+    ):
+        if column not in existing_comparison_columns:
+            conn.execute(f"ALTER TABLE comparisons ADD COLUMN {column} REAL")
 
     existing_columns = {row["name"] for row in conn.execute("PRAGMA table_info(candidates)")}
     if "themes" not in existing_columns:
@@ -470,7 +487,16 @@ def record_pick(conn: sqlite3.Connection, session_id: str, winner: str, loser: s
     if winner not in ratings or loser not in ratings:
         raise SessionError("winner/loser must both be candidates in this session")
 
-    new_winner, new_loser = elo.update_ratings(ratings[winner], ratings[loser])
+    # Captured before either rating changes -- undo_last_pick restores
+    # exactly these values rather than trying to invert the Elo formula
+    # (which isn't reliably reversible without them).
+    winner_rating_before = ratings[winner]
+    loser_rating_before = ratings[loser]
+    global_before = _global_ratings(conn, [winner, loser])
+    winner_global_rating_before = global_before.get(winner)  # None means no prior row (first-ever game)
+    loser_global_rating_before = global_before.get(loser)
+
+    new_winner, new_loser = elo.update_ratings(winner_rating_before, loser_rating_before)
     conn.execute(
         "UPDATE candidates SET rating = ? WHERE session_id = ? AND commander_name = ?",
         (new_winner, session_id, winner),
@@ -487,12 +513,93 @@ def record_pick(conn: sqlite3.Connection, session_id: str, winner: str, loser: s
 
     info = get_session(conn, session_id)
     conn.execute(
-        "INSERT INTO comparisons (session_id, round_num, winner, loser, created_at) VALUES (?, ?, ?, ?, ?)",
-        (session_id, info.rounds_completed + 1, winner, loser, time.time()),
+        "INSERT INTO comparisons "
+        "(session_id, round_num, winner, loser, created_at, "
+        "winner_rating_before, loser_rating_before, winner_global_rating_before, loser_global_rating_before) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        (
+            session_id,
+            info.rounds_completed + 1,
+            winner,
+            loser,
+            time.time(),
+            winner_rating_before,
+            loser_rating_before,
+            winner_global_rating_before,
+            loser_global_rating_before,
+        ),
     )
     conn.execute("UPDATE sessions SET rounds_completed = rounds_completed + 1 WHERE id = ?", (session_id,))
     conn.commit()
     _maybe_auto_finish(conn, session_id)
+
+
+def undo_last_pick(conn: sqlite3.Connection, session_id: str) -> None:
+    """Revert the most recently recorded pick in a duel-mode session.
+
+    Restores both candidates' session-local ratings and the all-time
+    `commander_ratings` table to exactly their pre-pick values (captured
+    by record_pick), deletes the `comparisons` row, and decrements
+    `rounds_completed` -- un-finishing the session if that pick was what
+    completed it.
+
+    Bracket mode isn't supported here: a bracket pick also propagates its
+    winner into the next round's slot, and safely undoing that would need
+    to confirm nothing downstream has consumed that winner yet -- a real
+    feature on its own, deferred (see PLAN.md).
+
+    Only ever reverses the single most recent pick; call again to step
+    back further (like a normal undo stack). Assumes single-sequential
+    play, same as the rest of this module -- if the same commander's
+    all-time rating was also touched by a *different* concurrent session
+    in between, this can't detect that and will still restore the
+    pre-pick snapshot, potentially clobbering that other session's update.
+    """
+    info = get_session(conn, session_id)
+    if info.mode != "duel":
+        raise SessionError("Undo isn't available for bracket sessions yet.")
+
+    row = conn.execute(
+        "SELECT * FROM comparisons WHERE session_id = ? ORDER BY id DESC LIMIT 1",
+        (session_id,),
+    ).fetchone()
+    if row is None:
+        raise SessionError("No picks to undo.")
+    if row["winner_rating_before"] is None:
+        raise SessionError("Can't undo this pick -- it predates undo support.")
+
+    winner, loser = row["winner"], row["loser"]
+    conn.execute(
+        "UPDATE candidates SET rating = ? WHERE session_id = ? AND commander_name = ?",
+        (row["winner_rating_before"], session_id, winner),
+    )
+    conn.execute(
+        "UPDATE candidates SET rating = ? WHERE session_id = ? AND commander_name = ?",
+        (row["loser_rating_before"], session_id, loser),
+    )
+
+    for name, before in (
+        (winner, row["winner_global_rating_before"]),
+        (loser, row["loser_global_rating_before"]),
+    ):
+        if before is None:
+            # This pick created the commander's first-ever all-time
+            # rating row -- undo removes it entirely, same as if it had
+            # never been played.
+            conn.execute("DELETE FROM commander_ratings WHERE commander_name = ?", (name,))
+        else:
+            conn.execute(
+                "UPDATE commander_ratings SET rating = ?, games_played = games_played - 1 WHERE commander_name = ?",
+                (before, name),
+            )
+
+    conn.execute("DELETE FROM comparisons WHERE id = ?", (row["id"],))
+    conn.execute("UPDATE sessions SET rounds_completed = rounds_completed - 1 WHERE id = ?", (session_id,))
+    if info.status == "complete":
+        # Undoing the pick that finished the session un-finishes it --
+        # rounds_completed just dropped back below (or to) target_rounds.
+        conn.execute("UPDATE sessions SET status = 'active' WHERE id = ?", (session_id,))
+    conn.commit()
 
 
 def finish_session(conn: sqlite3.Connection, session_id: str) -> None:

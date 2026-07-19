@@ -161,6 +161,61 @@ def test_full_session_lifecycle(client):
     assert pairing_resp.json() is None
 
 
+def test_undo_reverts_last_pick(client):
+    created = client.post("/api/sessions", json=_pool_body()).json()
+    session_id = created["session_id"]
+    a, b = created["pairing"]["candidates"]
+    client.post(f"/api/sessions/{session_id}/pick", json={"winner": a["name"], "loser": b["name"]})
+
+    undo_resp = client.post(f"/api/sessions/{session_id}/undo")
+    assert undo_resp.status_code == 200
+
+    info = client.get(f"/api/sessions/{session_id}").json()
+    assert info["rounds_completed"] == 0
+
+    board = {row["name"]: row for row in client.get("/api/leaderboard").json()["leaderboard"]}
+    assert a["name"] not in board
+    assert b["name"] not in board
+
+
+def test_undo_with_nothing_to_undo_returns_400(client):
+    created = client.post("/api/sessions", json=_pool_body()).json()
+    session_id = created["session_id"]
+    resp = client.post(f"/api/sessions/{session_id}/undo")
+    assert resp.status_code == 400
+
+
+def test_undo_un_finishes_completed_session(client):
+    created = client.post("/api/sessions", json=_pool_body()).json()
+    session_id = created["session_id"]
+    target_rounds = created["info"]["target_rounds"]
+    pairing = created["pairing"]
+    for _ in range(target_rounds):
+        a, b = pairing["candidates"]
+        resp = client.post(f"/api/sessions/{session_id}/pick", json={"winner": a["name"], "loser": b["name"]})
+        pairing = resp.json()
+
+    info = client.get(f"/api/sessions/{session_id}").json()
+    assert info["status"] == "complete"
+
+    undo_resp = client.post(f"/api/sessions/{session_id}/undo")
+    assert undo_resp.status_code == 200
+
+    info = client.get(f"/api/sessions/{session_id}").json()
+    assert info["status"] == "active"
+    assert info["rounds_completed"] == target_rounds - 1
+
+
+def test_undo_rejects_bracket_mode(client):
+    created = client.post("/api/sessions", json=_pool_body(mode="bracket", pool_size=4)).json()
+    session_id = created["session_id"]
+    a, b = created["pairing"]["candidates"]
+    client.post(f"/api/sessions/{session_id}/pick", json={"winner": a["name"], "loser": b["name"]})
+
+    resp = client.post(f"/api/sessions/{session_id}/undo")
+    assert resp.status_code == 400
+
+
 def test_session_auto_finishes_at_target_rounds(client):
     created = client.post("/api/sessions", json=_pool_body()).json()
     session_id = created["session_id"]

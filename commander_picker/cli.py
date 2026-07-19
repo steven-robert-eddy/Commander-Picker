@@ -147,7 +147,7 @@ def _interactive_loop(conn: object, session_id: str) -> None:
             print(f"  [{i}] {name} ({color_display}, {row['num_decks']} decks)")
 
         try:
-            choice = input("Pick 1 or 2 ('f' to finish early, 'q' to pause): ").strip().lower()
+            choice = input("Pick 1 or 2 ('u' to undo last pick, 'f' to finish early, 'q' to pause): ").strip().lower()
         except (EOFError, KeyboardInterrupt):
             print("\nPaused.")
             break
@@ -160,8 +160,15 @@ def _interactive_loop(conn: object, session_id: str) -> None:
             print("\nFinished! Final ranking:")
             _print_rankings(sessions.get_rankings(conn, session_id))
             return
+        if choice in ("u", "undo"):
+            try:
+                sessions.undo_last_pick(conn, session_id)
+                print("Undone.")
+            except sessions.SessionError as exc:
+                print(f"error: {exc}")
+            continue
         if choice not in ("1", "2"):
-            print("Please enter 1, 2, f, or q.")
+            print("Please enter 1, 2, u, f, or q.")
             continue
 
         winner, loser = (a, b) if choice == "1" else (b, a)

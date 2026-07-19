@@ -104,10 +104,14 @@
       </div>
 
       <div class="duel-actions">
+        <!-- Hidden in bracket mode -- undo isn't supported there yet (see
+             app.js startSession/undoLastPick). Starts disabled -- nothing
+             to undo before the first pick of the session. -->
+        <button class="ghost-btn" id="undo-btn" disabled>← Undo</button>
+        <span class="ghost-btn" style="cursor:default;">tap a card to pick (or press 1/2)</span>
         <!-- Hidden in bracket mode -- no meaningful "finish early" when
              there's no partial champion, see app.js startSession. -->
         <button class="ghost-btn" id="finish-btn">Finish now →</button>
-        <span class="ghost-btn" style="cursor:default;">tap a card to pick (or press 1/2)</span>
       </div>
     </section>
 

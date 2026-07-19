@@ -343,6 +343,10 @@
         ? pairing.round_label
         : `Round <b>${pairing.round}</b> of <b>${pairing.target_rounds}</b>`;
     $("progress-fill").style.width = Math.min(100, ((pairing.round - 1) / Math.max(1, pairing.target_rounds)) * 100) + "%";
+    // Nothing to undo until at least one pick has been made -- pairing.round
+    // is always rounds_completed + 1, so round 1 means a clean slate,
+    // whether that's a fresh session or one just undone back to the start.
+    if (sessionMode !== "bracket") $("undo-btn").disabled = pairing.round <= 1;
 
     const cardA = $("card-a"), cardB = $("card-b");
     [cardA, cardB].forEach((el) => {
@@ -366,6 +370,8 @@
       sessionMode = data.info.mode;
       $("pool-label").textContent = `${data.info.pool_size} candidates`;
       $("finish-btn").classList.toggle("hidden", sessionMode === "bracket");
+      $("undo-btn").classList.toggle("hidden", sessionMode === "bracket");
+      $("undo-btn").disabled = true; // nothing to undo at the start of a fresh session
       $("bracket-tree-live").classList.toggle("hidden", sessionMode !== "bracket");
       showScreen("screen-duel");
       renderPairing(data.pairing);
@@ -375,6 +381,24 @@
       $("filter-error").classList.remove("hidden");
     } finally {
       $("start-btn").disabled = false;
+    }
+  }
+
+  async function undoLastPick() {
+    $("undo-btn").disabled = true;
+    try {
+      const pairing = await api("POST", `/api/sessions/${sessionId}/undo`);
+      if (pairing) {
+        renderPairing(pairing);
+      } else {
+        // Shouldn't normally happen -- undoing always leaves an active
+        // session with a next pairing -- but handle it rather than leaving
+        // the screen stuck if it somehow does.
+        showFinalResults();
+      }
+    } catch (e) {
+      window.alert(e.message);
+      $("undo-btn").disabled = false;
     }
   }
 
@@ -624,6 +648,7 @@
     pick(currentPairing.candidates[1].name, currentPairing.candidates[0].name, $("card-b"), $("card-a"));
   });
   $("finish-btn").addEventListener("click", finishSession);
+  $("undo-btn").addEventListener("click", undoLastPick);
   $("lightbox-close").addEventListener("click", closeLightbox);
   $("lightbox").addEventListener("click", (e) => {
     if (e.target.id === "lightbox") closeLightbox(); // click on backdrop, not the card image itself
@@ -644,6 +669,8 @@
       pick(currentPairing.candidates[0].name, currentPairing.candidates[1].name, cardA, cardB);
     } else if (e.key === "2" || e.key === "ArrowRight") {
       pick(currentPairing.candidates[1].name, currentPairing.candidates[0].name, cardB, cardA);
+    } else if (e.key === "u" && !$("undo-btn").disabled) {
+      undoLastPick();
     }
   });
   $("again-btn").addEventListener("click", () => {
