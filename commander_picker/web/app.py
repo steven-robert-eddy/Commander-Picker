@@ -8,12 +8,14 @@ one person concurrently.
 
 from __future__ import annotations
 
+import re
+import time
 from contextlib import contextmanager
 from dataclasses import asdict
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Query
-from fastapi.responses import FileResponse
+from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
@@ -23,6 +25,19 @@ from commander_picker import pool as pool_module
 STATIC_DIR = Path(__file__).resolve().parent / "static"
 
 app = FastAPI(title="Commander HQ")
+
+# Bumped once per process start (i.e. once per deploy) -- appended as a
+# `?v=` query string to every /static/ reference in index.html below, so
+# a stale cached copy of any one of the split JS modules is a genuinely
+# different URL after a deploy and can't be served from cache no matter
+# how aggressively a mobile browser ignores Cache-Control (see
+# NoCacheStaticFiles -- that alone wasn't enough: it still lets a browser
+# serve a stale file it never revalidated, which showed up as "the home
+# screen renders, but tapping a card does nothing" -- index.html fetched
+# fresh while one of picker.js/leaderboard.js/etc. stayed stale, so the
+# card's own window.CP.showFilterScreen() call silently threw on an
+# undefined function).
+_BUILD_VERSION = str(int(time.time()))
 
 
 class FiltersBody(BaseModel):
@@ -460,28 +475,36 @@ def api_add_challenge_commander_auto(body: ChallengeAddByColorBody):
 
 
 class NoCacheStaticFiles(StaticFiles):
-    """Force browsers to revalidate static assets on every request.
+    """Discourage browsers from caching static assets at all.
 
     Without this, FastAPI's default StaticFiles sends no explicit
     Cache-Control, so browsers fall back to their own heuristic caching --
-    mobile Safari/Chrome hang onto a cached app.js far more stubbornly
-    than a desktop tab with dev tools open. That can pair a freshly
-    fetched index.html (so new UI markup renders) with a stale cached
-    app.js (so that markup's click handlers don't exist yet) right after
-    a deploy, which looks exactly like "the button's there but does
-    nothing." ETag/Last-Modified conditional GETs still make revalidation
-    cheap -- this only forces the check, not a full re-download.
+    mobile Safari/Chrome hang onto a cached JS file far more stubbornly
+    than a desktop tab with dev tools open, sometimes even past what
+    "no-cache"'s revalidation requirement should allow. `no-store` is the
+    stronger of the two: it tells a compliant browser not to keep a
+    cached copy at all, not just to double-check one before using it.
+    Belt-and-suspenders with index()'s own `?v=` cache-busting below,
+    which works even against a browser or intermediary that ignores this
+    header entirely.
     """
 
     async def get_response(self, path: str, scope):
         response = await super().get_response(path, scope)
-        response.headers["Cache-Control"] = "no-cache"
+        response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate"
         return response
 
 
 app.mount("/static", NoCacheStaticFiles(directory=STATIC_DIR), name="static")
 
+_STATIC_REF_RE = re.compile(r'((?:src|href)="/static/[^"?]+)"')
+
 
 @app.get("/")
 def index():
-    return FileResponse(STATIC_DIR / "index.html", headers={"Cache-Control": "no-cache"})
+    html = (STATIC_DIR / "index.html").read_text()
+    # Append ?v=<process-start-time> to every /static/ reference so each
+    # deploy's script/link tags point at genuinely different URLs -- see
+    # _BUILD_VERSION above for why Cache-Control alone isn't trusted here.
+    html = _STATIC_REF_RE.sub(rf'\1?v={_BUILD_VERSION}"', html)
+    return HTMLResponse(html, headers={"Cache-Control": "no-store, no-cache, must-revalidate"})
