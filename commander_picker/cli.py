@@ -3,7 +3,7 @@ from __future__ import annotations
 import argparse
 import sys
 
-from commander_picker import db, edhrec_client, pool, scryfall_client, sessions
+from commander_picker import db, edhrec_client, elo, pool, scryfall_client, sessions
 from commander_picker.colors import all_slugs
 from commander_picker.themes import THEME_SLUGS
 
@@ -164,8 +164,77 @@ def _interactive_loop(conn: object, session_id: str) -> None:
     _print_rankings(sessions.get_rankings(conn, session_id), limit=10)
 
 
+def _print_bracket(bracket: sessions.BracketState) -> None:
+    total_rounds = len(bracket.rounds)
+    for i, round_matches in enumerate(bracket.rounds, start=1):
+        print(f"{elo.bracket_round_label(i, total_rounds)}:")
+        for m in round_matches:
+            a = m.seed_a or "TBD"
+            b = m.seed_b or "TBD"
+            a_display = f"{a} (won)" if m.winner and m.winner == m.seed_a else a
+            b_display = f"{b} (won)" if m.winner and m.winner == m.seed_b else b
+            suffix = "" if m.winner else " -- TBD"
+            print(f"  {a_display} vs {b_display}{suffix}")
+    if bracket.champion:
+        print(f"\nChampion: {bracket.champion}")
+
+
+def _interactive_bracket_loop(conn: object, session_id: str) -> None:
+    while True:
+        info = sessions.get_session(conn, session_id)
+        if info.status != "active":
+            print("\nBracket complete!")
+            _print_bracket(sessions.get_bracket(conn, session_id))
+            return
+
+        match = sessions.next_bracket_match(conn, session_id)
+        if match is None:
+            print("Session is no longer active.")
+            break
+
+        round_num, _slot, a, b = match
+        candidate_info = {
+            r["commander_name"]: r
+            for r in conn.execute(
+                "SELECT * FROM candidates WHERE session_id = ? AND commander_name IN (?, ?)",
+                (session_id, a, b),
+            ).fetchall()
+        }
+        print(f"\n{elo.bracket_round_label(round_num, info.target_rounds)}:")
+        for i, name in enumerate((a, b), start=1):
+            row = candidate_info[name]
+            color_display = row["color_identity"] or "C"
+            print(f"  [{i}] {name} ({color_display}, {row['num_decks']} decks)")
+
+        try:
+            choice = input("Pick 1 or 2 ('q' to pause): ").strip().lower()
+        except (EOFError, KeyboardInterrupt):
+            print("\nPaused.")
+            break
+
+        if choice in ("q", "quit"):
+            print("Paused.")
+            break
+        if choice not in ("1", "2"):
+            print("Please enter 1, 2, or q.")
+            continue
+
+        winner, loser = (a, b) if choice == "1" else (b, a)
+        sessions.record_bracket_pick(conn, session_id, winner, loser)
+
+    print(f"Resume later with: commander-picker resume {session_id}")
+
+
 def _cmd_play(args: argparse.Namespace) -> int:
     filters = _filters_from_args(args)
+    mode = args.mode
+
+    if mode == "bracket" and not elo.is_valid_bracket_size(args.pool_size):
+        print(
+            f"error: bracket mode needs --pool-size to be a power of two (4, 8, 16, ...) -- got {args.pool_size}",
+            file=sys.stderr,
+        )
+        return 1
 
     try:
         catalog_conn = db.connect()
@@ -173,12 +242,19 @@ def _cmd_play(args: argparse.Namespace) -> int:
         print(f"error: {exc}", file=sys.stderr)
         return 1
 
+    # Bracket mode forces min_pool_size up to exactly pool_size -- build_pool
+    # only ever trims a larger match set down to max_pool_size, it never
+    # tops up a smaller one, so without this a bracket could silently get
+    # built with fewer candidates than requested, failing
+    # elo.is_valid_bracket_size inside create_session instead of giving a
+    # clear "not enough candidates" error here.
+    min_pool_size = args.pool_size if mode == "bracket" else args.min_pool_size
     try:
         candidates = pool.build_pool(
             catalog_conn,
             filters,
             max_pool_size=args.pool_size,
-            min_pool_size=args.min_pool_size,
+            min_pool_size=min_pool_size,
         )
     except pool.PoolTooSmallError as exc:
         print(f"error: {exc}", file=sys.stderr)
@@ -187,12 +263,18 @@ def _cmd_play(args: argparse.Namespace) -> int:
         catalog_conn.close()
 
     session_conn = sessions.connect()
-    session_id = sessions.create_session(session_conn, candidates, description=pool.describe_filters(filters))
+    session_id = sessions.create_session(
+        session_conn, candidates, description=pool.describe_filters(filters), mode=mode
+    )
     info = sessions.get_session(session_conn, session_id)
     print(f"Started session {session_id} with {info.pool_size} candidates ({pool.describe_filters(filters)}).")
-    print(f"{info.target_rounds} rounds -- pick your favorite each round ('f' to finish early).")
 
-    _interactive_loop(session_conn, session_id)
+    if mode == "bracket":
+        print(f"Single-elimination bracket -- {info.target_rounds} round(s) to a champion.")
+        _interactive_bracket_loop(session_conn, session_id)
+    else:
+        print(f"{info.target_rounds} rounds -- pick your favorite each round ('f' to finish early).")
+        _interactive_loop(session_conn, session_id)
     session_conn.close()
     return 0
 
@@ -206,12 +288,18 @@ def _cmd_resume(args: argparse.Namespace) -> int:
         return 1
 
     if info.status != "active":
-        print(f"Session {args.session_id} is {info.status}, not active. Final ranking:")
-        _print_rankings(sessions.get_rankings(session_conn, args.session_id))
+        print(f"Session {args.session_id} is {info.status}, not active. Final results:")
+        if info.mode == "bracket":
+            _print_bracket(sessions.get_bracket(session_conn, args.session_id))
+        else:
+            _print_rankings(sessions.get_rankings(session_conn, args.session_id))
         return 0
 
     print(f"Resuming session {args.session_id} ({info.rounds_completed}/{info.target_rounds} rounds so far).")
-    _interactive_loop(session_conn, args.session_id)
+    if info.mode == "bracket":
+        _interactive_bracket_loop(session_conn, args.session_id)
+    else:
+        _interactive_loop(session_conn, args.session_id)
     session_conn.close()
     return 0
 
@@ -223,18 +311,24 @@ def _cmd_sessions(_args: argparse.Namespace) -> int:
         print("No sessions yet. Start one with: commander-picker play")
         return 0
     for s in all_sessions:
-        print(f"{s.id}  [{s.status}]  {s.rounds_completed}/{s.target_rounds} rounds  {s.pool_size} candidates  {s.description}")
+        print(
+            f"{s.id}  [{s.status}]  [{s.mode}]  {s.rounds_completed}/{s.target_rounds} rounds  "
+            f"{s.pool_size} candidates  {s.description}"
+        )
     return 0
 
 
 def _cmd_results(args: argparse.Namespace) -> int:
     conn = sessions.connect()
     try:
-        sessions.get_session(conn, args.session_id)
+        info = sessions.get_session(conn, args.session_id)
     except sessions.SessionError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
-    _print_rankings(sessions.get_rankings(conn, args.session_id))
+    if info.mode == "bracket":
+        _print_bracket(sessions.get_bracket(conn, args.session_id))
+    else:
+        _print_rankings(sessions.get_rankings(conn, args.session_id))
     return 0
 
 
@@ -332,6 +426,13 @@ def build_parser() -> argparse.ArgumentParser:
 
     play = subparsers.add_parser("play", help="start a new picker session and play it interactively")
     _add_pool_filter_args(play)
+    play.add_argument(
+        "--mode",
+        choices=["duel", "bracket"],
+        default="duel",
+        help="'duel' (continuous rating-adjacent swiping, default) or 'bracket' "
+        "(single-elimination tournament to one champion -- needs --pool-size to be a power of two)",
+    )
     play.set_defaults(func=_cmd_play)
 
     resume = subparsers.add_parser("resume", help="resume a paused picker session")

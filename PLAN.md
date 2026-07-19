@@ -32,6 +32,25 @@ for card art. Standalone project — no dependency on the sibling
   feed — random pairing early, rating-adjacent pairing later, a
   session auto-finishes once it hits its target round count
   (`pool_size * log2(pool_size)`).
+- **Bracket mode**: an alternative single-elimination tournament mode
+  (CLI: `play --mode bracket`, web: a Duel/Bracket toggle on the
+  filter screen) alongside the continuous duel mode above — crowns one
+  champion instead of producing a full ranking. Requires a pool size
+  that's an exact power of two (4, 8, 16, ...; enforced rather than
+  padded with byes or trimmed). Round 1 is seeded by current all-time
+  rating via `elo.bracket_seed_order` (the standard recursive
+  tournament-seeding permutation), so top-rated commanders can't meet
+  until later rounds. Each match still updates both the session-local
+  rating and the all-time leaderboard, but through `elo.BRACKET_K_FACTOR`
+  (16, half of duel's `K_FACTOR`) instead of the duel K-factor: a
+  bracket loser gets exactly one comparison for the whole session (no
+  later matches to average a bad result out over, unlike duel mode's
+  many comparisons per commander), so the gentler K-factor damps that
+  extra variance while still letting bracket results meaningfully
+  inform the leaderboard. `sessions.py`'s `bracket_matches` table stores
+  the full tree (every round's slots, seeded upfront so later rounds
+  show "TBD" placeholders before they're reached) — see
+  `sessions.create_session`/`record_bracket_pick`/`get_bracket`.
 - **Persistent, cross-session ratings**: a commander's Elo carries
   forward from session to session via a `commander_ratings` table in
   `sessions.db`, instead of resetting to 1000 every time. An all-time
@@ -150,6 +169,11 @@ this project, not a play-by-play changelog.
   deliberately skipped when Turso was set up (started that leaderboard
   fresh instead, by request) — the local history remains available if
   this is revisited later.
+- Provisional/games_played-based K-factor taper (chess-style: bigger
+  rating swings for a commander's first few games system-wide, smaller
+  once it has more history) — considered while designing bracket mode's
+  K-factor, but scoped out as orthogonal to that specific feature. Would
+  apply to duel mode too, not just bracket.
 
 ## Known limitations
 

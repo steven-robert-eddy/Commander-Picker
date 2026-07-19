@@ -122,6 +122,32 @@ commander-picker leaderboard --reset      # permanently erase all-time ratings (
 `--color-mode`, `--max-decks`, `--min-decks`, `--themes`,
 `--themes-mode`, `--pool-size`, `--min-pool-size`).
 
+### Bracket mode
+
+An alternative to the continuous duel above: a classic single-elimination
+tournament, one loss and you're out, ending in a single champion instead
+of a full ranking.
+
+```bash
+commander-picker play --mode bracket --pool-size 16 --colors BRG
+```
+
+- `--pool-size` must be an exact power of two (4, 8, 16, 32, ...) --
+  bracket mode rejects anything else rather than padding with byes or
+  silently trimming.
+- Round 1 is seeded by each commander's current all-time rating (highest
+  vs. lowest, like a real tournament bracket), so favorites can't meet
+  until later rounds.
+- No `f` to finish early -- a partial bracket has no meaningful champion,
+  so play (or `resume`) it out to the final.
+- Each match still updates ratings and the all-time leaderboard, but
+  with a gentler K-factor than duel mode (see `PLAN.md`'s "Bracket mode"
+  note for why) -- a bracket loser only ever gets one comparison for the
+  whole session, unlike duel mode's many.
+- `commander-picker results <id>` and `resume <id>` both show the full
+  bracket tree (who played whom, who won, and the champion once decided)
+  instead of a rating-sorted list.
+
 Sessions live in `data/sessions.db` — a separate file from
 `commanders.db`, so re-running `update-data` never wipes your
 in-progress or past picker sessions. Also gitignored.
@@ -155,16 +181,26 @@ Tap through duels — with card art when Scryfall images are available
 the other. Flags: `--host`, `--port`, `--reload` (auto-restart on code
 changes, for development).
 
+A **Duel / Bracket** toggle on the filter screen switches to bracket
+mode (see "Bracket mode" above) -- picking Bracket swaps the free pool-size
+input for a row of power-of-two size presets (4/8/16/32/64), disabling
+any preset larger than what your current filters actually match. During
+a bracket you'll see a live compact tree of the matches played so far
+above the duel cards, and the final screen shows the champion plus the
+full bracket instead of a rating-sorted list.
+
 Local-only, no auth, no rate limiting — fine for a single-user local
 tool, would need attention before exposing beyond localhost.
 
 API endpoints, if you want to hit them directly or build another
-client: `GET /api/themes`, `POST /api/pool`, `POST /api/sessions`,
-`GET /api/sessions`, `GET /api/sessions/{id}`, `GET
-/api/sessions/{id}/pairing`, `POST /api/sessions/{id}/pick`, `POST
-/api/sessions/{id}/finish`, `GET /api/sessions/{id}/results`, `GET
-/api/leaderboard` (all-time ranking; optional `?limit=` default 100,
-`?colors=`/`?color_mode=` same as `/api/pool`), `DELETE
+client: `GET /api/themes`, `POST /api/pool`, `POST /api/sessions`
+(`mode: "duel"` or `"bracket"` in the body), `GET /api/sessions`, `GET
+/api/sessions/{id}`, `GET /api/sessions/{id}/pairing`, `POST
+/api/sessions/{id}/pick`, `POST /api/sessions/{id}/finish` (bracket
+sessions 400 -- no early finish), `GET /api/sessions/{id}/results`, `GET
+/api/sessions/{id}/bracket` (full bracket tree + champion, bracket mode
+only), `GET /api/leaderboard` (all-time ranking; optional `?limit=`
+default 100, `?colors=`/`?color_mode=` same as `/api/pool`), `DELETE
 /api/leaderboard` (permanently erases all-time ratings -- the web UI
 confirms before calling this, the API itself doesn't ask).
 

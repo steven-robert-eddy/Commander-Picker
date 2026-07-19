@@ -2,7 +2,7 @@ import random
 
 import pytest
 
-from commander_picker import sessions
+from commander_picker import elo, sessions
 from commander_picker.pool import Commander
 
 
@@ -505,3 +505,102 @@ def test_new_session_after_reset_seeds_at_default_rating(conn):
     second = sessions.create_session(conn, [_commander("A"), _commander("C")])
     details = sessions.get_candidates(conn, second)
     assert details["A"].rating == pytest.approx(1000.0)
+
+
+# ---- bracket mode ----
+
+
+def test_create_session_bracket_rejects_non_power_of_two_size(conn):
+    with pytest.raises(sessions.SessionError):
+        sessions.create_session(conn, [_commander(n) for n in "ABC"], mode="bracket")
+    with pytest.raises(sessions.SessionError):
+        sessions.create_session(conn, [_commander(n) for n in "ABCDE"], mode="bracket")
+
+
+def _seed_ratings_round_robin(conn, names):
+    """Play every pair in `names` once so the resulting all-time ratings
+    are strictly ordered by `names`' given order (first beats everyone,
+    second beats everyone but the first, etc.) -- via the public
+    record_pick API, not by poking commander_ratings directly."""
+    session_id = sessions.create_session(conn, [_commander(n) for n in names])
+    for i, winner in enumerate(names):
+        for loser in names[i + 1 :]:
+            sessions.record_pick(conn, session_id, winner=winner, loser=loser)
+
+
+def test_create_session_bracket_seeds_round_one_by_rating(conn):
+    _seed_ratings_round_robin(conn, ["A", "B", "C", "D"])  # A > B > C > D
+
+    bracket_id = sessions.create_session(conn, [_commander(n) for n in "ABCD"], mode="bracket")
+    bracket = sessions.get_bracket(conn, bracket_id)
+
+    assert len(bracket.rounds) == 2  # 4 entrants -> 2 rounds
+    round1 = {frozenset((m.seed_a, m.seed_b)) for m in bracket.rounds[0]}
+    # elo.bracket_seed_order(4) == [1, 4, 2, 3] -> slot pairs (seed1, seed4), (seed2, seed3)
+    assert round1 == {frozenset(("A", "D")), frozenset(("B", "C"))}
+
+
+def test_bracket_full_playthrough_to_champion(conn):
+    _seed_ratings_round_robin(conn, ["A", "B", "C", "D"])
+    bracket_id = sessions.create_session(conn, [_commander(n) for n in "ABCD"], mode="bracket")
+
+    round_num, slot, seed_a, seed_b = sessions.next_bracket_match(conn, bracket_id)
+    assert round_num == 1
+    assert {seed_a, seed_b} == {"A", "D"}
+    sessions.record_bracket_pick(conn, bracket_id, winner="A", loser="D")
+
+    info = sessions.get_session(conn, bracket_id)
+    assert info.rounds_completed == 0  # round 1 isn't fully decided yet
+
+    round_num, slot, seed_a, seed_b = sessions.next_bracket_match(conn, bracket_id)
+    assert round_num == 1
+    assert {seed_a, seed_b} == {"B", "C"}
+    sessions.record_bracket_pick(conn, bracket_id, winner="B", loser="C")
+
+    info = sessions.get_session(conn, bracket_id)
+    assert info.status == "active"
+    assert info.rounds_completed == 1  # round 1 is now fully decided
+
+    round_num, slot, seed_a, seed_b = sessions.next_bracket_match(conn, bracket_id)
+    assert round_num == 2
+    assert {seed_a, seed_b} == {"A", "B"}
+    sessions.record_bracket_pick(conn, bracket_id, winner="A", loser="B")
+
+    info = sessions.get_session(conn, bracket_id)
+    assert info.status == "complete"
+    assert info.rounds_completed == 2
+
+    bracket = sessions.get_bracket(conn, bracket_id)
+    assert bracket.champion == "A"
+    assert sessions.next_bracket_match(conn, bracket_id) is None
+
+
+def test_record_bracket_pick_rejects_mismatched_pair(conn):
+    _seed_ratings_round_robin(conn, ["A", "B", "C", "D"])
+    bracket_id = sessions.create_session(conn, [_commander(n) for n in "ABCD"], mode="bracket")
+
+    # A/D and B/C are round 1's actual matches -- A vs B hasn't happened yet.
+    with pytest.raises(sessions.SessionError):
+        sessions.record_bracket_pick(conn, bracket_id, winner="A", loser="B")
+
+
+def test_bracket_pick_uses_bracket_k_factor(conn):
+    session_id = sessions.create_session(conn, [_commander(n) for n in "ABCD"], mode="bracket")
+    sessions.record_bracket_pick(conn, session_id, winner="A", loser="D")
+
+    expected_winner, expected_loser = elo.update_ratings(1000.0, 1000.0, k=elo.BRACKET_K_FACTOR)
+    ranked = {r.name: r.rating for r in sessions.get_rankings(conn, session_id)}
+    assert ranked["A"] == pytest.approx(expected_winner)
+    assert ranked["D"] == pytest.approx(expected_loser)
+    # Confirm it's actually gentler than the duel K-factor, not equal to it.
+    duel_winner, _ = elo.update_ratings(1000.0, 1000.0)
+    assert ranked["A"] < duel_winner
+
+
+def test_bracket_pick_feeds_all_time_leaderboard(conn):
+    session_id = sessions.create_session(conn, [_commander(n) for n in "ABCD"], mode="bracket")
+    sessions.record_bracket_pick(conn, session_id, winner="A", loser="D")
+
+    leaderboard = {r.name: r.rating for r in sessions.get_leaderboard(conn)}
+    assert leaderboard["A"] > 1000.0
+    assert leaderboard["D"] < 1000.0

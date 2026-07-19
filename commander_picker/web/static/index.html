@@ -21,6 +21,12 @@
         until your favorites rise to the top.
       </p>
       <div class="panel">
+        <div class="filter-label">Mode</div>
+        <div class="segmented" id="mode-toggle">
+          <button type="button" class="segmented-btn" data-mode="duel" aria-pressed="true">Duel</button>
+          <button type="button" class="segmented-btn" data-mode="bracket" aria-pressed="false">Bracket</button>
+        </div>
+
         <div class="filter-label">Colors</div>
         <div class="filter-row" id="color-chips"></div>
 
@@ -46,15 +52,22 @@
           to bring back here if EDHREC's data or our sourcing improves.
         -->
 
-        <div class="filter-label">Duel pool size</div>
-        <div class="pool-size-row">
+        <div class="filter-label" id="pool-size-label-row">Duel pool size</div>
+        <div class="pool-size-row" id="pool-size-row">
           <input type="number" id="pool-size-input" class="num-input" min="4" max="200" step="1" value="40" inputmode="numeric" />
           <span class="pool-size-hint">candidates per session</span>
         </div>
+        <!--
+          Bracket mode swaps the free numeric input above for a fixed
+          set of power-of-two presets (see app.js renderBracketSizeChips)
+          -- a bracket size can only ever be one of these, so there's no
+          "not a power of two" error state to design for.
+        -->
+        <div class="filter-row hidden" id="bracket-size-chips"></div>
 
         <div class="pool-count">
           <div><b id="total-matches">–</b> commanders match your filters</div>
-          <div>Dueling with up to <b id="pool-size-label">40</b>, <b id="round-estimate">–</b> rounds</div>
+          <div id="pool-count-line2">Dueling with up to <b>40</b>, <b>–</b> rounds</div>
         </div>
         <div class="error-note hidden" id="filter-error"></div>
         <button class="start-btn" id="start-btn" disabled>Start dueling</button>
@@ -65,10 +78,13 @@
     <!-- DUEL SCREEN -->
     <section id="screen-duel" class="hidden">
       <div class="round-meta">
-        <span>Round <b id="round-num">1</b> of <b id="round-target">8</b></span>
+        <span id="round-meta-text">Round <b>1</b> of <b>8</b></span>
         <span id="pool-label"></span>
       </div>
       <div class="progress-track"><div class="progress-fill" id="progress-fill"></div></div>
+
+      <!-- Bracket mode only -- live compact tree so far, see app.js renderBracketTree -->
+      <div class="bracket-tree bracket-tree-compact hidden" id="bracket-tree-live"></div>
 
       <div class="duel">
         <button class="card-btn" id="card-a"></button>
@@ -77,6 +93,8 @@
       </div>
 
       <div class="duel-actions">
+        <!-- Hidden in bracket mode -- no meaningful "finish early" when
+             there's no partial champion, see app.js startSession. -->
         <button class="ghost-btn" id="finish-btn">Finish now →</button>
         <span class="ghost-btn" style="cursor:default;">tap a card to pick</span>
       </div>
@@ -84,8 +102,11 @@
 
     <!-- RESULTS SCREEN -->
     <section id="screen-results" class="hidden">
-      <p class="lede">Final standings for this run — every pick also feeds the all-time leaderboard below. Tap a commander to see its card(s) full size.</p>
+      <p class="lede" id="results-lede">Final standings for this run — every pick also feeds the all-time leaderboard below. Tap a commander to see its card(s) full size.</p>
+      <!-- Bracket mode only -->
+      <div class="champion-banner hidden" id="champion-banner"></div>
       <div class="panel" id="rank-list"></div>
+      <div class="bracket-tree hidden" id="bracket-tree-final"></div>
       <button class="again-btn" id="again-btn">Duel again</button>
       <button class="ghost-btn" id="results-leaderboard-link" type="button">All-time leaderboard →</button>
     </section>

@@ -117,7 +117,17 @@ def _ensure_schema(conn: sqlite3.Connection) -> None:
             description TEXT NOT NULL DEFAULT '',
             status TEXT NOT NULL,
             target_rounds INTEGER NOT NULL,
-            rounds_completed INTEGER NOT NULL DEFAULT 0
+            rounds_completed INTEGER NOT NULL DEFAULT 0,
+            mode TEXT NOT NULL DEFAULT 'duel'
+        );
+        CREATE TABLE IF NOT EXISTS bracket_matches (
+            session_id TEXT NOT NULL REFERENCES sessions(id),
+            round_num INTEGER NOT NULL,
+            slot INTEGER NOT NULL,
+            seed_a TEXT,
+            seed_b TEXT,
+            winner TEXT,
+            PRIMARY KEY (session_id, round_num, slot)
         );
         CREATE TABLE IF NOT EXISTS candidates (
             session_id TEXT NOT NULL REFERENCES sessions(id),
@@ -149,6 +159,10 @@ def _ensure_schema(conn: sqlite3.Connection) -> None:
     # Migration for sessions.db files created before these columns
     # existed (CREATE TABLE IF NOT EXISTS doesn't add columns to an
     # already-existing table).
+    existing_session_columns = {row["name"] for row in conn.execute("PRAGMA table_info(sessions)")}
+    if "mode" not in existing_session_columns:
+        conn.execute("ALTER TABLE sessions ADD COLUMN mode TEXT NOT NULL DEFAULT 'duel'")
+
     existing_columns = {row["name"] for row in conn.execute("PRAGMA table_info(candidates)")}
     if "themes" not in existing_columns:
         conn.execute("ALTER TABLE candidates ADD COLUMN themes TEXT NOT NULL DEFAULT ''")
@@ -232,17 +246,29 @@ def _bump_global_rating(conn: sqlite3.Connection, name: str, new_rating: float) 
     )
 
 
-def create_session(conn: sqlite3.Connection, candidates: list[Commander], description: str = "") -> str:
+def create_session(
+    conn: sqlite3.Connection,
+    candidates: list[Commander],
+    description: str = "",
+    mode: str = "duel",
+) -> str:
     if len(candidates) < 2:
         raise SessionError("Need at least 2 candidates to start a picker session.")
+    if mode == "bracket" and not elo.is_valid_bracket_size(len(candidates)):
+        raise SessionError(
+            f"Bracket mode needs a candidate count that's a power of two (4, 8, 16, ...) -- got {len(candidates)}."
+        )
+
     session_id = uuid.uuid4().hex[:12]
-    target_rounds = elo.target_round_count(len(candidates))
-    conn.execute(
-        "INSERT INTO sessions (id, created_at, description, status, target_rounds, rounds_completed) "
-        "VALUES (?, ?, ?, 'active', ?, 0)",
-        (session_id, time.time(), description, target_rounds),
-    )
     global_ratings = _global_ratings(conn, [c.name for c in candidates])
+    target_rounds = (
+        elo.bracket_round_count(len(candidates)) if mode == "bracket" else elo.target_round_count(len(candidates))
+    )
+    conn.execute(
+        "INSERT INTO sessions (id, created_at, description, status, target_rounds, rounds_completed, mode) "
+        "VALUES (?, ?, ?, 'active', ?, 0, ?)",
+        (session_id, time.time(), description, target_rounds, mode),
+    )
     conn.executemany(
         "INSERT INTO candidates (session_id, commander_name, color_identity, num_decks, edhrec_url, themes, image_urls, rating) "
         "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
@@ -260,8 +286,47 @@ def create_session(conn: sqlite3.Connection, candidates: list[Commander], descri
             for c in candidates
         ],
     )
+
+    if mode == "bracket":
+        _create_bracket(conn, session_id, candidates, global_ratings, target_rounds)
+
     conn.commit()
     return session_id
+
+
+def _create_bracket(
+    conn: sqlite3.Connection,
+    session_id: str,
+    candidates: list[Commander],
+    global_ratings: dict[str, float],
+    round_count: int,
+) -> None:
+    """Populate `bracket_matches` for every round upfront.
+
+    Round 1 is fully seeded (best-to-worst by current all-time rating,
+    placed via elo.bracket_seed_order so top seeds can't meet early).
+    Later rounds' slots are inserted with seed_a/seed_b left NULL, so the
+    full bracket shape (including "TBD" placeholders) is known immediately
+    for rendering, and record_bracket_pick just fills them in as winners
+    are decided.
+    """
+    n = len(candidates)
+    seeded = sorted(candidates, key=lambda c: global_ratings.get(c.name, elo.DEFAULT_RATING), reverse=True)
+    order = elo.bracket_seed_order(n)  # 1-indexed seed positions, slot order
+    slot_names = [seeded[seed - 1].name for seed in order]
+
+    rows = []
+    round1_slots = n // 2
+    for slot in range(round1_slots):
+        rows.append((session_id, 1, slot, slot_names[2 * slot], slot_names[2 * slot + 1], None))
+    for round_num in range(2, round_count + 1):
+        for slot in range(n // (2**round_num)):
+            rows.append((session_id, round_num, slot, None, None, None))
+
+    conn.executemany(
+        "INSERT INTO bracket_matches (session_id, round_num, slot, seed_a, seed_b, winner) VALUES (?, ?, ?, ?, ?, ?)",
+        rows,
+    )
 
 
 @dataclass
@@ -272,6 +337,7 @@ class SessionInfo:
     target_rounds: int
     rounds_completed: int
     pool_size: int
+    mode: str
 
 
 def get_session(conn: sqlite3.Connection, session_id: str) -> SessionInfo:
@@ -288,6 +354,7 @@ def get_session(conn: sqlite3.Connection, session_id: str) -> SessionInfo:
         target_rounds=row["target_rounds"],
         rounds_completed=row["rounds_completed"],
         pool_size=pool_size,
+        mode=row["mode"],
     )
 
 
@@ -412,6 +479,137 @@ def record_pick(conn: sqlite3.Connection, session_id: str, winner: str, loser: s
 def finish_session(conn: sqlite3.Connection, session_id: str) -> None:
     conn.execute("UPDATE sessions SET status = 'complete' WHERE id = ?", (session_id,))
     conn.commit()
+
+
+def next_bracket_match(conn: sqlite3.Connection, session_id: str) -> tuple[int, int, str, str] | None:
+    """The next ready bracket match: (round_num, slot, seed_a, seed_b), or
+    None if the session isn't active or no match is ready yet (waiting on
+    an earlier match in a different branch of the tree to resolve first)."""
+    info = get_session(conn, session_id)
+    if info.status != "active":
+        return None
+    row = conn.execute(
+        "SELECT round_num, slot, seed_a, seed_b FROM bracket_matches "
+        "WHERE session_id = ? AND winner IS NULL AND seed_a IS NOT NULL AND seed_b IS NOT NULL "
+        "ORDER BY round_num, slot LIMIT 1",
+        (session_id,),
+    ).fetchone()
+    if row is None:
+        return None
+    return (row["round_num"], row["slot"], row["seed_a"], row["seed_b"])
+
+
+def record_bracket_pick(conn: sqlite3.Connection, session_id: str, winner: str, loser: str) -> None:
+    """Record the outcome of a bracket match and advance the bracket.
+
+    Looks up which ready match `winner`/`loser` belong to itself (same
+    minimal winner/loser contract as record_pick -- no round/slot
+    bookkeeping pushed onto callers). Applies the same Elo update
+    machinery as record_pick, but with elo.BRACKET_K_FACTOR instead of
+    the duel K_FACTOR (see elo.py for why bracket matches use a gentler
+    K). Propagates the winner into next round's slot, and marks the
+    session complete once the final's winner is set.
+    """
+    info = get_session(conn, session_id)
+    if info.status != "active":
+        raise SessionError(f"Session {session_id!r} is {info.status}, not active -- can't record a pick.")
+
+    match = conn.execute(
+        "SELECT round_num, slot FROM bracket_matches "
+        "WHERE session_id = ? AND winner IS NULL AND seed_a IS NOT NULL AND seed_b IS NOT NULL "
+        "AND ((seed_a = ? AND seed_b = ?) OR (seed_a = ? AND seed_b = ?)) "
+        "ORDER BY round_num, slot LIMIT 1",
+        (session_id, winner, loser, loser, winner),
+    ).fetchone()
+    if match is None:
+        raise SessionError("winner/loser don't match any ready bracket match in this session")
+    round_num, slot = match["round_num"], match["slot"]
+
+    ratings = _ratings(conn, session_id)
+    new_winner, new_loser = elo.update_ratings(ratings[winner], ratings[loser], k=elo.BRACKET_K_FACTOR)
+    conn.execute(
+        "UPDATE candidates SET rating = ? WHERE session_id = ? AND commander_name = ?",
+        (new_winner, session_id, winner),
+    )
+    conn.execute(
+        "UPDATE candidates SET rating = ? WHERE session_id = ? AND commander_name = ?",
+        (new_loser, session_id, loser),
+    )
+    # Same cross-session leaderboard feed as record_pick, just via the
+    # dampened bracket K-factor above.
+    _bump_global_rating(conn, winner, new_winner)
+    _bump_global_rating(conn, loser, new_loser)
+
+    conn.execute(
+        "UPDATE bracket_matches SET winner = ? WHERE session_id = ? AND round_num = ? AND slot = ?",
+        (winner, session_id, round_num, slot),
+    )
+    conn.execute(
+        "INSERT INTO comparisons (session_id, round_num, winner, loser, created_at) VALUES (?, ?, ?, ?, ?)",
+        (session_id, round_num, winner, loser, time.time()),
+    )
+
+    next_round = round_num + 1
+    if next_round <= info.target_rounds:
+        next_slot = slot // 2
+        column = "seed_a" if slot % 2 == 0 else "seed_b"
+        conn.execute(
+            f"UPDATE bracket_matches SET {column} = ? WHERE session_id = ? AND round_num = ? AND slot = ?",
+            (winner, session_id, next_round, next_slot),
+        )
+
+    remaining_in_round = conn.execute(
+        "SELECT COUNT(*) c FROM bracket_matches WHERE session_id = ? AND round_num = ? AND winner IS NULL",
+        (session_id, round_num),
+    ).fetchone()["c"]
+    if remaining_in_round == 0:
+        conn.execute("UPDATE sessions SET rounds_completed = rounds_completed + 1 WHERE id = ?", (session_id,))
+        if round_num == info.target_rounds:
+            conn.execute("UPDATE sessions SET status = 'complete' WHERE id = ?", (session_id,))
+
+    conn.commit()
+
+
+@dataclass
+class BracketMatch:
+    round_num: int
+    slot: int
+    seed_a: str | None
+    seed_b: str | None
+    winner: str | None
+
+
+@dataclass
+class BracketState:
+    rounds: list[list[BracketMatch]]  # rounds[0] is round 1
+    champion: str | None
+
+
+def get_bracket(conn: sqlite3.Connection, session_id: str) -> BracketState:
+    """Full bracket tree for a session -- the single source of truth for
+    both the in-progress compact tree view and the final results tree."""
+    info = get_session(conn, session_id)
+    rows = conn.execute(
+        "SELECT round_num, slot, seed_a, seed_b, winner FROM bracket_matches "
+        "WHERE session_id = ? ORDER BY round_num, slot",
+        (session_id,),
+    ).fetchall()
+    by_round: dict[int, list[BracketMatch]] = {}
+    for r in rows:
+        by_round.setdefault(r["round_num"], []).append(
+            BracketMatch(
+                round_num=r["round_num"],
+                slot=r["slot"],
+                seed_a=r["seed_a"],
+                seed_b=r["seed_b"],
+                winner=r["winner"],
+            )
+        )
+    rounds = [by_round[n] for n in sorted(by_round)]
+    champion = None
+    if rounds and len(rounds[-1]) == 1:
+        champion = rounds[-1][0].winner
+    return BracketState(rounds=rounds, champion=champion)
 
 
 @dataclass

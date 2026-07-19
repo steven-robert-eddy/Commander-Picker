@@ -25,7 +25,13 @@
 
   // ---- session state ----
   let sessionId = null;
-  let currentPairing = null; // { round, target_rounds, candidates: [a, b] }
+  let sessionMode = "duel"; // the active session's mode, set once it's created (see startSession)
+  let currentPairing = null; // { round, target_rounds, candidates: [a, b], round_label? }
+
+  // ---- filter-screen mode selection, before a session exists ----
+  let selectedMode = "duel"; // "duel" or "bracket" -- which engine "Start" will create
+  const BRACKET_SIZES = [4, 8, 16, 32, 64];
+  let bracketPoolSize = null; // chosen preset from BRACKET_SIZES, or null until picked
 
   function currentFiltersBody(overrides) {
     return Object.assign(
@@ -38,6 +44,7 @@
         themes_mode: "any",
         pool_size: poolSize,
         min_pool_size: 4,
+        mode: "duel",
       },
       overrides || {}
     );
@@ -129,23 +136,47 @@
   async function refreshPoolPreview() {
     const errEl = $("filter-error");
     errEl.classList.add("hidden");
-    $("pool-size-label").textContent = poolSize;
     try {
       // min_pool_size: 1 here so the server always returns a raw count
       // instead of 422ing early -- MIN_POOL_SIZE (matching the real
       // session-creation default) is what actually gates the button, so
       // the preview and the real "Start" click agree on the threshold.
-      const { total_matches, candidates } = await api("POST", "/api/pool", currentFiltersBody({ min_pool_size: 1 }));
+      const { total_matches } = await api(
+        "POST",
+        "/api/pool",
+        currentFiltersBody({ min_pool_size: 1, mode: selectedMode })
+      );
       $("total-matches").textContent = total_matches.toLocaleString();
-      const duelPoolSize = Math.min(total_matches, poolSize);
-      $("round-estimate").textContent = duelPoolSize > 1 ? targetRoundEstimate(duelPoolSize) : "–";
 
-      if (total_matches < MIN_POOL_SIZE) {
-        errEl.textContent = `Need at least ${MIN_POOL_SIZE} matching commanders to duel (${total_matches} right now) — loosen a filter.`;
-        errEl.classList.remove("hidden");
-        $("start-btn").disabled = true;
+      if (selectedMode === "bracket") {
+        updateBracketSizeChipAvailability(total_matches);
+        if (!bracketPoolSize) {
+          $("pool-count-line2").textContent = "Pick a bracket size below.";
+          $("start-btn").disabled = true;
+        } else if (total_matches < bracketPoolSize) {
+          $("pool-count-line2").innerHTML = `Bracket of <b>${bracketPoolSize}</b>`;
+          errEl.textContent =
+            `Only ${total_matches} commander(s) match these filters -- not enough for a bracket of ` +
+            `${bracketPoolSize}. Loosen a filter or pick a smaller size.`;
+          errEl.classList.remove("hidden");
+          $("start-btn").disabled = true;
+        } else {
+          const rounds = Math.log2(bracketPoolSize);
+          $("pool-count-line2").innerHTML =
+            `Bracket of <b>${bracketPoolSize}</b>, <b>${rounds}</b> round${rounds === 1 ? "" : "s"} to a champion`;
+          $("start-btn").disabled = false;
+        }
       } else {
-        $("start-btn").disabled = false;
+        const duelPoolSize = Math.min(total_matches, poolSize);
+        const rounds = duelPoolSize > 1 ? targetRoundEstimate(duelPoolSize) : "–";
+        $("pool-count-line2").innerHTML = `Dueling with up to <b>${poolSize}</b>, <b>${rounds}</b> rounds`;
+        if (total_matches < MIN_POOL_SIZE) {
+          errEl.textContent = `Need at least ${MIN_POOL_SIZE} matching commanders to duel (${total_matches} right now) — loosen a filter.`;
+          errEl.classList.remove("hidden");
+          $("start-btn").disabled = true;
+        } else {
+          $("start-btn").disabled = false;
+        }
       }
     } catch (e) {
       if (e.status === 503) {
@@ -155,9 +186,58 @@
       }
       errEl.classList.remove("hidden");
       $("total-matches").textContent = "0";
-      $("round-estimate").textContent = "–";
+      $("pool-count-line2").textContent = "";
       $("start-btn").disabled = true;
     }
+  }
+
+  function renderBracketSizeChips() {
+    const wrap = $("bracket-size-chips");
+    wrap.innerHTML = "";
+    BRACKET_SIZES.forEach((size) => {
+      const b = document.createElement("button");
+      b.className = "chip";
+      b.type = "button";
+      b.textContent = String(size);
+      b.setAttribute("aria-pressed", String(bracketPoolSize === size));
+      b.addEventListener("click", () => {
+        if (b.disabled) return;
+        bracketPoolSize = size;
+        wrap.querySelectorAll(".chip").forEach((c) => c.setAttribute("aria-pressed", String(c === b)));
+        refreshPoolPreview();
+      });
+      wrap.appendChild(b);
+    });
+  }
+
+  // Presets larger than what the current filters actually match are
+  // disabled rather than left clickable-but-doomed -- a filter that
+  // only matches 10 commanders can't have "32" selected in the first
+  // place, so there's never a "not enough candidates" surprise after
+  // the fact.
+  function updateBracketSizeChipAvailability(totalMatches) {
+    $("bracket-size-chips")
+      .querySelectorAll(".chip")
+      .forEach((btn) => {
+        const size = Number(btn.textContent);
+        const disabled = size > totalMatches;
+        btn.disabled = disabled;
+        btn.classList.toggle("chip-disabled", disabled);
+        if (disabled && bracketPoolSize === size) {
+          bracketPoolSize = null;
+          btn.setAttribute("aria-pressed", "false");
+        }
+      });
+  }
+
+  function setFilterMode(mode) {
+    selectedMode = mode;
+    $("pool-size-label-row").textContent = mode === "bracket" ? "Bracket size" : "Duel pool size";
+    $("pool-size-row").classList.toggle("hidden", mode === "bracket");
+    $("bracket-size-chips").classList.toggle("hidden", mode !== "bracket");
+    $("start-btn").textContent = mode === "bracket" ? "Start bracket" : "Start dueling";
+    if (mode === "bracket") renderBracketSizeChips();
+    refreshPoolPreview();
   }
 
   function targetRoundEstimate(n) {
@@ -231,8 +311,10 @@
 
   function renderPairing(pairing) {
     currentPairing = pairing;
-    $("round-num").textContent = pairing.round;
-    $("round-target").textContent = pairing.target_rounds;
+    $("round-meta-text").innerHTML =
+      sessionMode === "bracket"
+        ? pairing.round_label
+        : `Round <b>${pairing.round}</b> of <b>${pairing.target_rounds}</b>`;
     $("progress-fill").style.width = Math.min(100, ((pairing.round - 1) / Math.max(1, pairing.target_rounds)) * 100) + "%";
 
     const cardA = $("card-a"), cardB = $("card-b");
@@ -248,16 +330,34 @@
   async function startSession() {
     $("start-btn").disabled = true;
     try {
-      const data = await api("POST", "/api/sessions", currentFiltersBody());
+      const body =
+        selectedMode === "bracket"
+          ? currentFiltersBody({ mode: "bracket", pool_size: bracketPoolSize })
+          : currentFiltersBody({ mode: "duel" });
+      const data = await api("POST", "/api/sessions", body);
       sessionId = data.session_id;
+      sessionMode = data.info.mode;
       $("pool-label").textContent = `${data.info.pool_size} candidates`;
+      $("finish-btn").classList.toggle("hidden", sessionMode === "bracket");
+      $("bracket-tree-live").classList.toggle("hidden", sessionMode !== "bracket");
       showScreen("screen-duel");
       renderPairing(data.pairing);
+      if (sessionMode === "bracket") refreshLiveBracketTree();
     } catch (e) {
       $("filter-error").textContent = e.message;
       $("filter-error").classList.remove("hidden");
     } finally {
       $("start-btn").disabled = false;
+    }
+  }
+
+  async function refreshLiveBracketTree() {
+    try {
+      const bracket = await api("GET", `/api/sessions/${sessionId}/bracket`);
+      renderBracketTree("bracket-tree-live", bracket, { compact: true });
+    } catch (e) {
+      // Non-critical -- the duel itself still works even if the tree
+      // strip fails to load, so fail silently rather than alert().
     }
   }
 
@@ -275,10 +375,12 @@
       setTimeout(() => {
         if (pairing) {
           renderPairing(pairing);
+          if (sessionMode === "bracket") refreshLiveBracketTree();
         } else {
-          // The session auto-finished (reached its round count) --
-          // there's no next pairing, so show final results instead of
-          // leaving the last duel frozen on screen with nothing to do.
+          // The session auto-finished (reached its round count, or the
+          // bracket's final was just decided) -- there's no next
+          // pairing, so show final results instead of leaving the last
+          // duel frozen on screen with nothing to do.
           showFinalResults();
         }
       }, delay);
@@ -291,8 +393,13 @@
 
   async function showFinalResults() {
     try {
-      const { rankings } = await api("GET", `/api/sessions/${sessionId}/results`);
-      renderResults(rankings);
+      if (sessionMode === "bracket") {
+        const bracket = await api("GET", `/api/sessions/${sessionId}/bracket`);
+        renderBracketResults(bracket);
+      } else {
+        const { rankings } = await api("GET", `/api/sessions/${sessionId}/results`);
+        renderResults(rankings);
+      }
     } catch (e) {
       window.alert(e.message);
     }
@@ -356,6 +463,11 @@
   }
 
   function renderResults(rankings) {
+    $("champion-banner").classList.add("hidden");
+    $("bracket-tree-final").classList.add("hidden");
+    $("rank-list").classList.remove("hidden");
+    $("results-lede").textContent =
+      "Final standings for this run — every pick also feeds the all-time leaderboard below. Tap a commander to see its card(s) full size.";
     renderRankList("rank-list", rankings, (c) => {
       const delta = c.rating - 1000;
       const sign = delta > 0 ? "+" : "";
@@ -365,6 +477,56 @@
       };
     });
     showScreen("screen-results");
+  }
+
+  function renderBracketResults(bracket) {
+    $("rank-list").classList.add("hidden");
+    $("results-lede").textContent =
+      "The bracket's played out — every match also fed the all-time leaderboard below.";
+    $("champion-banner").classList.remove("hidden");
+    $("champion-banner").innerHTML = bracket.champion
+      ? `<div class="champion-label">🏆 Champion</div><div class="champion-name">${bracket.champion}</div>`
+      : "";
+    $("bracket-tree-final").classList.remove("hidden");
+    renderBracketTree("bracket-tree-final", bracket, { compact: false });
+    showScreen("screen-results");
+  }
+
+  // Mirrors elo.bracket_round_label -- purely for display, the server's
+  // own round_label (used live, in renderPairing) is authoritative.
+  function bracketRoundLabel(roundNum, totalRounds) {
+    const remaining = totalRounds - roundNum;
+    if (remaining === 0) return "Final";
+    if (remaining === 1) return "Semifinal";
+    if (remaining === 2) return "Quarterfinal";
+    return `Round of ${2 ** (remaining + 1)}`;
+  }
+
+  function renderBracketTree(containerId, bracket, opts) {
+    const compact = !!(opts && opts.compact);
+    const wrap = $(containerId);
+    const totalRounds = bracket.rounds.length;
+    wrap.classList.toggle("bracket-tree-compact", compact);
+    wrap.innerHTML = bracket.rounds
+      .map((matches, i) => {
+        const label = bracketRoundLabel(i + 1, totalRounds);
+        const matchesHTML = matches
+          .map((m) => {
+            const a = m.seed_a || "TBD";
+            const b = m.seed_b || "TBD";
+            const aCls = !m.winner ? "" : m.winner === m.seed_a ? "bracket-winner" : "bracket-loser";
+            const bCls = !m.winner ? "" : m.winner === m.seed_b ? "bracket-winner" : "bracket-loser";
+            return `
+              <div class="bracket-match">
+                <div class="bracket-slot ${aCls}">${a}</div>
+                <div class="bracket-slot ${bCls}">${b}</div>
+              </div>
+            `;
+          })
+          .join("");
+        return `<div class="bracket-round"><div class="bracket-round-label">${label}</div>${matchesHTML}</div>`;
+      })
+      .join("");
   }
 
   function renderLeaderboard(rankings) {
@@ -502,6 +664,7 @@
 
   wireColorModeToggle("color-mode-toggle", (m) => { colorMode = m; }, refreshPoolPreview);
   wireColorModeToggle("leaderboard-color-mode-toggle", (m) => { leaderboardColorMode = m; }, showLeaderboard);
+  wireColorModeToggle("mode-toggle", setFilterMode, () => {});
 
   renderColorChips("color-chips", activeColors, refreshPoolPreview);
   renderColorChips("leaderboard-color-chips", leaderboardActiveColors, showLeaderboard);

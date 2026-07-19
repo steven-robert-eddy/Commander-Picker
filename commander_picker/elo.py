@@ -12,6 +12,16 @@ import random
 
 DEFAULT_RATING = 1000.0
 K_FACTOR = 32.0
+# Half the duel K-factor. A duel session gives each commander several
+# comparisons spread across the session, so one bad early result gets
+# balanced out later -- Elo's self-correction gets to work. A
+# single-elimination bracket gives a round-1 loser exactly one comparison
+# for the whole session, then nothing to average it out, and that result
+# is permanent in commander_ratings. The seeded-by-rating bracket design
+# already keeps *expected*-outcome swings small on its own (K * (1 -
+# expected) is small when the favorite wins as expected); the real risk
+# is variance from too few games per commander, which this dampens.
+BRACKET_K_FACTOR = 16.0
 
 # How many pairing attempts to try before giving up on finding a fresh
 # (not-yet-compared) pair and just allowing a repeat.
@@ -49,6 +59,55 @@ def target_round_count(pool_size: int) -> int:
     if pool_size <= 1:
         return 0
     return max(1, round(pool_size * math.log2(pool_size)))
+
+
+def is_valid_bracket_size(n: int) -> bool:
+    """A single-elimination bracket needs an exact power of two >= 4.
+
+    Anything else is rejected rather than padded with byes or trimmed --
+    see sessions.create_session/cli.py/web/app.py for where this is
+    enforced before a bracket session is ever created.
+    """
+    return n >= 4 and (n & (n - 1)) == 0
+
+
+def bracket_round_count(n: int) -> int:
+    """Number of rounds to go from `n` entrants down to a single champion."""
+    return int(math.log2(n))
+
+
+def bracket_seed_order(n: int) -> list[int]:
+    """Standard recursive tournament-seeding permutation for `n` slots.
+
+    Returns 1-indexed seed numbers in bracket-slot order, e.g. n=8 ->
+    [1, 8, 4, 5, 2, 7, 3, 6]. Guarantees seed 1 and seed 2 can't meet
+    before the final, seeds 3/4 can't meet before the semis, and so on --
+    sessions.py sorts candidates best-to-worst by rating and uses this
+    order to place them into round-1 slots.
+    """
+    if n == 1:
+        return [1]
+    prev = bracket_seed_order(n // 2)
+    out = []
+    for s in prev:
+        out.append(s)
+        out.append(n + 1 - s)
+    return out
+
+
+def bracket_round_label(round_num: int, total_rounds: int) -> str:
+    """Human label for a bracket round, e.g. "Round of 16", "Quarterfinal",
+    "Semifinal", "Final" -- shared by the CLI and web UI so both describe
+    bracket progress the same way."""
+    remaining_after = total_rounds - round_num
+    if remaining_after == 0:
+        return "Final"
+    if remaining_after == 1:
+        return "Semifinal"
+    if remaining_after == 2:
+        return "Quarterfinal"
+    entrants = 2 ** (remaining_after + 1)
+    return f"Round of {entrants}"
 
 
 def choose_pairing(

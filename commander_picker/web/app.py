@@ -17,7 +17,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from commander_picker import db, pool as pool_module, sessions
+from commander_picker import db, elo, pool as pool_module, sessions
 from commander_picker.themes import THEME_SLUGS
 
 STATIC_DIR = Path(__file__).resolve().parent / "static"
@@ -37,6 +37,10 @@ class FiltersBody(BaseModel):
     # any reasonable duel session length.
     pool_size: int = Field(default=pool_module.DEFAULT_MAX_POOL_SIZE, ge=2, le=200)
     min_pool_size: int = Field(default=pool_module.DEFAULT_MIN_POOL_SIZE, ge=1, le=200)
+    # "duel" (continuous rating-adjacent swiping) or "bracket"
+    # (single-elimination tournament to one champion) -- see
+    # sessions.create_session for the engine each one drives.
+    mode: str = "duel"
 
 
 def _to_pool_filters(body: FiltersBody) -> pool_module.PoolFilters:
@@ -71,13 +75,26 @@ def _sessions_conn():
         conn.close()
 
 
-def _build_pool_or_422(conn, body: FiltersBody) -> list[pool_module.Commander]:
+def _build_pool_or_422(conn, body: FiltersBody, *, enforce_bracket_size: bool = False) -> list[pool_module.Commander]:
+    # enforce_bracket_size forces min_pool_size up to exactly pool_size:
+    # build_pool only ever *trims* a larger match set down to
+    # max_pool_size, it never tops up a smaller one, so without this a
+    # bracket could silently get created with e.g. 12 candidates when 16
+    # were requested -- a size that fails elo.is_valid_bracket_size.
+    # Pinning min == max here means build_pool either raises
+    # PoolTooSmallError (caught below, -> 422) or hands back exactly
+    # pool_size candidates, one or the other. Only api_create_session
+    # passes this -- the /api/pool preview endpoint must NOT, since its
+    # pool_size reflects whatever the duel-mode input currently holds
+    # (the frontend doesn't thread the chosen bracket size into preview
+    # calls), so enforcing it there would 422 on a perfectly fine preview.
+    min_pool_size = body.pool_size if enforce_bracket_size else body.min_pool_size
     try:
         return pool_module.build_pool(
             conn,
             _to_pool_filters(body),
             max_pool_size=body.pool_size,
-            min_pool_size=body.min_pool_size,
+            min_pool_size=min_pool_size,
         )
     except pool_module.PoolTooSmallError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
@@ -85,6 +102,8 @@ def _build_pool_or_422(conn, body: FiltersBody) -> list[pool_module.Commander]:
 
 def _pairing_payload(conn, session_id: str) -> dict | None:
     info = sessions.get_session(conn, session_id)
+    if info.mode == "bracket":
+        return _bracket_pairing_payload(conn, session_id, info)
     pair = sessions.next_pairing(conn, session_id)
     if pair is None:
         return None
@@ -93,6 +112,20 @@ def _pairing_payload(conn, session_id: str) -> dict | None:
         "round": info.rounds_completed + 1,
         "target_rounds": info.target_rounds,
         "candidates": [asdict(details[pair[0]]), asdict(details[pair[1]])],
+    }
+
+
+def _bracket_pairing_payload(conn, session_id: str, info: sessions.SessionInfo) -> dict | None:
+    match = sessions.next_bracket_match(conn, session_id)
+    if match is None:
+        return None
+    round_num, _slot, seed_a, seed_b = match
+    details = sessions.get_candidates(conn, session_id)
+    return {
+        "round": round_num,
+        "target_rounds": info.target_rounds,
+        "round_label": elo.bracket_round_label(round_num, info.target_rounds),
+        "candidates": [asdict(details[seed_a]), asdict(details[seed_b])],
     }
 
 
@@ -112,12 +145,20 @@ def api_pool(body: FiltersBody):
 
 @app.post("/api/sessions")
 def api_create_session(body: FiltersBody):
+    if body.mode not in ("duel", "bracket"):
+        raise HTTPException(status_code=422, detail=f"mode must be 'duel' or 'bracket', got {body.mode!r}")
+    if body.mode == "bracket" and not elo.is_valid_bracket_size(body.pool_size):
+        raise HTTPException(
+            status_code=422,
+            detail=f"Bracket mode needs pool_size to be a power of two (4, 8, 16, ...) -- got {body.pool_size}.",
+        )
+
     with _catalog_conn() as conn:
-        candidates = _build_pool_or_422(conn, body)
+        candidates = _build_pool_or_422(conn, body, enforce_bracket_size=(body.mode == "bracket"))
 
     with _sessions_conn() as session_conn:
         description = pool_module.describe_filters(_to_pool_filters(body))
-        session_id = sessions.create_session(session_conn, candidates, description=description)
+        session_id = sessions.create_session(session_conn, candidates, description=description, mode=body.mode)
         info = sessions.get_session(session_conn, session_id)
         pairing = _pairing_payload(session_conn, session_id)
     return {"session_id": session_id, "info": asdict(info), "pairing": pairing}
@@ -158,7 +199,11 @@ class PickBody(BaseModel):
 def api_pick(session_id: str, body: PickBody):
     with _sessions_conn() as conn:
         try:
-            sessions.record_pick(conn, session_id, body.winner, body.loser)
+            info = sessions.get_session(conn, session_id)
+            if info.mode == "bracket":
+                sessions.record_bracket_pick(conn, session_id, body.winner, body.loser)
+            else:
+                sessions.record_pick(conn, session_id, body.winner, body.loser)
             return _pairing_payload(conn, session_id)
         except sessions.SessionError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -168,7 +213,12 @@ def api_pick(session_id: str, body: PickBody):
 def api_finish(session_id: str):
     with _sessions_conn() as conn:
         try:
-            sessions.get_session(conn, session_id)
+            info = sessions.get_session(conn, session_id)
+            if info.mode == "bracket":
+                raise HTTPException(
+                    status_code=400,
+                    detail="Bracket sessions can't be finished early -- there's no partial champion, play out the remaining matches.",
+                )
             sessions.finish_session(conn, session_id)
             return {"rankings": [asdict(r) for r in sessions.get_rankings(conn, session_id)]}
         except sessions.SessionError as exc:
@@ -183,6 +233,20 @@ def api_results(session_id: str):
             return {"rankings": [asdict(r) for r in sessions.get_rankings(conn, session_id)]}
         except sessions.SessionError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@app.get("/api/sessions/{session_id}/bracket")
+def api_bracket(session_id: str):
+    with _sessions_conn() as conn:
+        try:
+            sessions.get_session(conn, session_id)
+        except sessions.SessionError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        bracket = sessions.get_bracket(conn, session_id)
+        return {
+            "champion": bracket.champion,
+            "rounds": [[asdict(m) for m in round_matches] for round_matches in bracket.rounds],
+        }
 
 
 @app.get("/api/leaderboard")

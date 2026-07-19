@@ -237,6 +237,79 @@ def test_leaderboard_filters_by_color(client):
     assert non_matching == []
 
 
+# ---- bracket mode ----
+
+
+def test_create_bracket_session(client):
+    resp = client.post("/api/sessions", json=_pool_body(mode="bracket", pool_size=4))
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["info"]["mode"] == "bracket"
+    assert data["info"]["pool_size"] == 4
+    assert data["info"]["target_rounds"] == 2  # log2(4)
+    assert data["pairing"]["round_label"] in ("Semifinal", "Final")
+    assert len(data["pairing"]["candidates"]) == 2
+
+
+def test_create_bracket_session_rejects_non_power_of_two_pool_size(client):
+    resp = client.post("/api/sessions", json=_pool_body(mode="bracket", pool_size=3))
+    assert resp.status_code == 422
+
+
+def test_create_bracket_session_rejects_unfulfillable_size(client):
+    # Fixture only has 4 total commanders -- asking for a bracket of 8
+    # can't be satisfied even though 8 is a valid bracket size.
+    resp = client.post("/api/sessions", json=_pool_body(mode="bracket", pool_size=8))
+    assert resp.status_code == 422
+
+
+def test_bracket_full_playthrough_and_tree(client):
+    created = client.post("/api/sessions", json=_pool_body(mode="bracket", pool_size=4)).json()
+    session_id = created["session_id"]
+    pairing = created["pairing"]
+
+    while pairing:
+        a, b = pairing["candidates"]
+        resp = client.post(f"/api/sessions/{session_id}/pick", json={"winner": a["name"], "loser": b["name"]})
+        assert resp.status_code == 200
+        pairing = resp.json()
+
+    info = client.get(f"/api/sessions/{session_id}").json()
+    assert info["status"] == "complete"
+    assert info["rounds_completed"] == 2
+
+    bracket = client.get(f"/api/sessions/{session_id}/bracket").json()
+    assert bracket["champion"] is not None
+    assert len(bracket["rounds"]) == 2
+    assert len(bracket["rounds"][0]) == 2  # 2 semifinal matches
+    assert len(bracket["rounds"][1]) == 1  # 1 final
+    assert bracket["rounds"][1][0]["winner"] == bracket["champion"]
+
+
+def test_bracket_pick_mismatched_pair_returns_400(client):
+    created = client.post("/api/sessions", json=_pool_body(mode="bracket", pool_size=4)).json()
+    session_id = created["session_id"]
+
+    # 4-team bracket has two round-1 matches; both are ready simultaneously.
+    # A "cross" pairing -- one name from each match -- was never actually
+    # scheduled together, so it should be rejected even though both names
+    # are valid, active bracket participants.
+    bracket = client.get(f"/api/sessions/{session_id}/bracket").json()
+    round1 = bracket["rounds"][0]
+    assert len(round1) == 2
+    cross_a, cross_b = round1[0]["seed_a"], round1[1]["seed_a"]
+
+    resp = client.post(f"/api/sessions/{session_id}/pick", json={"winner": cross_a, "loser": cross_b})
+    assert resp.status_code == 400
+
+
+def test_bracket_session_cannot_finish_early(client):
+    created = client.post("/api/sessions", json=_pool_body(mode="bracket", pool_size=4)).json()
+    session_id = created["session_id"]
+    resp = client.post(f"/api/sessions/{session_id}/finish")
+    assert resp.status_code == 400
+
+
 def test_reset_leaderboard_clears_ratings_but_not_session_results(client):
     created = client.post("/api/sessions", json=_pool_body()).json()
     session_id = created["session_id"]

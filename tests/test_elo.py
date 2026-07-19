@@ -66,6 +66,52 @@ def test_choose_pairing_falls_back_to_repeat_when_pool_exhausted():
     assert frozenset(pair) == frozenset(("A", "B"))
 
 
+def test_is_valid_bracket_size():
+    assert not elo.is_valid_bracket_size(1)
+    assert not elo.is_valid_bracket_size(2)
+    assert not elo.is_valid_bracket_size(3)
+    assert elo.is_valid_bracket_size(4)
+    assert not elo.is_valid_bracket_size(5)
+    assert not elo.is_valid_bracket_size(6)
+    assert elo.is_valid_bracket_size(8)
+    assert elo.is_valid_bracket_size(16)
+    assert elo.is_valid_bracket_size(32)
+    assert not elo.is_valid_bracket_size(24)
+
+
+def test_bracket_round_count():
+    assert elo.bracket_round_count(4) == 2
+    assert elo.bracket_round_count(8) == 3
+    assert elo.bracket_round_count(16) == 4
+    assert elo.bracket_round_count(32) == 5
+
+
+def test_bracket_seed_order_known_values():
+    assert elo.bracket_seed_order(1) == [1]
+    assert elo.bracket_seed_order(2) == [1, 2]
+    assert elo.bracket_seed_order(4) == [1, 4, 2, 3]
+    assert elo.bracket_seed_order(8) == [1, 8, 4, 5, 2, 7, 3, 6]
+
+
+def test_bracket_seed_order_top_seeds_meet_only_in_final():
+    for n in (4, 8, 16):
+        order = elo.bracket_seed_order(n)
+        # Slot pairs are (order[0], order[1]), (order[2], order[3]), ...
+        pairs = list(zip(order[0::2], order[1::2]))
+        # Seed 1 and 2 should never share a round-1 match.
+        assert {1, 2} not in (set(p) for p in pairs)
+        # Seeds 3 and 4 should never share a round-1 match either.
+        assert {3, 4} not in (set(p) for p in pairs)
+
+
+def test_bracket_round_label():
+    assert elo.bracket_round_label(3, 3) == "Final"
+    assert elo.bracket_round_label(2, 3) == "Semifinal"
+    assert elo.bracket_round_label(1, 3) == "Quarterfinal"
+    assert elo.bracket_round_label(1, 4) == "Round of 16"
+    assert elo.bracket_round_label(2, 4) == "Quarterfinal"
+
+
 def test_choose_pairing_late_phase_prefers_rating_adjacent():
     names = ["low", "mid", "high"]
     ratings = {"low": 800.0, "mid": 1000.0, "high": 1400.0}

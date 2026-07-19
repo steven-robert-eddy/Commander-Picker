@@ -258,6 +258,15 @@ header {
    own pressed/unpressed text color, since the symbol already carries
    its correct color. */
 .chip-pip { display: block; width: 16px; height: 16px; }
+/* Bracket-size presets larger than what the current filters match --
+   see app.js updateBracketSizeChipAvailability. */
+.chip:disabled,
+.chip.chip-disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+  border-color: var(--border);
+}
+.chip:disabled:hover { border-color: var(--border); }
 
 .pool-count {
   margin-top: 14px;
@@ -590,6 +599,83 @@ header {
   text-align: right;
 }
 .rank-rating.up { color: var(--good); }
+
+/* Bracket champion banner (results screen, bracket mode only). */
+.champion-banner {
+  text-align: center;
+  padding: 18px 12px;
+  margin-bottom: 10px;
+  border-radius: 10px;
+  background: var(--accent-soft);
+  border: 1px solid var(--accent);
+}
+.champion-label {
+  font-family: var(--mono);
+  font-size: 0.75rem;
+  letter-spacing: 0.06em;
+  color: var(--accent);
+  text-transform: uppercase;
+}
+.champion-name {
+  font-family: var(--serif);
+  font-size: 1.3rem;
+  color: var(--ink);
+  margin-top: 4px;
+}
+
+/* Bracket tree -- columns per round, rows per match. Used both live
+   (compact strip above the current duel, screen-duel) and in full on
+   the results screen once a bracket's complete. See app.js
+   renderBracketTree/BracketMatch shapes returned by GET
+   /api/sessions/{id}/bracket. */
+.bracket-tree {
+  display: flex;
+  gap: 14px;
+  overflow-x: auto;
+  padding: 10px 2px;
+  margin: 10px 0;
+}
+.bracket-tree-compact {
+  gap: 10px;
+  padding: 8px 2px;
+}
+.bracket-round {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 140px;
+  flex-shrink: 0;
+}
+.bracket-round-label {
+  font-family: var(--mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.05em;
+  color: var(--ink-faint);
+  text-transform: uppercase;
+  text-align: center;
+}
+.bracket-match {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.bracket-slot {
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  padding: 6px 8px;
+  color: var(--ink-dim);
+  background: var(--surface);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.bracket-slot:first-child { border-bottom: 1px solid var(--border); }
+.bracket-slot.bracket-winner { color: var(--accent); font-weight: 700; }
+.bracket-slot.bracket-loser { color: var(--ink-faint); text-decoration: line-through; opacity: 0.7; }
+.bracket-tree-compact .bracket-round { min-width: 110px; }
+.bracket-tree-compact .bracket-slot { font-size: 0.72rem; padding: 4px 6px; }
 
 .again-btn {
   width: 100%;
