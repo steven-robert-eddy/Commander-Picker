@@ -22,7 +22,7 @@ from commander_picker import pool as pool_module
 
 STATIC_DIR = Path(__file__).resolve().parent / "static"
 
-app = FastAPI(title="Commander Picker")
+app = FastAPI(title="Commander HQ")
 
 
 class FiltersBody(BaseModel):

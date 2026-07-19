@@ -55,7 +55,7 @@ def test_index_serves_html(client):
 
 
 def test_static_files_served(client):
-    resp = client.get("/static/app.js")
+    resp = client.get("/static/js/core.js")
     assert resp.status_code == 200
     resp = client.get("/static/style.css")
     assert resp.status_code == 200

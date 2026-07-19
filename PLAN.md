@@ -1,11 +1,16 @@
-# Commander Picker — Plan & Progress
+# Commander HQ — Plan & Progress
 
-Help decide which EDH/Commander deck to build next. Pulls commander
-popularity and archetype/theme data from EDHREC, lets you filter down
-to a candidate pool (colors, archetype, an "underbuilt" deck-count
-ceiling), then runs a swipe-style head-to-head picker with Elo ratings
-to narrow the pool to a ranked shortlist — playable from the terminal
-or a browser, with ratings that persist and compound across sessions.
+(Repo, remote, deploy URL, and CLI command are still `commander-picker`
+— only the product-facing branding changed. See "Foundation pass" below.)
+
+Help decide which EDH/Commander deck to build next, and track building
+it out from there. Pulls commander popularity and archetype/theme data
+from EDHREC, lets you filter down to a candidate pool (colors,
+archetype, an "underbuilt" deck-count ceiling), then runs a swipe-style
+head-to-head picker with Elo ratings to narrow the pool to a ranked
+shortlist — playable from the terminal or a browser, with ratings that
+persist and compound across sessions. Also tracks a 32-deck
+color-identity challenge alongside the picker, from one home screen.
 
 Stack: Python, SQLite (local cache + queryable DB), Turso (managed
 libSQL) for session storage, EDHREC's JSON data as the source, Scryfall
@@ -246,12 +251,27 @@ dropped, just intentionally after that.
   `sessions`, `results`, `leaderboard`, `list-colors`, `list-themes`,
   `serve`.
 - **Web UI** (`web/app.py`, `web/static/`): FastAPI + plain HTML/JS,
-  no build step. Filter → duel → results → all-time leaderboard, with
-  a lightbox for full-size card views. Same backend/data as the CLI.
+  no build step. A home screen (`#screen-home`) is the landing page,
+  with the picker's filter UI one tap deeper behind "Pick a
+  commander." Filter → duel → results → all-time leaderboard, with a
+  lightbox for full-size card views. Same backend/data as the CLI.
 - **Deployment**: a `Dockerfile` builds `commanders.db` during the
   image build itself (so the container ships fully self-contained),
   deployable to a free Render Web Service — see README's "Deploying"
   section for the runbook.
+- **Foundation pass**: rebranded product-facing text to "Commander HQ"
+  (repo/remote/deploy URL/CLI command unchanged — still
+  `commander-picker`) and split the old monolithic `app.js` (1,227
+  lines, one closure) into per-screen vanilla-JS modules under
+  `web/static/js/` (`core.js`, `picker.js`, `leaderboard.js`,
+  `sessions-list.js`, `challenge.js`, `home.js`, `init.js`), sharing
+  state through a small `window.CP` namespace instead of one giant
+  closure — no bundler, no build step, plain ordered `<script>` tags.
+  Cross-module function calls always go through `CP.foo(...)` at the
+  call site rather than being destructured at module-load time, since
+  the modules' own `<script>` tags don't load in strict dependency
+  order. Done to make room for the next pass (a pod tracker) without
+  the frontend growing past what one file can hold.
 
 See `README.md` for setup and usage. The sections below cover
 architecture notes and decisions worth knowing if you're extending

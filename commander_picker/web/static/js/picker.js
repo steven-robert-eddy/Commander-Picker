@@ -1,17 +1,20 @@
+// Filter screen, duel screen, and results screen -- the largest single
+// module, ported near-verbatim from the old monolithic app.js. Exposes
+// CP.showFilterScreen (the home screen's "Pick a commander" card calls
+// this) and CP.resumeSession (sessions-list.js's row click calls this
+// cross-module, since resuming mutates this module's own private
+// session state and re-enters its own duel/results rendering).
 (function () {
   "use strict";
 
-  const MANA_ORDER = ["W", "U", "B", "R", "G", "C"];
+  const { $, api, pipsHTML, manaCostHTML, BRACKET_LABELS, renderColorChips, wireColorModeToggle, showScreen, renderRankList } =
+    window.CP;
+
   // Must match pool.DEFAULT_MIN_POOL_SIZE server-side -- the live preview
   // needs to gate "Start dueling" on the SAME threshold the actual
   // session-creation call enforces, or a filter that shows e.g. "2
   // candidates" with an enabled button fails confusingly on click.
   const MIN_POOL_SIZE = 4;
-  const $ = (id) => document.getElementById(id);
-
-  // WotC's official Commander Bracket names -- mirrors the 1-5 scale
-  // db.py's _apply_commander_detail derives from EDHREC's bracket_counts.
-  const BRACKET_LABELS = { 1: "Exhibition", 2: "Core", 3: "Upgraded", 4: "Optimized", 5: "cEDH" };
 
   // ---- filter state ----
   const activeColors = new Set();
@@ -19,13 +22,6 @@
   let colorMode = "subset"; // "subset" (any combo within --colors) or "exact"
   let maxDecks = 10000;
   let poolSize = 40;
-
-  // ---- leaderboard filter state -- deliberately separate from the
-  // duel-pool filter state above. Checking "how do my mono-red
-  // commanders rank all-time" shouldn't also change what colors your
-  // next duel session gets built from. ----
-  const leaderboardActiveColors = new Set();
-  let leaderboardColorMode = "subset";
 
   // ---- session state ----
   let sessionId = null;
@@ -59,89 +55,6 @@
       },
       overrides || {}
     );
-  }
-
-  async function api(method, path, body) {
-    const resp = await fetch(path, {
-      method,
-      headers: body ? { "Content-Type": "application/json" } : undefined,
-      body: body ? JSON.stringify(body) : undefined,
-    });
-    const data = await resp.json().catch(() => ({}));
-    if (!resp.ok) {
-      const err = new Error(data.detail || `${method} ${path} failed (${resp.status})`);
-      err.status = resp.status;
-      throw err;
-    }
-    return data;
-  }
-
-  // Generalized so both the duel-pool filter (#color-chips) and the
-  // leaderboard filter (#leaderboard-color-chips) can each drive their
-  // own independent Set of active colors without duplicating the chip-
-  // building logic.
-  function renderColorChips(containerId, activeSet, onChange) {
-    const wrap = $(containerId);
-    wrap.innerHTML = "";
-    MANA_ORDER.forEach((col) => {
-      const b = document.createElement("button");
-      b.className = "chip";
-      b.type = "button";
-      const label = col === "C" ? "Colorless" : col;
-      // Same Scryfall mana symbol art as the duel/results pips (see
-      // MANA_SYMBOL_BASE_URL below), not a plain colored circle.
-      b.innerHTML = `<img class="chip-pip" src="${MANA_SYMBOL_BASE_URL}${col}.svg" alt="" />${label}`;
-      b.setAttribute("aria-pressed", "false");
-      b.addEventListener("click", () => {
-        if (activeSet.has(col)) activeSet.delete(col);
-        else activeSet.add(col);
-        b.setAttribute("aria-pressed", String(activeSet.has(col)));
-        onChange();
-      });
-      wrap.appendChild(b);
-    });
-  }
-
-  // Same generalization for the subset/exact segmented toggle -- one
-  // wiring function, two independent instances (duel-pool filter,
-  // leaderboard filter).
-  function wireColorModeToggle(containerId, setMode, onChange) {
-    document.querySelectorAll(`#${containerId} .segmented-btn`).forEach((btn) => {
-      btn.addEventListener("click", () => {
-        setMode(btn.dataset.mode);
-        document.querySelectorAll(`#${containerId} .segmented-btn`).forEach((b) => {
-          b.setAttribute("aria-pressed", String(b === btn));
-        });
-        onChange();
-      });
-    });
-  }
-
-  // Currently unused -- archetype filtering is hidden in the UI (see
-  // index.html), left defined so it's a one-line change to bring back
-  // (`renderThemeChips();` in the init section below) if that changes.
-  async function renderThemeChips() {
-    const wrap = $("theme-chips");
-    try {
-      const { slugs } = await api("GET", "/api/themes");
-      wrap.innerHTML = "";
-      slugs.forEach((theme) => {
-        const b = document.createElement("button");
-        b.className = "chip";
-        b.type = "button";
-        b.textContent = theme;
-        b.setAttribute("aria-pressed", "false");
-        b.addEventListener("click", () => {
-          if (activeThemes.has(theme)) activeThemes.delete(theme);
-          else activeThemes.add(theme);
-          b.setAttribute("aria-pressed", String(activeThemes.has(theme)));
-          refreshPoolPreview();
-        });
-        wrap.appendChild(b);
-      });
-    } catch (e) {
-      wrap.innerHTML = '<span class="spinner-note">couldn\'t load themes</span>';
-    }
   }
 
   async function refreshPoolPreview() {
@@ -372,36 +285,6 @@
     return Math.max(1, Math.round(n * Math.log2(n)));
   }
 
-  // Scryfall's own mana symbol art -- the real sun/water-drop/skull/
-  // fireball/tree glyphs players recognize from the cards themselves,
-  // not a plain colored circle with a letter in it.
-  const MANA_SYMBOL_BASE_URL = "https://svgs.scryfall.io/card-symbols/";
-
-  function pipsHTML(colors) {
-    const list = !colors ? ["C"] : colors.split("");
-    return list
-      .map((c) => `<img class="pip" src="${MANA_SYMBOL_BASE_URL}${c}.svg" alt="${c}" loading="lazy" />`)
-      .join("");
-  }
-
-  // Scryfall's mana-cost shorthand ("{2}{B}{R}") uses the same symbol
-  // codes as its symbol-SVG filenames -- reuses MANA_SYMBOL_BASE_URL, no
-  // new asset dependency, same trick as pipsHTML above. Hybrid symbols
-  // ("{B/R}") use a hyphen in the filename instead of the slash (e.g.
-  // "B-R.svg") -- best-effort, matches Scryfall's own convention but
-  // unverified live from this sandbox, worth a quick visual check once
-  // deployed on a commander with a hybrid-mana cost.
-  function manaCostHTML(manaCost) {
-    const symbols = manaCost.match(/\{([^}]+)\}/g) || [];
-    return symbols
-      .map((s) => s.slice(1, -1))
-      .map((code) => {
-        const filename = code.replace("/", "-");
-        return `<img class="pip" src="${MANA_SYMBOL_BASE_URL}${filename}.svg" alt="${code}" loading="lazy" onerror="this.remove()" />`;
-      })
-      .join("");
-  }
-
   // Target width for a single card face -- each image renders at (up
   // to) this size regardless of how many faces this commander has or
   // how much extra room the duel layout happens to give its button,
@@ -454,19 +337,6 @@
       ${rankBadge}
       ${powerBadge}
     `;
-  }
-
-  function showScreen(id) {
-    ["screen-intro", "screen-duel", "screen-results", "screen-leaderboard", "screen-sessions", "screen-challenge"].forEach((s) => {
-      $(s).classList.toggle("hidden", s !== id);
-    });
-    $("phase-label").textContent =
-      id === "screen-intro" ? "Filter"
-      : id === "screen-duel" ? "Dueling"
-      : id === "screen-results" ? "Results"
-      : id === "screen-sessions" ? "Sessions"
-      : id === "screen-challenge" ? "32-Deck Challenge"
-      : "Leaderboard";
   }
 
   function renderPairing(pairing) {
@@ -529,42 +399,6 @@
     } finally {
       $("start-btn").disabled = false;
     }
-  }
-
-  async function showSessions() {
-    try {
-      const { sessions } = await api("GET", "/api/sessions");
-      renderSessionsList(sessions);
-      showScreen("screen-sessions");
-    } catch (e) {
-      window.alert(e.message);
-    }
-  }
-
-  function renderSessionsList(sessionList) {
-    const list = $("sessions-list");
-    if (!sessionList.length) {
-      list.innerHTML = '<div class="spinner-note">No sessions yet — start a duel or bracket from the filter screen.</div>';
-      return;
-    }
-    list.innerHTML = sessionList
-      .map((s) => {
-        const modeLabel = s.mode === "bracket" ? "Bracket" : "Duel";
-        const actionLabel = s.status === "active" ? "Resume →" : "View results →";
-        return `
-          <div class="session-row" data-id="${s.id}">
-            <div class="session-info">
-              <div class="session-desc">${s.description || "No filters"}</div>
-              <div class="session-meta">${modeLabel} · ${s.rounds_completed}/${s.target_rounds} rounds · ${s.pool_size} candidates · ${s.status}</div>
-            </div>
-            <button class="ghost-btn session-action" type="button">${actionLabel}</button>
-          </div>
-        `;
-      })
-      .join("");
-    list.querySelectorAll(".session-row").forEach((row) => {
-      row.querySelector(".session-action").addEventListener("click", () => resumeSession(row.dataset.id));
-    });
   }
 
   async function resumeSession(id) {
@@ -669,61 +503,6 @@
     }
   }
 
-  // Shared between the per-session results screen and the all-time
-  // leaderboard -- same row shape (rank, art, pips, name), the only
-  // real difference is what goes in the right-hand stat column, which
-  // the caller supplies via `statFor` so each screen can show what's
-  // actually meaningful there (session delta-from-1000 vs. all-time
-  // games played).
-  function renderRankList(containerId, rankings, statFor) {
-    const list = $(containerId);
-    list.innerHTML = rankings
-      .map((c, i) => {
-        const { cls, html } = statFor(c);
-        const hasArt = c.image_urls && c.image_urls.length;
-        const thumb = hasArt
-          ? `<div class="rank-thumb-group">${c.image_urls
-              .map((url) => `<img class="rank-thumb" src="${url}" alt="" loading="lazy" onerror="this.remove()" />`)
-              .join("")}</div>`
-          : "";
-        const interactiveAttrs = hasArt ? 'tabindex="0" role="button"' : "";
-        // power_level only exists on session-results rows (RankedCommander),
-        // not the all-time leaderboard's GlobalRanking -- absent there, so
-        // this simply renders nothing for that call site.
-        const powerBadge = c.power_level
-          ? `<span class="tag power-tag">Bracket ${c.power_level} · ${BRACKET_LABELS[c.power_level]}</span>`
-          : "";
-        return `
-          <div class="rank-row ${i === 0 ? "top1" : ""} ${hasArt ? "has-art" : ""}" data-idx="${i}" ${interactiveAttrs}>
-            <div class="rank-num">${i + 1}</div>
-            <div class="rank-name-line">
-              ${thumb}
-              <div class="pips">${pipsHTML(c.color_identity)}</div>
-              <div class="rank-name">${c.name}</div>
-              ${powerBadge}
-            </div>
-            <div class="rank-rating ${cls}">${html}</div>
-          </div>
-        `;
-      })
-      .join("");
-    // Click a ranked commander to see its card(s) full size, rather
-    // than the compact list thumbnail -- listeners reference `rankings`
-    // by closure (data-idx just identifies which row, not the data
-    // itself) so there's no HTML-attribute escaping to worry about for
-    // image URLs or names.
-    list.querySelectorAll(".rank-row.has-art").forEach((row) => {
-      const c = rankings[Number(row.dataset.idx)];
-      row.addEventListener("click", () => openLightbox(c.image_urls, c.name, c.edhrec_url));
-      row.addEventListener("keydown", (e) => {
-        if (e.key === "Enter" || e.key === " ") {
-          e.preventDefault(); // stop the page from scrolling on Space
-          openLightbox(c.image_urls, c.name, c.edhrec_url);
-        }
-      });
-    });
-  }
-
   function renderResults(rankings, winnerChallengeSlug) {
     $("champion-banner").classList.add("hidden");
     $("bracket-tree-final").classList.add("hidden");
@@ -739,7 +518,7 @@
       };
     });
     showScreen("screen-results");
-    maybeShowChallengeNudge(winnerChallengeSlug, rankings.length ? rankings[0].name : null);
+    window.CP.maybeShowChallengeNudge(winnerChallengeSlug, rankings.length ? rankings[0].name : null);
   }
 
   function renderBracketResults(bracket) {
@@ -753,201 +532,7 @@
     $("bracket-tree-final").classList.remove("hidden");
     renderBracketTree("bracket-tree-final", bracket, { compact: false });
     showScreen("screen-results");
-    maybeShowChallengeNudge(bracket.winner_challenge_slug, bracket.champion);
-  }
-
-  // ---- 32-deck challenge tracker ----
-
-  function challengeDisplayName(slug) {
-    return slug.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
-  }
-
-  // Purely additive nudge on the results screen -- offers to add the
-  // winning commander as a candidate for its color combo, but never
-  // overwrites/auto-chooses anything. Silent no-op on failure since the
-  // results screen itself already rendered fine either way.
-  async function maybeShowChallengeNudge(slug, commanderName) {
-    const nudge = $("challenge-nudge");
-    nudge.classList.add("hidden");
-    if (!slug || !commanderName) return;
-    try {
-      const { entries } = await api("GET", "/api/challenge");
-      const entry = entries.find((e) => e.slug === slug);
-      if (!entry || entry.commanders.some((c) => c.name === commanderName)) return;
-
-      $("challenge-nudge-text").textContent = `Add ${commanderName} as an option for ${challengeDisplayName(slug)}?`;
-      nudge.classList.remove("hidden");
-      $("challenge-nudge-btn").onclick = async () => {
-        try {
-          await api("POST", `/api/challenge/${encodeURIComponent(slug)}/commanders`, { commander_name: commanderName });
-          nudge.classList.add("hidden");
-        } catch (e) {
-          window.alert(e.message);
-        }
-      };
-    } catch (e) {
-      // Non-critical -- the results screen itself still works.
-    }
-  }
-
-  async function showChallenge(highlightSlug) {
-    try {
-      const { entries } = await api("GET", "/api/challenge");
-      renderChallengeList(entries);
-      showScreen("screen-challenge");
-      if (highlightSlug) highlightChallengeRow(highlightSlug);
-    } catch (e) {
-      window.alert(e.message);
-    }
-  }
-
-  function highlightChallengeRow(slug) {
-    const row = $("challenge-list").querySelector(`.challenge-row[data-slug="${slug}"]`);
-    if (!row) return;
-    row.scrollIntoView({ behavior: "smooth", block: "center" });
-    row.classList.add("challenge-row-highlight");
-    setTimeout(() => row.classList.remove("challenge-row-highlight"), 1500);
-  }
-
-  function renderChallengeList(entries) {
-    const list = $("challenge-list");
-    list.innerHTML = entries
-      .map(
-        (e) => `
-          <div class="challenge-row" data-slug="${e.slug}">
-            <div class="challenge-row-header">
-              <div class="challenge-combo">${pipsHTML(e.colors)}<span>${challengeDisplayName(e.slug)}</span></div>
-              <select class="challenge-status-select">
-                <option value="not_started" ${e.status === "not_started" ? "selected" : ""}>Not started</option>
-                <option value="planning" ${e.status === "planning" ? "selected" : ""}>Planning</option>
-                <option value="building" ${e.status === "building" ? "selected" : ""}>Building</option>
-                <option value="complete" ${e.status === "complete" ? "selected" : ""}>Complete</option>
-              </select>
-            </div>
-            <div class="challenge-commanders">
-              ${e.commanders
-                .map((c, i) => {
-                  const hasArt = c.image_urls && c.image_urls.length;
-                  const thumb = hasArt
-                    ? `<div class="challenge-candidate-thumb-group">${c.image_urls
-                        .map((url) => `<img class="challenge-candidate-thumb" src="${url}" alt="" loading="lazy" onerror="this.remove()" />`)
-                        .join("")}</div>`
-                    : "";
-                  return `
-                    <div class="challenge-candidate ${c.is_chosen ? "chosen" : ""}" data-idx="${i}">
-                      ${thumb}
-                      <div class="challenge-candidate-info">
-                        ${pipsHTML(c.color_identity || "")}
-                        <span class="challenge-candidate-name">${c.name}</span>
-                      </div>
-                      <div class="challenge-candidate-actions">
-                        <button type="button" class="challenge-choose-btn" title="Mark as chosen">${c.is_chosen ? "★" : "☆"}</button>
-                        <button type="button" class="challenge-remove-btn" title="Remove">✕</button>
-                      </div>
-                    </div>
-                  `;
-                })
-                .join("")}
-            </div>
-          </div>
-        `
-      )
-      .join("");
-
-    list.querySelectorAll(".challenge-row").forEach((row) => {
-      const slug = row.dataset.slug;
-      const entry = entries.find((e) => e.slug === slug);
-
-      row.querySelector(".challenge-status-select").addEventListener("change", async (ev) => {
-        try {
-          await api("PUT", `/api/challenge/${encodeURIComponent(slug)}`, { status: ev.target.value, notes: entry.notes });
-        } catch (e) {
-          window.alert(e.message);
-        }
-      });
-
-      row.querySelectorAll(".challenge-candidate").forEach((card) => {
-        const candidate = entry.commanders[Number(card.dataset.idx)];
-        card.querySelector(".challenge-choose-btn").addEventListener("click", async () => {
-          try {
-            await api(
-              "POST",
-              `/api/challenge/${encodeURIComponent(slug)}/commanders/${encodeURIComponent(candidate.name)}/choose`
-            );
-            showChallenge();
-          } catch (e) {
-            window.alert(e.message);
-          }
-        });
-        card.querySelector(".challenge-remove-btn").addEventListener("click", async () => {
-          try {
-            await api(
-              "DELETE",
-              `/api/challenge/${encodeURIComponent(slug)}/commanders/${encodeURIComponent(candidate.name)}`
-            );
-            showChallenge();
-          } catch (e) {
-            window.alert(e.message);
-          }
-        });
-      });
-    });
-  }
-
-  // Single search box for the whole challenge screen (not one per
-  // combo) -- a commander's own color identity determines which of the
-  // 32 combos it belongs to, via /api/challenge/commanders, so there's
-  // no "which row" decision for the user to make. Same search-as-you-
-  // type pattern as the custom-list feature's searchCommanders.
-  let challengeSearchDebounceTimer = null;
-
-  async function searchChallengeCommanders() {
-    const q = $("challenge-search-input").value.trim();
-    const resultsEl = $("challenge-search-results");
-    if (!q) {
-      resultsEl.classList.add("hidden");
-      resultsEl.innerHTML = "";
-      return;
-    }
-    try {
-      const { results } = await api("GET", `/api/commanders/search?q=${encodeURIComponent(q)}`);
-      if (!results.length) {
-        resultsEl.innerHTML = '<div class="spinner-note" style="padding: 9px 12px;">No matches</div>';
-        resultsEl.classList.remove("hidden");
-        return;
-      }
-      resultsEl.innerHTML = results
-        .map(
-          (r) => `
-            <button type="button" class="autocomplete-item" data-name="${r.name}" data-colors="${r.color_identity}">
-              ${pipsHTML(r.color_identity)}
-              <span>${r.name}</span>
-              <span class="autocomplete-item-decks">${r.num_decks.toLocaleString()} decks</span>
-            </button>
-          `
-        )
-        .join("");
-      resultsEl.querySelectorAll(".autocomplete-item").forEach((btn) => {
-        btn.addEventListener("click", async () => {
-          try {
-            const entry = await api("POST", "/api/challenge/commanders", {
-              commander_name: btn.dataset.name,
-              color_identity: btn.dataset.colors,
-            });
-            $("challenge-search-input").value = "";
-            resultsEl.classList.add("hidden");
-            resultsEl.innerHTML = "";
-            showChallenge(entry.slug);
-          } catch (e) {
-            window.alert(e.message);
-          }
-        });
-      });
-      resultsEl.classList.remove("hidden");
-    } catch (e) {
-      resultsEl.innerHTML = `<div class="spinner-note" style="padding: 9px 12px;">${e.message}</div>`;
-      resultsEl.classList.remove("hidden");
-    }
+    window.CP.maybeShowChallengeNudge(bracket.winner_challenge_slug, bracket.champion);
   }
 
   // Mirrors elo.bracket_round_label -- purely for display, the server's
@@ -987,65 +572,6 @@
       .join("");
   }
 
-  function renderLeaderboard(rankings) {
-    renderRankList("leaderboard-list", rankings, (c) => {
-      const games = c.games_played === 1 ? "1 game" : `${c.games_played} games`;
-      return { cls: "", html: `${Math.round(c.rating)} <span style="opacity:.6">(${games})</span>` };
-    });
-    showScreen("screen-leaderboard");
-  }
-
-  async function showLeaderboard() {
-    try {
-      const params = new URLSearchParams();
-      if (leaderboardActiveColors.size) params.set("colors", [...leaderboardActiveColors].join(""));
-      params.set("color_mode", leaderboardColorMode);
-      const { leaderboard } = await api("GET", `/api/leaderboard?${params.toString()}`);
-      if (!leaderboard.length) {
-        // Distinguish "nothing's ever been rated" from "your color
-        // filter excludes everything currently rated" -- the first
-        // needs "go play a session," the second just needs a looser
-        // filter.
-        $("leaderboard-list").innerHTML = leaderboardActiveColors.size
-          ? '<div class="spinner-note">No commanders match that color filter yet.</div>'
-          : '<div class="spinner-note">No all-time ratings yet — finish a duel session first.</div>';
-        showScreen("screen-leaderboard");
-        return;
-      }
-      renderLeaderboard(leaderboard);
-    } catch (e) {
-      window.alert(e.message);
-    }
-  }
-
-  function openLightbox(imageUrls, name, edhrecUrl) {
-    if (!imageUrls || !imageUrls.length) return;
-    $("lightbox-name").textContent = name || "";
-    $("lightbox-images").innerHTML = imageUrls
-      .map((url) => `<img src="${url}" alt="${name || ""}" />`)
-      .join("");
-    // EDHREC's own link is always reliable (stored per commander).
-    // Moxfield/Archidekt are best-effort generic search links -- their
-    // exact deep-link query format can't be verified from this sandbox
-    // (no live network access), worth a quick click-test once deployed.
-    const query = encodeURIComponent(name || "");
-    const links = [
-      edhrecUrl ? `<a href="${edhrecUrl}" target="_blank" rel="noopener">View on EDHREC →</a>` : "",
-      name ? `<a href="https://www.moxfield.com/decks?q=${query}" target="_blank" rel="noopener">Search Moxfield</a>` : "",
-      name ? `<a href="https://archidekt.com/search/decks?q=${query}" target="_blank" rel="noopener">Search Archidekt</a>` : "",
-    ]
-      .filter(Boolean)
-      .join("");
-    $("lightbox-links").innerHTML = links;
-    $("lightbox").classList.remove("hidden");
-  }
-
-  function closeLightbox() {
-    $("lightbox").classList.add("hidden");
-    $("lightbox-images").innerHTML = "";
-    $("lightbox-links").innerHTML = "";
-  }
-
   $("card-a").addEventListener("click", () => {
     if (!currentPairing) return;
     pick(currentPairing.candidates[0].name, currentPairing.candidates[1].name, $("card-a"), $("card-b"));
@@ -1056,15 +582,7 @@
   });
   $("finish-btn").addEventListener("click", finishSession);
   $("undo-btn").addEventListener("click", undoLastPick);
-  $("lightbox-close").addEventListener("click", closeLightbox);
-  $("lightbox").addEventListener("click", (e) => {
-    if (e.target.id === "lightbox") closeLightbox(); // click on backdrop, not the card image itself
-  });
   document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape") {
-      closeLightbox();
-      return;
-    }
     // 1/2 or the arrow keys pick a duel card, mirroring the CLI's 1/2
     // input -- only while the duel screen is actually showing, a
     // pairing is loaded, and the cards aren't already mid-pick-animation
@@ -1080,6 +598,9 @@
       undoLastPick();
     }
   });
+  // "Duel again" is an unambiguous continuation of the current flow, so
+  // it goes straight back to the filter screen -- unlike the general
+  // "back/exit buttons go home" rule applied to the other screens.
   $("again-btn").addEventListener("click", () => {
     sessionId = null;
     currentPairing = null;
@@ -1087,6 +608,7 @@
     refreshPoolPreview();
   });
   $("start-btn").addEventListener("click", startSession);
+  $("filter-home-btn").addEventListener("click", () => showScreen("screen-home"));
   $("filter-reset-btn").addEventListener("click", () => {
     activeColors.clear();
     colorMode = "subset";
@@ -1121,61 +643,7 @@
 
     refreshPoolPreview();
   });
-  $("leaderboard-link").addEventListener("click", showLeaderboard);
-  $("results-leaderboard-link").addEventListener("click", showLeaderboard);
-  $("leaderboard-back-btn").addEventListener("click", () => {
-    showScreen("screen-intro");
-    refreshPoolPreview();
-  });
-  $("sessions-link").addEventListener("click", showSessions);
-  $("sessions-back-btn").addEventListener("click", () => {
-    showScreen("screen-intro");
-    refreshPoolPreview();
-  });
-  $("challenge-link").addEventListener("click", () => showChallenge());
-  $("challenge-back-btn").addEventListener("click", () => {
-    showScreen("screen-intro");
-    refreshPoolPreview();
-  });
-  const challengeSearchInput = $("challenge-search-input");
-  challengeSearchInput.addEventListener("input", () => {
-    clearTimeout(challengeSearchDebounceTimer);
-    challengeSearchDebounceTimer = setTimeout(searchChallengeCommanders, 250);
-  });
-  $("leaderboard-reset-btn").addEventListener("click", () => {
-    leaderboardActiveColors.clear();
-    leaderboardColorMode = "subset";
-    // Rebuild the chips fresh (renderColorChips always starts every
-    // chip unpressed) and reset the toggle's visual state directly,
-    // since wireColorModeToggle only wires clicks, it has no reset of
-    // its own.
-    renderColorChips("leaderboard-color-chips", leaderboardActiveColors, showLeaderboard);
-    document.querySelectorAll("#leaderboard-color-mode-toggle .segmented-btn").forEach((b) => {
-      b.setAttribute("aria-pressed", String(b.dataset.mode === "subset"));
-    });
-    showLeaderboard();
-  });
-  $("leaderboard-reset-data-btn").addEventListener("click", async () => {
-    // Destructive and irreversible -- confirm before touching the
-    // server, same pattern as window.alert() for errors elsewhere in
-    // this file (a native browser dialog, not a custom in-app one).
-    const confirmed = window.confirm(
-      "This permanently erases every commander's all-time rating and games-played " +
-        "count. Past session results themselves aren't affected -- only the all-time " +
-        "leaderboard built from them. This can't be undone. Continue?"
-    );
-    if (!confirmed) return;
-    try {
-      await api("DELETE", "/api/leaderboard");
-      showLeaderboard();
-    } catch (e) {
-      window.alert(e.message);
-    }
-  });
 
-  // Slider and number input both drive maxDecks -- the slider is fast
-  // for coarse adjustment, the number input is exact (no more fighting
-  // a drag gesture to land on a specific value).
   const decksSlider = $("max-decks-slider");
   const decksInput = $("max-decks-input");
   decksSlider.addEventListener("input", () => {
@@ -1202,7 +670,6 @@
   });
 
   wireColorModeToggle("color-mode-toggle", (m) => { colorMode = m; }, refreshPoolPreview);
-  wireColorModeToggle("leaderboard-color-mode-toggle", (m) => { leaderboardColorMode = m; }, showLeaderboard);
   wireColorModeToggle("mode-toggle", setFilterMode, () => {});
 
   document.querySelectorAll("#pool-source-toggle .segmented-btn").forEach((btn) => {
@@ -1221,7 +688,12 @@
   });
 
   renderColorChips("color-chips", activeColors, refreshPoolPreview);
-  renderColorChips("leaderboard-color-chips", leaderboardActiveColors, showLeaderboard);
-  refreshPoolPreview();
-  showScreen("screen-intro");
+
+  Object.assign(window.CP, {
+    showFilterScreen: () => {
+      showScreen("screen-intro");
+      refreshPoolPreview();
+    },
+    resumeSession,
+  });
 })();

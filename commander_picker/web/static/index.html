@@ -3,18 +3,45 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Commander Picker</title>
+  <title>Commander HQ</title>
   <link rel="stylesheet" href="/static/style.css" />
 </head>
 <body>
   <main>
     <header>
-      <div class="wordmark">Commander <em>Picker</em></div>
-      <div class="phase" id="phase-label">Filter</div>
+      <div class="wordmark">Commander <em>HQ</em></div>
+      <div class="phase" id="phase-label">Home</div>
     </header>
 
+    <!-- HOME SCREEN -->
+    <section id="screen-home">
+      <p class="lede">
+        Everything for building out your Commander collection — pick a
+        new commander, track your 32-deck challenge, or browse past
+        sessions and the all-time leaderboard.
+      </p>
+      <div class="home-grid">
+        <button class="home-card" id="home-picker-card" type="button">
+          <div class="home-card-title">Pick a commander</div>
+          <div class="home-card-desc">Duel or bracket your way through EDHREC's catalog until a favorite rises to the top.</div>
+        </button>
+        <button class="home-card" id="home-challenge-card" type="button">
+          <div class="home-card-title">32-deck challenge</div>
+          <div class="home-card-desc">Track a deck for every color-identity combination, colorless through five-color.</div>
+        </button>
+        <button class="home-card" id="home-leaderboard-card" type="button">
+          <div class="home-card-title">All-time leaderboard</div>
+          <div class="home-card-desc">Cross-session Elo ratings for every commander you've ever picked.</div>
+        </button>
+        <button class="home-card" id="home-sessions-card" type="button">
+          <div class="home-card-title">My sessions</div>
+          <div class="home-card-desc">Resume an active picker session, or revisit a finished one's results.</div>
+        </button>
+      </div>
+    </section>
+
     <!-- INTRO / FILTER SCREEN -->
-    <section id="screen-intro">
+    <section id="screen-intro" class="hidden">
       <p class="lede">
         Skip the Ur-Dragons and Atraxas — duel your way through real
         <strong>underbuilt</strong> EDH commanders from your EDHREC catalog
@@ -77,7 +104,7 @@
           </div>
           <!--
             Bracket mode swaps the free numeric input above for a fixed
-            set of power-of-two presets (see app.js renderBracketSizeChips)
+            set of power-of-two presets (see picker.js renderBracketSizeChips)
             -- a bracket size can only ever be one of these, so there's no
             "not a power of two" error state to design for.
           -->
@@ -86,7 +113,7 @@
 
         <!--
           Custom list mode: hand-pick specific commanders by name instead
-          of filtering, via search/autocomplete (see app.js searchCommanders/
+          of filtering, via search/autocomplete (see picker.js searchCommanders/
           renderCustomList). Duel needs >=2 added; bracket needs an exact
           power-of-two count (same BRACKET_SIZES as filtered-bracket mode).
         -->
@@ -109,9 +136,7 @@
         <button class="start-btn" id="start-btn" disabled>Start dueling</button>
         <button class="ghost-btn" id="filter-reset-btn" type="button">Reset filters</button>
       </div>
-      <button class="ghost-btn" id="leaderboard-link" type="button">All-time leaderboard →</button>
-      <button class="ghost-btn" id="sessions-link" type="button">My sessions →</button>
-      <button class="ghost-btn" id="challenge-link" type="button">32-deck challenge →</button>
+      <button class="ghost-btn" id="filter-home-btn" type="button">← Home</button>
     </section>
 
     <!-- SESSIONS SCREEN -->
@@ -121,7 +146,7 @@
         resume it, or a finished one to see its results again.
       </p>
       <div class="panel" id="sessions-list"></div>
-      <button class="ghost-btn" id="sessions-back-btn" type="button">← Back to filters</button>
+      <button class="ghost-btn" id="sessions-back-btn" type="button">← Home</button>
     </section>
 
     <!-- 32-DECK CHALLENGE SCREEN -->
@@ -140,12 +165,12 @@
         <!--
           Single search box, not one per combo -- a commander's own
           color identity determines which combo it belongs to (see
-          app.js's addChallengeCommanderAuto), so there's no "which
+          challenge.js's searchChallengeCommanders), so there's no "which
           row's search box" decision to make.
         -->
       </div>
       <div class="panel" id="challenge-list"></div>
-      <button class="ghost-btn" id="challenge-back-btn" type="button">← Back to filters</button>
+      <button class="ghost-btn" id="challenge-back-btn" type="button">← Home</button>
     </section>
 
     <!-- DUEL SCREEN -->
@@ -156,7 +181,7 @@
       </div>
       <div class="progress-track"><div class="progress-fill" id="progress-fill"></div></div>
 
-      <!-- Bracket mode only -- live compact tree so far, see app.js renderBracketTree -->
+      <!-- Bracket mode only -- live compact tree so far, see picker.js renderBracketTree -->
       <div class="bracket-tree bracket-tree-compact hidden" id="bracket-tree-live"></div>
 
       <div class="duel">
@@ -167,12 +192,12 @@
 
       <div class="duel-actions">
         <!-- Hidden in bracket mode -- undo isn't supported there yet (see
-             app.js startSession/undoLastPick). Starts disabled -- nothing
+             picker.js startSession/undoLastPick). Starts disabled -- nothing
              to undo before the first pick of the session. -->
         <button class="ghost-btn" id="undo-btn" disabled>← Undo</button>
         <span class="ghost-btn" style="cursor:default;">tap a card to pick (or press 1/2)</span>
         <!-- Hidden in bracket mode -- no meaningful "finish early" when
-             there's no partial champion, see app.js startSession. -->
+             there's no partial champion, see picker.js startSession. -->
         <button class="ghost-btn" id="finish-btn">Finish now →</button>
       </div>
     </section>
@@ -181,7 +206,7 @@
     <section id="screen-results" class="hidden">
       <p class="lede" id="results-lede">Final standings for this run — every pick also feeds the all-time leaderboard below. Tap a commander to see its card(s) full size.</p>
       <!-- 32-deck challenge tie-in: a one-click nudge to add the winner
-           as a candidate for its color combo, see app.js maybeShowChallengeNudge.
+           as a candidate for its color combo, see challenge.js maybeShowChallengeNudge.
            Hidden unless the winner isn't already a candidate for that combo.
            Shown up top, above the standings, so it's the first thing seen. -->
       <div class="challenge-nudge hidden" id="challenge-nudge">
@@ -218,7 +243,7 @@
       </div>
 
       <div class="panel" id="leaderboard-list"></div>
-      <button class="ghost-btn" id="leaderboard-back-btn" type="button">← Back to filters</button>
+      <button class="ghost-btn" id="leaderboard-back-btn" type="button">← Home</button>
       <button class="ghost-btn danger-btn" id="leaderboard-reset-data-btn" type="button">Reset all-time leaderboard…</button>
     </section>
 
@@ -236,6 +261,18 @@
     <div class="lightbox-links" id="lightbox-links"></div>
   </div>
 
-  <script src="/static/app.js"></script>
+  <!--
+    Split into per-screen vanilla-JS modules (no bundler/build step) --
+    core.js first (shared utilities on window.CP), then each screen's
+    own module, home.js last among features since it calls into all of
+    them, init.js truly last to kick off the initial screen.
+  -->
+  <script src="/static/js/core.js"></script>
+  <script src="/static/js/picker.js"></script>
+  <script src="/static/js/leaderboard.js"></script>
+  <script src="/static/js/sessions-list.js"></script>
+  <script src="/static/js/challenge.js"></script>
+  <script src="/static/js/home.js"></script>
+  <script src="/static/js/init.js"></script>
 </body>
 </html>

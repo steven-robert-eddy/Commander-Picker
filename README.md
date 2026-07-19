@@ -1,12 +1,19 @@
-# Commander Picker
+# Commander HQ
 
 [![Tests](https://github.com/steven-robert-eddy/Commander-Picker/actions/workflows/tests.yml/badge.svg)](https://github.com/steven-robert-eddy/Commander-Picker/actions/workflows/tests.yml)
 
-Help decide which EDH/Commander deck to build next. Pulls commander
-popularity and archetype/theme data from EDHREC, lets you filter down
-to a candidate pool (colors, archetype, an "underbuilt" deck-count
-ceiling), then will run a swipe-style head-to-head picker with Elo
-ratings to narrow the pool to a ranked shortlist.
+A small suite for building out your EDH/Commander collection. Pulls
+commander popularity and archetype/theme data from EDHREC, lets you
+filter down to a candidate pool (colors, archetype, an "underbuilt"
+deck-count ceiling), and runs a swipe-style head-to-head picker with
+Elo ratings to narrow the pool to a ranked shortlist. Also tracks a
+32-deck color-identity challenge alongside the picker, from one home
+screen.
+
+The repo, git remote, deploy URL, and installed CLI command
+(`commander-picker`) all still use the original "Commander Picker"
+name — only the product-facing branding (what you see in the app
+itself) changed.
 
 ## Status
 
@@ -14,8 +21,9 @@ Fully built and live-verified: EDHREC data ingestion (a real
 `update-data` run pulls 3,800+ commanders with correct color
 identities, deck counts, theme tags, and card art), filtering /
 candidate pools, the Elo-style swipe picker with cross-session
-persistent ratings and an all-time leaderboard, a web UI on top of
-the same engine, and a Docker deployment for a public URL — see
+persistent ratings and an all-time leaderboard, a 32-deck challenge
+tracker, a home screen tying it all together, a web UI on top of the
+same engine, and a Docker deployment for a public URL — see
 `PLAN.md` for architecture notes and what's not yet started.
 
 ## Setup
@@ -400,7 +408,7 @@ commander_picker/
   cli.py            # `commander-picker` command-line entry point
   web/
     app.py           # FastAPI app (JSON API + serves the static frontend)
-    static/          # index.html / app.js / style.css — no build step
+    static/          # index.html / js/*.js (per-screen modules) / style.css — no build step
 tests/
   fixtures/          # hand-built/captured sample EDHREC pages for offline tests
   test_colors.py
