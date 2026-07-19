@@ -25,7 +25,14 @@ commander-picker = "commander_picker.cli:main"
 include = ["commander_picker*"]
 
 [tool.setuptools.package-data]
-"commander_picker.web" = ["static/*.html", "static/*.js", "static/*.css"]
+# setuptools package-data globs aren't recursive -- "static/*.js" only
+# matches files directly in static/, not static/js/*.js, so the
+# per-screen JS modules need their own explicit entry (bit by this once
+# already: `pip install .` silently dropped every file under static/js/
+# from the installed package, which 404'd in production while
+# index.html/style.css installed fine since they matched the flat
+# globs -- looked exactly like a stale-cache bug from the outside).
+"commander_picker.web" = ["static/*.html", "static/*.js", "static/*.css", "static/js/*.js"]
 
 [tool.ruff]
 line-length = 120
