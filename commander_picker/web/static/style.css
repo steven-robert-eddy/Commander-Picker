@@ -702,6 +702,78 @@ header {
 .custom-list-name { font-size: 0.88rem; display: flex; align-items: center; gap: 6px; }
 .custom-list-remove { flex-shrink: 0; white-space: nowrap; }
 
+/* 32-deck challenge tracker (screen-challenge) -- see app.js
+   renderChallengeList. Each combo is a row: header (pips + name +
+   status select), then its candidate-commander chips, then an add row. */
+.challenge-row {
+  padding: 12px 4px;
+  border-bottom: 1px solid var(--border);
+}
+.challenge-row:last-child { border-bottom: none; }
+.challenge-row-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+.challenge-combo { display: flex; align-items: center; gap: 6px; font-size: 0.92rem; }
+.challenge-status-select {
+  font-family: var(--sans);
+  font-size: 0.8rem;
+  color: var(--ink);
+  background: var(--bg-alt);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 5px 6px;
+}
+.challenge-commanders {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+.challenge-candidate {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.challenge-candidate.chosen {
+  border-color: var(--primary);
+  color: var(--primary);
+  background: var(--primary-soft);
+}
+.challenge-choose-btn,
+.challenge-remove-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: 0.85rem;
+  cursor: pointer;
+  color: inherit;
+  line-height: 1;
+}
+.challenge-add-row {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+.challenge-add-input { flex: 1; width: auto; text-align: left; }
+
+/* Results-screen 32-deck-challenge nudge -- purely additive, see app.js
+   maybeShowChallengeNudge. */
+.challenge-nudge {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  margin-bottom: 10px;
+  border-radius: 10px;
+  background: var(--bg-alt);
+  border: 1px solid var(--border);
+  font-size: 0.85rem;
+}
+
 /* Bracket champion banner (results screen, bracket mode only). */
 .champion-banner {
   text-align: center;

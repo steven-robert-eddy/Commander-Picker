@@ -447,7 +447,7 @@
   }
 
   function showScreen(id) {
-    ["screen-intro", "screen-duel", "screen-results", "screen-leaderboard", "screen-sessions"].forEach((s) => {
+    ["screen-intro", "screen-duel", "screen-results", "screen-leaderboard", "screen-sessions", "screen-challenge"].forEach((s) => {
       $(s).classList.toggle("hidden", s !== id);
     });
     $("phase-label").textContent =
@@ -455,6 +455,7 @@
       : id === "screen-duel" ? "Dueling"
       : id === "screen-results" ? "Results"
       : id === "screen-sessions" ? "Sessions"
+      : id === "screen-challenge" ? "32-Deck Challenge"
       : "Leaderboard";
   }
 
@@ -641,8 +642,8 @@
         const bracket = await api("GET", `/api/sessions/${sessionId}/bracket`);
         renderBracketResults(bracket);
       } else {
-        const { rankings } = await api("GET", `/api/sessions/${sessionId}/results`);
-        renderResults(rankings);
+        const { rankings, winner_challenge_slug } = await api("GET", `/api/sessions/${sessionId}/results`);
+        renderResults(rankings, winner_challenge_slug);
       }
     } catch (e) {
       window.alert(e.message);
@@ -651,8 +652,8 @@
 
   async function finishSession() {
     try {
-      const { rankings } = await api("POST", `/api/sessions/${sessionId}/finish`);
-      renderResults(rankings);
+      const { rankings, winner_challenge_slug } = await api("POST", `/api/sessions/${sessionId}/finish`);
+      renderResults(rankings, winner_challenge_slug);
     } catch (e) {
       window.alert(e.message);
     }
@@ -706,7 +707,7 @@
     });
   }
 
-  function renderResults(rankings) {
+  function renderResults(rankings, winnerChallengeSlug) {
     $("champion-banner").classList.add("hidden");
     $("bracket-tree-final").classList.add("hidden");
     $("rank-list").classList.remove("hidden");
@@ -721,6 +722,7 @@
       };
     });
     showScreen("screen-results");
+    maybeShowChallengeNudge(winnerChallengeSlug, rankings.length ? rankings[0].name : null);
   }
 
   function renderBracketResults(bracket) {
@@ -734,6 +736,140 @@
     $("bracket-tree-final").classList.remove("hidden");
     renderBracketTree("bracket-tree-final", bracket, { compact: false });
     showScreen("screen-results");
+    maybeShowChallengeNudge(bracket.winner_challenge_slug, bracket.champion);
+  }
+
+  // ---- 32-deck challenge tracker ----
+
+  function challengeDisplayName(slug) {
+    return slug.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+  }
+
+  // Purely additive nudge on the results screen -- offers to add the
+  // winning commander as a candidate for its color combo, but never
+  // overwrites/auto-chooses anything. Silent no-op on failure since the
+  // results screen itself already rendered fine either way.
+  async function maybeShowChallengeNudge(slug, commanderName) {
+    const nudge = $("challenge-nudge");
+    nudge.classList.add("hidden");
+    if (!slug || !commanderName) return;
+    try {
+      const { entries } = await api("GET", "/api/challenge");
+      const entry = entries.find((e) => e.slug === slug);
+      if (!entry || entry.commanders.some((c) => c.name === commanderName)) return;
+
+      $("challenge-nudge-text").textContent = `Add ${commanderName} as an option for ${challengeDisplayName(slug)}?`;
+      nudge.classList.remove("hidden");
+      $("challenge-nudge-btn").onclick = async () => {
+        try {
+          await api("POST", `/api/challenge/${encodeURIComponent(slug)}/commanders`, { commander_name: commanderName });
+          nudge.classList.add("hidden");
+        } catch (e) {
+          window.alert(e.message);
+        }
+      };
+    } catch (e) {
+      // Non-critical -- the results screen itself still works.
+    }
+  }
+
+  async function showChallenge() {
+    try {
+      const { entries } = await api("GET", "/api/challenge");
+      renderChallengeList(entries);
+      showScreen("screen-challenge");
+    } catch (e) {
+      window.alert(e.message);
+    }
+  }
+
+  function renderChallengeList(entries) {
+    const list = $("challenge-list");
+    list.innerHTML = entries
+      .map(
+        (e) => `
+          <div class="challenge-row" data-slug="${e.slug}">
+            <div class="challenge-row-header">
+              <div class="challenge-combo">${pipsHTML(e.colors)}<span>${challengeDisplayName(e.slug)}</span></div>
+              <select class="challenge-status-select">
+                <option value="not_started" ${e.status === "not_started" ? "selected" : ""}>Not started</option>
+                <option value="planning" ${e.status === "planning" ? "selected" : ""}>Planning</option>
+                <option value="building" ${e.status === "building" ? "selected" : ""}>Building</option>
+                <option value="complete" ${e.status === "complete" ? "selected" : ""}>Complete</option>
+              </select>
+            </div>
+            <div class="challenge-commanders">
+              ${e.commanders
+                .map(
+                  (c, i) => `
+                    <span class="chip challenge-candidate ${c.is_chosen ? "chosen" : ""}" data-idx="${i}">
+                      <button type="button" class="challenge-choose-btn" title="Mark as chosen">${c.is_chosen ? "★" : "☆"}</button>
+                      ${c.name}
+                      <button type="button" class="challenge-remove-btn" title="Remove">✕</button>
+                    </span>
+                  `
+                )
+                .join("")}
+            </div>
+            <div class="challenge-add-row">
+              <input type="text" class="num-input challenge-add-input" placeholder="Add a commander…" />
+              <button type="button" class="ghost-btn challenge-add-btn">+ Add</button>
+            </div>
+          </div>
+        `
+      )
+      .join("");
+
+    list.querySelectorAll(".challenge-row").forEach((row) => {
+      const slug = row.dataset.slug;
+      const entry = entries.find((e) => e.slug === slug);
+
+      row.querySelector(".challenge-status-select").addEventListener("change", async (ev) => {
+        try {
+          await api("PUT", `/api/challenge/${encodeURIComponent(slug)}`, { status: ev.target.value, notes: entry.notes });
+        } catch (e) {
+          window.alert(e.message);
+        }
+      });
+
+      row.querySelectorAll(".challenge-candidate").forEach((chip) => {
+        const candidate = entry.commanders[Number(chip.dataset.idx)];
+        chip.querySelector(".challenge-choose-btn").addEventListener("click", async () => {
+          try {
+            await api(
+              "POST",
+              `/api/challenge/${encodeURIComponent(slug)}/commanders/${encodeURIComponent(candidate.name)}/choose`
+            );
+            showChallenge();
+          } catch (e) {
+            window.alert(e.message);
+          }
+        });
+        chip.querySelector(".challenge-remove-btn").addEventListener("click", async () => {
+          try {
+            await api(
+              "DELETE",
+              `/api/challenge/${encodeURIComponent(slug)}/commanders/${encodeURIComponent(candidate.name)}`
+            );
+            showChallenge();
+          } catch (e) {
+            window.alert(e.message);
+          }
+        });
+      });
+
+      const addInput = row.querySelector(".challenge-add-input");
+      row.querySelector(".challenge-add-btn").addEventListener("click", async () => {
+        const name = addInput.value.trim();
+        if (!name) return;
+        try {
+          await api("POST", `/api/challenge/${encodeURIComponent(slug)}/commanders`, { commander_name: name });
+          showChallenge();
+        } catch (e) {
+          window.alert(e.message);
+        }
+      });
+    });
   }
 
   // Mirrors elo.bracket_round_label -- purely for display, the server's
@@ -915,6 +1051,11 @@
   });
   $("sessions-link").addEventListener("click", showSessions);
   $("sessions-back-btn").addEventListener("click", () => {
+    showScreen("screen-intro");
+    refreshPoolPreview();
+  });
+  $("challenge-link").addEventListener("click", showChallenge);
+  $("challenge-back-btn").addEventListener("click", () => {
     showScreen("screen-intro");
     refreshPoolPreview();
   });

@@ -17,7 +17,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from commander_picker import db, elo, sessions
+from commander_picker import colors, db, elo, sessions
 from commander_picker import pool as pool_module
 
 STATIC_DIR = Path(__file__).resolve().parent / "static"
@@ -259,6 +259,23 @@ def api_undo(session_id: str):
             raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
+def _challenge_slug_for_name(rankings: list, name: str | None) -> str | None:
+    """The 32-deck-challenge slug this commander belongs to, or None if
+    there's no winner yet or its color identity doesn't parse (should
+    never happen for a real commander, but the tracker prompt is purely
+    additive so silently omitting it is fine).
+    """
+    if name is None:
+        return None
+    match = next((r for r in rankings if r.name == name), None)
+    if match is None:
+        return None
+    try:
+        return sessions.challenge_slug_for_commander(match.color_identity)
+    except colors.UnknownColorIdentityError:
+        return None
+
+
 @app.post("/api/sessions/{session_id}/finish")
 def api_finish(session_id: str):
     with _sessions_conn() as conn:
@@ -270,7 +287,12 @@ def api_finish(session_id: str):
                     detail="Bracket sessions can't be finished early -- there's no partial champion, play out the remaining matches.",
                 )
             sessions.finish_session(conn, session_id)
-            return {"rankings": [asdict(r) for r in sessions.get_rankings(conn, session_id)]}
+            rankings = sessions.get_rankings(conn, session_id)
+            winner_name = rankings[0].name if rankings else None
+            return {
+                "rankings": [asdict(r) for r in rankings],
+                "winner_challenge_slug": _challenge_slug_for_name(rankings, winner_name),
+            }
         except sessions.SessionError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
 
@@ -280,7 +302,12 @@ def api_results(session_id: str):
     with _sessions_conn() as conn:
         try:
             sessions.get_session(conn, session_id)
-            return {"rankings": [asdict(r) for r in sessions.get_rankings(conn, session_id)]}
+            rankings = sessions.get_rankings(conn, session_id)
+            winner_name = rankings[0].name if rankings else None
+            return {
+                "rankings": [asdict(r) for r in rankings],
+                "winner_challenge_slug": _challenge_slug_for_name(rankings, winner_name),
+            }
         except sessions.SessionError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
 
@@ -293,9 +320,11 @@ def api_bracket(session_id: str):
         except sessions.SessionError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
         bracket = sessions.get_bracket(conn, session_id)
+        rankings = sessions.get_rankings(conn, session_id)
         return {
             "champion": bracket.champion,
             "rounds": [[asdict(m) for m in round_matches] for round_matches in bracket.rounds],
+            "winner_challenge_slug": _challenge_slug_for_name(rankings, bracket.champion),
         }
 
 
@@ -318,6 +347,61 @@ def api_reset_leaderboard():
     with _sessions_conn() as conn:
         sessions.reset_leaderboard(conn)
     return {"ok": True}
+
+
+@app.get("/api/challenge")
+def api_get_challenge():
+    with _sessions_conn() as conn:
+        return {"entries": [asdict(e) for e in sessions.get_challenge_tracker(conn)]}
+
+
+class ChallengeStatusBody(BaseModel):
+    status: str
+    notes: str | None = None
+
+
+@app.put("/api/challenge/{slug}")
+def api_set_challenge_status(slug: str, body: ChallengeStatusBody):
+    with _sessions_conn() as conn:
+        try:
+            entry = sessions.set_challenge_status(conn, slug, body.status, body.notes)
+        except sessions.SessionError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return asdict(entry)
+
+
+class ChallengeCommanderBody(BaseModel):
+    commander_name: str
+
+
+@app.post("/api/challenge/{slug}/commanders")
+def api_add_challenge_commander(slug: str, body: ChallengeCommanderBody):
+    with _sessions_conn() as conn:
+        try:
+            entry = sessions.add_challenge_commander(conn, slug, body.commander_name)
+        except sessions.SessionError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return asdict(entry)
+
+
+@app.delete("/api/challenge/{slug}/commanders/{commander_name}")
+def api_remove_challenge_commander(slug: str, commander_name: str):
+    with _sessions_conn() as conn:
+        try:
+            entry = sessions.remove_challenge_commander(conn, slug, commander_name)
+        except sessions.SessionError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return asdict(entry)
+
+
+@app.post("/api/challenge/{slug}/commanders/{commander_name}/choose")
+def api_choose_challenge_commander(slug: str, commander_name: str):
+    with _sessions_conn() as conn:
+        try:
+            entry = sessions.choose_challenge_commander(conn, slug, commander_name)
+        except sessions.SessionError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return asdict(entry)
 
 
 class NoCacheStaticFiles(StaticFiles):

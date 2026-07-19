@@ -153,6 +153,33 @@ for card art. Standalone project — no dependency on the sibling
   still drives which shallow tag pages get fetched by default. Data
   plumbing only this pass -- no salt filter, no theme-filter UI
   re-enablement (see Feature roadmap).
+- **32-deck challenge tracker**: a personal planning tool for building
+  one Commander deck per color-identity combination, riding entirely on
+  data this app already produces -- not a new rating/Elo concept.
+  Deliberately built inside Commander Picker rather than as a separate
+  project: `colors.py::all_slugs()` already defines exactly the 32
+  combos with a full slug<->color-tuple mapping. Two new `sessions.db`
+  tables, `challenge_tracker` (slug -> status/notes) and
+  `challenge_commanders` (slug -> a short shortlist of candidate
+  commanders, at most one marked chosen) -- entries aren't pre-seeded,
+  `get_challenge_tracker` synthesizes all 32 at read time by overlaying
+  whatever rows exist onto `colors.all_slugs()`. New endpoints:
+  `GET /api/challenge`, `PUT /api/challenge/{slug}` (status/notes,
+  full overwrite not a patch), `POST`/`DELETE .../commanders[/choose]`.
+  Ties into existing session data: `api_finish`/`api_results`/
+  `api_bracket` responses gain a `winner_challenge_slug`
+  (`colors.slug_for_colors` on the winning commander's own color
+  identity -- no need to detect "was this session filtered to one
+  combo," the winner's own identity is what matters), which the results
+  screen uses to show a one-click "Add {commander} as an option for
+  {combo}?" nudge if it's not already listed -- purely additive, never
+  auto-chooses or overwrites an existing entry. New "32-deck challenge
+  →" screen (`#screen-challenge`) lists all 32 combos with a status
+  dropdown and add/remove/choose controls per candidate. Started small
+  per the user's request (status + a shortlist, not a single locked-in
+  commander) with `notes` already in the schema for a future richer-
+  planning pass (decklist link, budget, completion date) without a
+  migration.
 - **Persistent, cross-session ratings**: a commander's Elo carries
   forward from session to session via a `commander_ratings` table in
   `sessions.db`, instead of resetting to 1000 every time. An all-time

@@ -486,3 +486,93 @@ def test_create_custom_session_rejects_duplicate_name(client):
 def test_create_custom_session_rejects_bad_mode(client):
     resp = client.post("/api/sessions/custom", json={"names": ["Rakdos, Lord of Riots"], "mode": "nonsense"})
     assert resp.status_code == 422
+
+
+def test_get_challenge_returns_32_entries(client):
+    resp = client.get("/api/challenge")
+    assert resp.status_code == 200
+    entries = resp.json()["entries"]
+    assert len(entries) == 32
+    assert all(e["status"] == "not_started" for e in entries)
+
+
+def test_put_challenge_status_round_trips(client):
+    resp = client.put("/api/challenge/rakdos", json={"status": "planning", "notes": "hmm"})
+    assert resp.status_code == 200
+    assert resp.json()["status"] == "planning"
+    assert resp.json()["notes"] == "hmm"
+
+    entries = client.get("/api/challenge").json()["entries"]
+    rakdos = next(e for e in entries if e["slug"] == "rakdos")
+    assert rakdos["status"] == "planning"
+
+
+def test_put_challenge_status_rejects_bad_slug_or_status(client):
+    assert client.put("/api/challenge/not-a-slug", json={"status": "planning"}).status_code == 422
+    assert client.put("/api/challenge/rakdos", json={"status": "vibing"}).status_code == 422
+
+
+def test_challenge_commanders_add_choose_remove_round_trip(client):
+    add_resp = client.post("/api/challenge/rakdos/commanders", json={"commander_name": "Rakdos, Lord of Riots"})
+    assert add_resp.status_code == 200
+    assert [c["name"] for c in add_resp.json()["commanders"]] == ["Rakdos, Lord of Riots"]
+
+    choose_resp = client.post("/api/challenge/rakdos/commanders/Rakdos, Lord of Riots/choose")
+    assert choose_resp.status_code == 200
+    assert choose_resp.json()["commanders"][0]["is_chosen"] is True
+
+    remove_resp = client.delete("/api/challenge/rakdos/commanders/Rakdos, Lord of Riots")
+    assert remove_resp.status_code == 200
+    assert remove_resp.json()["commanders"] == []
+
+
+def test_choose_challenge_commander_422_if_not_a_candidate(client):
+    resp = client.post("/api/challenge/rakdos/commanders/Nobody/choose")
+    assert resp.status_code == 422
+
+
+def test_add_challenge_commander_422_on_unknown_slug(client):
+    resp = client.post("/api/challenge/not-a-slug/commanders", json={"commander_name": "Whoever"})
+    assert resp.status_code == 422
+
+
+def test_finish_session_includes_winner_challenge_slug(client):
+    created = client.post("/api/sessions", json=_pool_body()).json()
+    session_id = created["session_id"]
+    a = created["pairing"]["candidates"][0]["name"]
+    b = created["pairing"]["candidates"][1]["name"]
+    client.post(f"/api/sessions/{session_id}/pick", json={"winner": a, "loser": b})
+
+    finish_resp = client.post(f"/api/sessions/{session_id}/finish")
+    assert finish_resp.status_code == 200
+    # Fixture's only color page is "rakdos" (BR) -- every candidate is BR.
+    assert finish_resp.json()["winner_challenge_slug"] == "rakdos"
+
+
+def test_results_includes_winner_challenge_slug(client):
+    created = client.post("/api/sessions", json=_pool_body()).json()
+    session_id = created["session_id"]
+    a = created["pairing"]["candidates"][0]["name"]
+    b = created["pairing"]["candidates"][1]["name"]
+    client.post(f"/api/sessions/{session_id}/pick", json={"winner": a, "loser": b})
+
+    resp = client.get(f"/api/sessions/{session_id}/results")
+    assert resp.status_code == 200
+    assert resp.json()["winner_challenge_slug"] == "rakdos"
+
+
+def test_bracket_includes_winner_challenge_slug(client):
+    created = client.post("/api/sessions", json=_pool_body(mode="bracket", pool_size=4)).json()
+    session_id = created["session_id"]
+
+    for _ in range(4):
+        pairing = client.get(f"/api/sessions/{session_id}/pairing").json()
+        if pairing is None:
+            break
+        a, b = pairing["candidates"]
+        client.post(f"/api/sessions/{session_id}/pick", json={"winner": a["name"], "loser": b["name"]})
+
+    resp = client.get(f"/api/sessions/{session_id}/bracket")
+    assert resp.status_code == 200
+    assert resp.json()["champion"] is not None
+    assert resp.json()["winner_challenge_slug"] == "rakdos"

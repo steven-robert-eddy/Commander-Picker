@@ -262,6 +262,17 @@ a bracket you'll see a live compact tree of the matches played so far
 above the duel cards, and the final screen shows the champion plus the
 full bracket instead of a rating-sorted list.
 
+**32-deck challenge →** (filter screen) tracks a deck for all 32
+color-identity combinations (colorless through five-color). Each combo
+gets a status (not started / planning / building / complete) and a
+short shortlist of candidate commanders you're considering, with one
+optionally starred as your pick -- not a single locked-in name, since
+narrowing down is part of the planning. Whenever a duel/bracket session
+finishes, if the winning commander isn't already a candidate for its
+color combo, the results screen offers a one-click "Add {commander} as
+an option for {combo}?" nudge -- purely additive, it never overwrites
+or auto-chooses anything already there.
+
 Local-only, no auth, no rate limiting — fine for a single-user local
 tool, would need attention before exposing beyond localhost.
 
@@ -279,10 +290,17 @@ most recent pick exactly; 400 for bracket sessions or when there's
 nothing to undo), `POST /api/sessions/{id}/finish` (bracket sessions
 400 -- no early finish), `GET /api/sessions/{id}/results`, `GET
 /api/sessions/{id}/bracket` (full bracket tree + champion, bracket mode
-only), `GET /api/leaderboard` (all-time ranking; optional `?limit=`
+only) -- all three of the last also include `winner_challenge_slug`,
+`GET /api/leaderboard` (all-time ranking; optional `?limit=`
 default 100, `?colors=`/`?color_mode=` same as `/api/pool`), `DELETE
 /api/leaderboard` (permanently erases all-time ratings -- the web UI
-confirms before calling this, the API itself doesn't ask).
+confirms before calling this, the API itself doesn't ask), `GET
+/api/challenge` (all 32 combo entries), `PUT /api/challenge/{slug}`
+(`{"status": ..., "notes": ...}`), `POST
+/api/challenge/{slug}/commanders` (`{"commander_name": ...}`, add a
+candidate), `DELETE /api/challenge/{slug}/commanders/{name}`, `POST
+/api/challenge/{slug}/commanders/{name}/choose` (marks one candidate
+chosen, unmarking any previous one for that combo).
 
 ## Deploying
 
