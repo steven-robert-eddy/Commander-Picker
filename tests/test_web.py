@@ -551,6 +551,28 @@ def test_add_challenge_commander_422_on_unknown_slug(client):
     assert resp.status_code == 422
 
 
+def test_add_challenge_commander_auto_determines_slug_from_colors(client):
+    resp = client.post(
+        "/api/challenge/commanders",
+        json={"commander_name": "Rakdos, Lord of Riots", "color_identity": "BR"},
+    )
+    assert resp.status_code == 200
+    assert resp.json()["slug"] == "rakdos"
+    assert resp.json()["commanders"][0]["name"] == "Rakdos, Lord of Riots"
+
+    entries = client.get("/api/challenge").json()["entries"]
+    rakdos = next(e for e in entries if e["slug"] == "rakdos")
+    assert [c["name"] for c in rakdos["commanders"]] == ["Rakdos, Lord of Riots"]
+
+
+def test_add_challenge_commander_auto_rejects_bad_colors(client):
+    resp = client.post(
+        "/api/challenge/commanders",
+        json={"commander_name": "Whoever", "color_identity": "X"},
+    )
+    assert resp.status_code == 422
+
+
 def test_finish_session_includes_winner_challenge_slug(client):
     created = client.post("/api/sessions", json=_pool_body()).json()
     session_id = created["session_id"]

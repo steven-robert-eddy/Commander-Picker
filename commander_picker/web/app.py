@@ -432,6 +432,33 @@ def api_choose_challenge_commander(slug: str, commander_name: str):
     return asdict(entry)
 
 
+class ChallengeAddByColorBody(BaseModel):
+    commander_name: str
+    color_identity: str
+
+
+@app.post("/api/challenge/commanders")
+def api_add_challenge_commander_auto(body: ChallengeAddByColorBody):
+    """Add a candidate without the caller knowing which combo it belongs
+    to -- the commander's own color identity determines that (same
+    `slug_for_colors` logic the results-screen nudge already uses),
+    instead of every one of the 32 rows needing its own scoped search.
+    `color_identity` comes straight from the search result the frontend
+    already has (GET /api/commanders/search), no extra catalog lookup
+    needed here.
+    """
+    try:
+        slug = colors.slug_for_colors(body.color_identity)
+    except colors.UnknownColorIdentityError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    with _sessions_conn() as conn:
+        try:
+            entry = sessions.add_challenge_commander(conn, slug, body.commander_name)
+        except sessions.SessionError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return {"slug": slug, **asdict(entry)}
+
+
 class NoCacheStaticFiles(StaticFiles):
     """Force browsers to revalidate static assets on every request.
 

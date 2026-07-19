@@ -773,14 +773,23 @@
     }
   }
 
-  async function showChallenge() {
+  async function showChallenge(highlightSlug) {
     try {
       const { entries } = await api("GET", "/api/challenge");
       renderChallengeList(entries);
       showScreen("screen-challenge");
+      if (highlightSlug) highlightChallengeRow(highlightSlug);
     } catch (e) {
       window.alert(e.message);
     }
+  }
+
+  function highlightChallengeRow(slug) {
+    const row = $("challenge-list").querySelector(`.challenge-row[data-slug="${slug}"]`);
+    if (!row) return;
+    row.scrollIntoView({ behavior: "smooth", block: "center" });
+    row.classList.add("challenge-row-highlight");
+    setTimeout(() => row.classList.remove("challenge-row-highlight"), 1500);
   }
 
   function renderChallengeList(entries) {
@@ -822,10 +831,6 @@
                   `;
                 })
                 .join("")}
-            </div>
-            <div class="challenge-add-row">
-              <input type="text" class="num-input challenge-add-input" placeholder="Search commanders to add…" autocomplete="off" />
-              <div class="autocomplete-dropdown hidden challenge-add-results"></div>
             </div>
           </div>
         `
@@ -869,69 +874,63 @@
           }
         });
       });
-
-      wireChallengeAddSearch(row, slug, entry);
     });
   }
 
-  // Same search-as-you-type pattern as the custom-list feature's
-  // searchCommanders/#commander-search-results (see currentFiltersBody
-  // area above) -- reuses GET /api/commanders/search, scoped to this
-  // row's own input/dropdown (each of the 32 rows has its own) instead
-  // of a single shared element, since IDs can't repeat.
-  function wireChallengeAddSearch(row, slug, entry) {
-    const input = row.querySelector(".challenge-add-input");
-    const resultsEl = row.querySelector(".challenge-add-results");
-    let debounceTimer = null;
+  // Single search box for the whole challenge screen (not one per
+  // combo) -- a commander's own color identity determines which of the
+  // 32 combos it belongs to, via /api/challenge/commanders, so there's
+  // no "which row" decision for the user to make. Same search-as-you-
+  // type pattern as the custom-list feature's searchCommanders.
+  let challengeSearchDebounceTimer = null;
 
-    async function search() {
-      const q = input.value.trim();
-      if (!q) {
-        resultsEl.classList.add("hidden");
-        resultsEl.innerHTML = "";
+  async function searchChallengeCommanders() {
+    const q = $("challenge-search-input").value.trim();
+    const resultsEl = $("challenge-search-results");
+    if (!q) {
+      resultsEl.classList.add("hidden");
+      resultsEl.innerHTML = "";
+      return;
+    }
+    try {
+      const { results } = await api("GET", `/api/commanders/search?q=${encodeURIComponent(q)}`);
+      if (!results.length) {
+        resultsEl.innerHTML = '<div class="spinner-note" style="padding: 9px 12px;">No matches</div>';
+        resultsEl.classList.remove("hidden");
         return;
       }
-      try {
-        const { results } = await api("GET", `/api/commanders/search?q=${encodeURIComponent(q)}`);
-        if (!results.length) {
-          resultsEl.innerHTML = '<div class="spinner-note" style="padding: 9px 12px;">No matches</div>';
-          resultsEl.classList.remove("hidden");
-          return;
-        }
-        const alreadyAdded = new Set(entry.commanders.map((c) => c.name));
-        resultsEl.innerHTML = results
-          .map(
-            (r) => `
-              <button type="button" class="autocomplete-item" data-name="${r.name}" ${alreadyAdded.has(r.name) ? "disabled" : ""}>
-                ${pipsHTML(r.color_identity)}
-                <span>${r.name}${alreadyAdded.has(r.name) ? " (added)" : ""}</span>
-                <span class="autocomplete-item-decks">${r.num_decks.toLocaleString()} decks</span>
-              </button>
-            `
-          )
-          .join("");
-        resultsEl.querySelectorAll(".autocomplete-item").forEach((btn) => {
-          btn.addEventListener("click", async () => {
-            if (btn.disabled) return;
-            try {
-              await api("POST", `/api/challenge/${encodeURIComponent(slug)}/commanders`, { commander_name: btn.dataset.name });
-              showChallenge();
-            } catch (e) {
-              window.alert(e.message);
-            }
-          });
+      resultsEl.innerHTML = results
+        .map(
+          (r) => `
+            <button type="button" class="autocomplete-item" data-name="${r.name}" data-colors="${r.color_identity}">
+              ${pipsHTML(r.color_identity)}
+              <span>${r.name}</span>
+              <span class="autocomplete-item-decks">${r.num_decks.toLocaleString()} decks</span>
+            </button>
+          `
+        )
+        .join("");
+      resultsEl.querySelectorAll(".autocomplete-item").forEach((btn) => {
+        btn.addEventListener("click", async () => {
+          try {
+            const entry = await api("POST", "/api/challenge/commanders", {
+              commander_name: btn.dataset.name,
+              color_identity: btn.dataset.colors,
+            });
+            $("challenge-search-input").value = "";
+            resultsEl.classList.add("hidden");
+            resultsEl.innerHTML = "";
+            showChallenge(entry.slug);
+          } catch (e) {
+            window.alert(e.message);
+          }
         });
-        resultsEl.classList.remove("hidden");
-      } catch (e) {
-        resultsEl.innerHTML = `<div class="spinner-note" style="padding: 9px 12px;">${e.message}</div>`;
-        resultsEl.classList.remove("hidden");
-      }
+      });
+      resultsEl.classList.remove("hidden");
+    } catch (e) {
+      resultsEl.innerHTML = `<div class="spinner-note" style="padding: 9px 12px;">${e.message}</div>`;
+      resultsEl.classList.remove("hidden");
     }
-
-    input.addEventListener("input", () => {
-      clearTimeout(debounceTimer);
-      debounceTimer = setTimeout(search, 250);
-    });
   }
 
   // Mirrors elo.bracket_round_label -- purely for display, the server's
@@ -1116,10 +1115,15 @@
     showScreen("screen-intro");
     refreshPoolPreview();
   });
-  $("challenge-link").addEventListener("click", showChallenge);
+  $("challenge-link").addEventListener("click", () => showChallenge());
   $("challenge-back-btn").addEventListener("click", () => {
     showScreen("screen-intro");
     refreshPoolPreview();
+  });
+  const challengeSearchInput = $("challenge-search-input");
+  challengeSearchInput.addEventListener("input", () => {
+    clearTimeout(challengeSearchDebounceTimer);
+    challengeSearchDebounceTimer = setTimeout(searchChallengeCommanders, 250);
   });
   $("leaderboard-reset-btn").addEventListener("click", () => {
     leaderboardActiveColors.clear();

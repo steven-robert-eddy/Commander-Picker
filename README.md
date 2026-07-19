@@ -270,9 +270,12 @@ complete) and a short shortlist of candidate commanders you're
 considering, with one optionally starred as your pick -- not a single
 locked-in name, since narrowing down is part of the planning. Each
 candidate shows its actual card art (when available) and color pips,
-not just a name. Add one by typing into the search box under a combo
--- same name/colors/deck-count autocomplete as the custom-list feature
-above, not a plain freeform text field. Whenever a duel/bracket session
+not just a name. A single search box at the top of the screen (same
+name/colors/deck-count autocomplete as the custom-list feature above)
+adds a commander to the right combo automatically, based on its own
+color identity -- there's no "which combo's search box" to pick, and
+the row it landed in briefly highlights so it's obvious where it went.
+Whenever a duel/bracket session
 finishes, if the winning commander isn't already a candidate for its
 color combo, the results screen offers a one-click "Add {commander} as
 an option for {combo}?" nudge -- purely additive, it never overwrites
@@ -300,10 +303,15 @@ only) -- all three of the last also include `winner_challenge_slug`,
 default 100, `?colors=`/`?color_mode=` same as `/api/pool`), `DELETE
 /api/leaderboard` (permanently erases all-time ratings -- the web UI
 confirms before calling this, the API itself doesn't ask), `GET
-/api/challenge` (all 32 combo entries), `PUT /api/challenge/{slug}`
-(`{"status": ..., "notes": ...}`), `POST
-/api/challenge/{slug}/commanders` (`{"commander_name": ...}`, add a
-candidate), `DELETE /api/challenge/{slug}/commanders/{name}`, `POST
+/api/challenge` (all 32 combo entries, each candidate enriched with
+`image_urls`/`color_identity` from the catalog when available), `PUT
+/api/challenge/{slug}` (`{"status": ..., "notes": ...}`), `POST
+/api/challenge/commanders` (`{"commander_name": ..., "color_identity": ...}`
+-- adds to whichever combo that color identity maps to, used by the
+web UI's single search box; 422 on an identity that doesn't parse),
+`POST /api/challenge/{slug}/commanders` (`{"commander_name": ...}`, add
+a candidate to a specific known combo directly), `DELETE
+/api/challenge/{slug}/commanders/{name}`, `POST
 /api/challenge/{slug}/commanders/{name}/choose` (marks one candidate
 chosen, unmarking any previous one for that combo).
 

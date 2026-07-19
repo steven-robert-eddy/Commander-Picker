@@ -708,7 +708,13 @@ header {
 .challenge-row {
   padding: 12px 4px;
   border-bottom: 1px solid var(--border);
+  border-radius: 8px;
+  transition: background 0.4s ease;
 }
+/* Briefly pulses after the top search box adds a candidate here, so
+   it's obvious which of the 32 rows it landed in -- see app.js
+   highlightChallengeRow. */
+.challenge-row-highlight { background: var(--accent-soft); }
 .challenge-row:last-child { border-bottom: none; }
 .challenge-row-header {
   display: flex;

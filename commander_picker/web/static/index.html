@@ -131,6 +131,19 @@
         combo's status and keep a short shortlist of commanders you're
         considering for it, with one optionally marked as your pick.
       </p>
+      <div class="panel">
+        <div class="filter-label">Add a commander</div>
+        <div class="autocomplete-wrap">
+          <input type="text" id="challenge-search-input" class="num-input" placeholder="Search by name…" autocomplete="off" />
+          <div class="autocomplete-dropdown hidden" id="challenge-search-results"></div>
+        </div>
+        <!--
+          Single search box, not one per combo -- a commander's own
+          color identity determines which combo it belongs to (see
+          app.js's addChallengeCommanderAuto), so there's no "which
+          row's search box" decision to make.
+        -->
+      </div>
       <div class="panel" id="challenge-list"></div>
       <button class="ghost-btn" id="challenge-back-btn" type="button">← Back to filters</button>
     </section>

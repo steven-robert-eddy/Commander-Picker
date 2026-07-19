@@ -192,10 +192,20 @@ for card art. Standalone project — no dependency on the sibling
   `_enrich_challenge_entries` joins this in at the API layer for
   `GET /api/challenge`, degrading gracefully to no-art if a name has no
   catalog match or the catalog isn't built yet). Manually adding a
-  candidate now reuses the exact same search-as-you-type autocomplete
-  as the custom-list feature (`GET /api/commanders/search`) instead of
-  a freeform text field -- one dropdown/debounce per combo row instead
-  of a single shared one, since element IDs can't repeat 32 times.
+  candidate reuses the exact same search-as-you-type autocomplete as
+  the custom-list feature (`GET /api/commanders/search`). Initially
+  built as one dropdown per combo row (32 separate scoped searches),
+  then simplified per user feedback to a **single search box** at the
+  top of the screen instead: a new `POST /api/challenge/commanders`
+  (`{"commander_name", "color_identity"}`) determines which of the 32
+  combos a result belongs to itself, via `colors.slug_for_colors` on
+  the color identity the search result already carries -- no "which
+  row's search box" decision for the user, since a commander's own
+  colors are what decide that. The row it lands in briefly highlights
+  (`app.js`'s `highlightChallengeRow`) so it's obvious where it went.
+  The per-slug `POST /api/challenge/{slug}/commanders` endpoint stays
+  too (still used by the results-screen nudge, which already knows the
+  exact slug from `winner_challenge_slug`).
 - **Persistent, cross-session ratings**: a commander's Elo carries
   forward from session to session via a `commander_ratings` table in
   `sessions.db`, instead of resetting to 1000 every time. An all-time
