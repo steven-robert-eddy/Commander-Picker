@@ -263,11 +263,16 @@ above the duel cards, and the final screen shows the champion plus the
 full bracket instead of a rating-sorted list.
 
 **32-deck challenge →** (filter screen) tracks a deck for all 32
-color-identity combinations (colorless through five-color). Each combo
-gets a status (not started / planning / building / complete) and a
-short shortlist of candidate commanders you're considering, with one
-optionally starred as your pick -- not a single locked-in name, since
-narrowing down is part of the planning. Whenever a duel/bracket session
+color-identity combinations, ordered mono → guild → shard/wedge →
+four-color → five-color → colorless (rather than alphabetically).
+Each combo gets a status (not started / planning / building /
+complete) and a short shortlist of candidate commanders you're
+considering, with one optionally starred as your pick -- not a single
+locked-in name, since narrowing down is part of the planning. Each
+candidate shows its actual card art (when available) and color pips,
+not just a name. Add one by typing into the search box under a combo
+-- same name/colors/deck-count autocomplete as the custom-list feature
+above, not a plain freeform text field. Whenever a duel/bracket session
 finishes, if the winning commander isn't already a candidate for its
 color combo, the results screen offers a one-click "Add {commander} as
 an option for {combo}?" nudge -- purely additive, it never overwrites

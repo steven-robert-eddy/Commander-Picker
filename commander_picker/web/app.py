@@ -349,10 +349,38 @@ def api_reset_leaderboard():
     return {"ok": True}
 
 
+def _enrich_challenge_entries(entries: list) -> list[dict]:
+    """Attach image_urls/color_identity to each entry's candidates, for
+    a card-art view instead of plain text -- challenge_commanders only
+    stores names, so this looks them up against the catalog DB
+    separately. Missing/unreachable catalog data degrades gracefully
+    (no art, not an error) rather than breaking the whole screen.
+    """
+    all_names = {c.name for e in entries for c in e.commanders}
+    images_by_name: dict[str, dict] = {}
+    if all_names:
+        try:
+            with _catalog_conn() as conn:
+                images_by_name = pool_module.commander_images_by_name(conn, list(all_names))
+        except HTTPException:
+            pass  # no catalog yet -- candidates just render without art
+
+    result = []
+    for e in entries:
+        d = asdict(e)
+        for c in d["commanders"]:
+            info = images_by_name.get(c["name"], {})
+            c["image_urls"] = info.get("image_urls", [])
+            c["color_identity"] = info.get("color_identity")
+        result.append(d)
+    return result
+
+
 @app.get("/api/challenge")
 def api_get_challenge():
     with _sessions_conn() as conn:
-        return {"entries": [asdict(e) for e in sessions.get_challenge_tracker(conn)]}
+        entries = sessions.get_challenge_tracker(conn)
+    return {"entries": _enrich_challenge_entries(entries)}
 
 
 class ChallengeStatusBody(BaseModel):

@@ -285,3 +285,21 @@ def test_list_known_themes_empty_when_no_themes():
     _insert(conn, "No Themes Commander", "BR", 1000)
     conn.commit()
     assert pool.list_known_themes(conn) == []
+
+
+def test_commander_images_by_name_returns_matches_only(conn):
+    conn.execute(
+        "UPDATE commanders SET image_urls = ? WHERE name = 'Big Rakdos'",
+        ('["https://example.com/big-rakdos.jpg"]',),
+    )
+    conn.commit()
+
+    result = pool.commander_images_by_name(conn, ["Big Rakdos", "Not A Real Commander"])
+
+    assert set(result) == {"Big Rakdos"}
+    assert result["Big Rakdos"]["image_urls"] == ["https://example.com/big-rakdos.jpg"]
+    assert result["Big Rakdos"]["color_identity"] == "BR"
+
+
+def test_commander_images_by_name_empty_list_returns_empty_dict(conn):
+    assert pool.commander_images_by_name(conn, []) == {}

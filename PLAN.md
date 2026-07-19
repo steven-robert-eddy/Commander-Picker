@@ -179,7 +179,23 @@ for card art. Standalone project — no dependency on the sibling
   per the user's request (status + a shortlist, not a single locked-in
   commander) with `notes` already in the schema for a future richer-
   planning pass (decklist link, budget, completion date) without a
-  migration.
+  migration. Follow-up pass, per user feedback:
+  `colors.py::all_slugs()` now orders mono -> guild -> shard/wedge ->
+  four-color -> five-color -> colorless (`_ordering_key`, count-based
+  with colorless sorting last) instead of alphabetically -- affects
+  every consumer of `all_slugs()` (CLI's `list-colors`, the challenge
+  tracker, `edhrec_client.fetch_all_pages`'s default color-fetch order),
+  all cosmetic-only changes elsewhere. Candidates now show real card art
+  (new `pool.commander_images_by_name` bulk-looks-up image_urls/
+  color_identity by name against the catalog DB, since
+  `challenge_commanders` only stores names -- `web/app.py`'s
+  `_enrich_challenge_entries` joins this in at the API layer for
+  `GET /api/challenge`, degrading gracefully to no-art if a name has no
+  catalog match or the catalog isn't built yet). Manually adding a
+  candidate now reuses the exact same search-as-you-type autocomplete
+  as the custom-list feature (`GET /api/commanders/search`) instead of
+  a freeform text field -- one dropdown/debounce per combo row instead
+  of a single shared one, since element IDs can't repeat 32 times.
 - **Persistent, cross-session ratings**: a commander's Elo carries
   forward from session to session via a `commander_ratings` table in
   `sessions.db`, instead of resetting to 1000 every time. An all-time

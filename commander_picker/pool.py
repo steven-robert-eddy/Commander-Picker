@@ -209,6 +209,33 @@ def search_commanders(conn: sqlite3.Connection, query: str, limit: int = 20):
     ).fetchall()
 
 
+def commander_images_by_name(conn: sqlite3.Connection, names: list[str]) -> dict[str, dict]:
+    """Bulk lookup of image_urls/color_identity by exact commander name.
+
+    For enriching a list of names sourced from elsewhere (e.g. the
+    32-deck challenge tracker's candidate shortlist, which only stores
+    names) with card art -- not full Commander objects, just enough to
+    render a thumbnail + pips. A name with no catalog match (deleted
+    from EDHREC, a typo, a card not in this catalog's colors/themes
+    scope) is simply omitted -- callers should treat a missing entry as
+    "no art available," not an error.
+    """
+    if not names:
+        return {}
+    placeholders = ",".join("?" * len(names))
+    rows = conn.execute(
+        f"SELECT name, image_urls, color_identity FROM commanders WHERE name IN ({placeholders})",
+        names,
+    ).fetchall()
+    return {
+        row["name"]: {
+            "image_urls": json.loads(row["image_urls"]) if row["image_urls"] else [],
+            "color_identity": row["color_identity"],
+        }
+        for row in rows
+    }
+
+
 def commanders_by_names(conn: sqlite3.Connection, names: list[str]) -> list[Commander]:
     """Exact-name lookup for custom lists -- bypasses filtering entirely.
 

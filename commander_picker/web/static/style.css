@@ -728,36 +728,60 @@ header {
 }
 .challenge-commanders {
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
   gap: 6px;
   margin-top: 8px;
 }
+/* Card-style row (thumbnail + pips/name), not a plain text chip --
+   mirrors .rank-row's thumbnail treatment on the results/leaderboard
+   screens, just more compact. */
 .challenge-candidate {
-  display: inline-flex;
+  display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 8px;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-alt);
 }
 .challenge-candidate.chosen {
   border-color: var(--primary);
-  color: var(--primary);
   background: var(--primary-soft);
 }
+.challenge-candidate-thumb-group { display: flex; gap: 2px; flex-shrink: 0; }
+.challenge-candidate-thumb {
+  width: 28px;
+  height: 39px; /* real Magic card ratio (63/88), same as .rank-thumb */
+  border-radius: 3px;
+  object-fit: cover;
+  flex-shrink: 0;
+  background: var(--bg);
+}
+.challenge-candidate-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.challenge-candidate-name { font-size: 0.88rem; overflow-wrap: break-word; }
+.challenge-candidate-actions { display: flex; gap: 8px; flex-shrink: 0; }
 .challenge-choose-btn,
 .challenge-remove-btn {
   background: none;
   border: none;
   padding: 0;
-  font-size: 0.85rem;
+  font-size: 0.9rem;
   cursor: pointer;
   color: inherit;
   line-height: 1;
 }
 .challenge-add-row {
-  display: flex;
-  gap: 8px;
+  position: relative;
   margin-top: 8px;
 }
-.challenge-add-input { flex: 1; width: auto; text-align: left; }
+.challenge-add-input { width: 100%; text-align: left; }
 
 /* Results-screen 32-deck-challenge nudge -- purely additive, see app.js
    maybeShowChallengeNudge. */

@@ -116,6 +116,20 @@ def slug_for_colors(colors: str | tuple[str, ...]) -> str:
         raise UnknownColorIdentityError(f"No EDHREC slug known for colors {colors!r}") from None
 
 
+def _ordering_key(colors: tuple[str, ...]) -> tuple:
+    # Starts with the 5 mono colors (in WUBRG order), then guilds,
+    # shards/wedges, four-color, five-color -- colorless sorts last
+    # (a count of 6, past five-color) rather than first, since it's the
+    # one combo that isn't really "a color" for planning purposes like
+    # the 32-deck challenge tracker.
+    count = len(colors) if colors else 6
+    return (count, tuple(WUBRG.index(c) for c in colors))
+
+
 def all_slugs() -> list[str]:
-    """All 32 color-identity slugs, colorless through five-color."""
-    return sorted(set(SLUGS_BY_COLOR_IDENTITY.values()))
+    """All 32 color-identity slugs, ordered mono -> guild -> shard/wedge
+    -> four-color -> five-color -> colorless (see _ordering_key)."""
+    return [
+        slug
+        for _, slug in sorted((_ordering_key(colors), slug) for colors, slug in SLUGS_BY_COLOR_IDENTITY.items())
+    ]

@@ -496,6 +496,21 @@ def test_get_challenge_returns_32_entries(client):
     assert all(e["status"] == "not_started" for e in entries)
 
 
+def test_get_challenge_enriches_candidates_with_catalog_art(client):
+    client.post("/api/challenge/rakdos/commanders", json={"commander_name": "Rakdos, Lord of Riots"})
+    client.post("/api/challenge/rakdos/commanders", json={"commander_name": "Not In Catalog"})
+
+    entries = client.get("/api/challenge").json()["entries"]
+    rakdos = next(e for e in entries if e["slug"] == "rakdos")
+    by_name = {c["name"]: c for c in rakdos["commanders"]}
+
+    assert by_name["Rakdos, Lord of Riots"]["color_identity"] == "BR"
+    assert isinstance(by_name["Rakdos, Lord of Riots"]["image_urls"], list)
+    # A candidate with no catalog match still renders -- just no art.
+    assert by_name["Not In Catalog"]["image_urls"] == []
+    assert by_name["Not In Catalog"]["color_identity"] is None
+
+
 def test_put_challenge_status_round_trips(client):
     resp = client.put("/api/challenge/rakdos", json={"status": "planning", "notes": "hmm"})
     assert resp.status_code == 200

@@ -34,3 +34,16 @@ def test_unknown_color_letter_raises():
 
 def test_all_slugs_has_32_unique_entries():
     assert len(all_slugs()) == 32
+
+
+def test_all_slugs_starts_with_mono_colors_and_ends_with_colorless():
+    slugs = all_slugs()
+    assert slugs[:5] == ["mono-white", "mono-blue", "mono-black", "mono-red", "mono-green"]
+    assert slugs[-1] == "colorless"
+
+
+def test_all_slugs_orders_by_color_count_then_five_color_before_colorless():
+    slugs = all_slugs()
+    assert slugs.index("mono-red") < slugs.index("rakdos") < slugs.index("jund")
+    assert slugs.index("jund") < slugs.index("yore-tiller") < slugs.index("five-color")
+    assert slugs.index("five-color") < slugs.index("colorless")

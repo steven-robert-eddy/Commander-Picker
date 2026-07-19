@@ -800,20 +800,32 @@
             </div>
             <div class="challenge-commanders">
               ${e.commanders
-                .map(
-                  (c, i) => `
-                    <span class="chip challenge-candidate ${c.is_chosen ? "chosen" : ""}" data-idx="${i}">
-                      <button type="button" class="challenge-choose-btn" title="Mark as chosen">${c.is_chosen ? "★" : "☆"}</button>
-                      ${c.name}
-                      <button type="button" class="challenge-remove-btn" title="Remove">✕</button>
-                    </span>
-                  `
-                )
+                .map((c, i) => {
+                  const hasArt = c.image_urls && c.image_urls.length;
+                  const thumb = hasArt
+                    ? `<div class="challenge-candidate-thumb-group">${c.image_urls
+                        .map((url) => `<img class="challenge-candidate-thumb" src="${url}" alt="" loading="lazy" onerror="this.remove()" />`)
+                        .join("")}</div>`
+                    : "";
+                  return `
+                    <div class="challenge-candidate ${c.is_chosen ? "chosen" : ""}" data-idx="${i}">
+                      ${thumb}
+                      <div class="challenge-candidate-info">
+                        ${pipsHTML(c.color_identity || "")}
+                        <span class="challenge-candidate-name">${c.name}</span>
+                      </div>
+                      <div class="challenge-candidate-actions">
+                        <button type="button" class="challenge-choose-btn" title="Mark as chosen">${c.is_chosen ? "★" : "☆"}</button>
+                        <button type="button" class="challenge-remove-btn" title="Remove">✕</button>
+                      </div>
+                    </div>
+                  `;
+                })
                 .join("")}
             </div>
             <div class="challenge-add-row">
-              <input type="text" class="num-input challenge-add-input" placeholder="Add a commander…" />
-              <button type="button" class="ghost-btn challenge-add-btn">+ Add</button>
+              <input type="text" class="num-input challenge-add-input" placeholder="Search commanders to add…" autocomplete="off" />
+              <div class="autocomplete-dropdown hidden challenge-add-results"></div>
             </div>
           </div>
         `
@@ -832,9 +844,9 @@
         }
       });
 
-      row.querySelectorAll(".challenge-candidate").forEach((chip) => {
-        const candidate = entry.commanders[Number(chip.dataset.idx)];
-        chip.querySelector(".challenge-choose-btn").addEventListener("click", async () => {
+      row.querySelectorAll(".challenge-candidate").forEach((card) => {
+        const candidate = entry.commanders[Number(card.dataset.idx)];
+        card.querySelector(".challenge-choose-btn").addEventListener("click", async () => {
           try {
             await api(
               "POST",
@@ -845,7 +857,7 @@
             window.alert(e.message);
           }
         });
-        chip.querySelector(".challenge-remove-btn").addEventListener("click", async () => {
+        card.querySelector(".challenge-remove-btn").addEventListener("click", async () => {
           try {
             await api(
               "DELETE",
@@ -858,17 +870,67 @@
         });
       });
 
-      const addInput = row.querySelector(".challenge-add-input");
-      row.querySelector(".challenge-add-btn").addEventListener("click", async () => {
-        const name = addInput.value.trim();
-        if (!name) return;
-        try {
-          await api("POST", `/api/challenge/${encodeURIComponent(slug)}/commanders`, { commander_name: name });
-          showChallenge();
-        } catch (e) {
-          window.alert(e.message);
+      wireChallengeAddSearch(row, slug, entry);
+    });
+  }
+
+  // Same search-as-you-type pattern as the custom-list feature's
+  // searchCommanders/#commander-search-results (see currentFiltersBody
+  // area above) -- reuses GET /api/commanders/search, scoped to this
+  // row's own input/dropdown (each of the 32 rows has its own) instead
+  // of a single shared element, since IDs can't repeat.
+  function wireChallengeAddSearch(row, slug, entry) {
+    const input = row.querySelector(".challenge-add-input");
+    const resultsEl = row.querySelector(".challenge-add-results");
+    let debounceTimer = null;
+
+    async function search() {
+      const q = input.value.trim();
+      if (!q) {
+        resultsEl.classList.add("hidden");
+        resultsEl.innerHTML = "";
+        return;
+      }
+      try {
+        const { results } = await api("GET", `/api/commanders/search?q=${encodeURIComponent(q)}`);
+        if (!results.length) {
+          resultsEl.innerHTML = '<div class="spinner-note" style="padding: 9px 12px;">No matches</div>';
+          resultsEl.classList.remove("hidden");
+          return;
         }
-      });
+        const alreadyAdded = new Set(entry.commanders.map((c) => c.name));
+        resultsEl.innerHTML = results
+          .map(
+            (r) => `
+              <button type="button" class="autocomplete-item" data-name="${r.name}" ${alreadyAdded.has(r.name) ? "disabled" : ""}>
+                ${pipsHTML(r.color_identity)}
+                <span>${r.name}${alreadyAdded.has(r.name) ? " (added)" : ""}</span>
+                <span class="autocomplete-item-decks">${r.num_decks.toLocaleString()} decks</span>
+              </button>
+            `
+          )
+          .join("");
+        resultsEl.querySelectorAll(".autocomplete-item").forEach((btn) => {
+          btn.addEventListener("click", async () => {
+            if (btn.disabled) return;
+            try {
+              await api("POST", `/api/challenge/${encodeURIComponent(slug)}/commanders`, { commander_name: btn.dataset.name });
+              showChallenge();
+            } catch (e) {
+              window.alert(e.message);
+            }
+          });
+        });
+        resultsEl.classList.remove("hidden");
+      } catch (e) {
+        resultsEl.innerHTML = `<div class="spinner-note" style="padding: 9px 12px;">${e.message}</div>`;
+        resultsEl.classList.remove("hidden");
+      }
+    }
+
+    input.addEventListener("input", () => {
+      clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(search, 250);
     });
   }
 
