@@ -492,6 +492,20 @@ header {
   color: var(--ink-faint);
   border: 1px solid var(--border);
 }
+/* EDHREC rank badge -- reuses .tag's pill styling, just its own class
+   so it can sit apart from the theme-tags row (see cardInnerHTML). */
+.rank-tag { display: inline-block; margin-top: 6px; }
+
+/* Mana cost (Scryfall symbol SVGs, see manaCostHTML in app.js) / type
+   line -- shown between the card name and the deck-count stats. Only
+   one of the two ever renders for a given card (type line is the
+   fallback when there's no mana cost to show, e.g. vehicles). */
+.mana-cost { display: flex; gap: 3px; }
+.type-line {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  color: var(--ink-faint);
+}
 
 .duel-actions {
   display: flex;
@@ -756,6 +770,22 @@ footer code {
   box-shadow: 0 24px 60px -12px rgba(0, 0, 0, 0.6);
   object-fit: contain;
 }
+.lightbox-links {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+}
+.lightbox-links a {
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--lightbox-border);
+  color: var(--lightbox-ink);
+  text-decoration: none;
+}
+.lightbox-links a:hover { background: rgba(255, 255, 255, 0.1); }
 .lightbox-close {
   position: absolute;
   top: 18px;

@@ -38,27 +38,30 @@ commander-picker update-data
 ```
 
 This also (re)builds `data/commanders.db`, a SQLite database with one
-row per commander (name, color identity, deck count, EDHREC salt
-score, URL) plus a `commander_themes` table recording which
+row per commander (name, color identity, deck count, rank on the page
+it was found on, URL) plus a `commander_themes` table recording which
 archetype/theme pages each commander appeared on.
 
 This also fetches Scryfall's card-art data (a separate, larger
 download — Scryfall's full `oracle_cards` bulk file) and populates
-each commander's `image_urls`, used by the web UI's duel cards and
-results ledger. Most commanders get one image; Partner/Background
-pairs (EDHREC's "A // B" combined name) and double-faced/transform
-commanders get two, shown side by side — the two halves of a
-partner pair are separate Scryfall cards, while a transform card's
-front and back are two faces of the same card.
+each commander's `image_urls`, mana cost, type line, and USD price,
+used by the web UI's duel cards, price filter, and results ledger.
+Most commanders get one image; Partner/Background pairs (EDHREC's
+"A // B" combined name) and double-faced/transform commanders get two,
+shown side by side — the two halves of a partner pair are separate
+Scryfall cards (their prices summed, their mana costs/type lines
+joined with " // "), while a transform card's front and back are two
+faces of the same card.
 
 Useful flags:
 
 - `--force` — bypass the freshness cache and re-fetch everything.
 - `--colors azorius,rakdos` — only fetch/rebuild specific color slugs.
 - `--themes tokens,aristocrats` — only fetch/rebuild specific theme slugs.
-- `--skip-images` — skip the Scryfall card-art fetch (faster, no images
-  in the web UI). A failed Scryfall fetch (e.g. unreachable) doesn't
-  abort the run either way — you just end up without images.
+- `--skip-images` — skip the Scryfall fetch entirely (faster, no images,
+  mana cost, type line, or price in the web UI). A failed Scryfall fetch
+  (e.g. unreachable) doesn't abort the run either way — you just end up
+  without that data.
 
 To see the full list of recognized slugs:
 
@@ -84,6 +87,9 @@ commander-picker pool --colors BRG --color-mode subset --max-decks 10000 --theme
   `--colors`, the default) or `exact` (identity must match exactly).
 - `--max-decks` / `--min-decks` — deck-count range (default: max
   10,000, no minimum) — this is the "underbuilt commander" filter.
+- `--max-price` — USD price ceiling, from Scryfall's bulk data (default:
+  no price filter). A commander with no price data (e.g. an unresolved
+  Partner/Background half) is never excluded by this, even when it's set.
 - `--themes` — comma-separated theme slugs to filter by.
 - `--themes-mode` — `any` (OR, default) or `all` (AND) across
   `--themes`.
@@ -171,15 +177,24 @@ commander-picker serve
 Then open http://127.0.0.1:8000. Filter by color — with a toggle for
 **any combo within your selected colors** (picking B+R shows mono-B,
 mono-R, and BR) vs. **exact colors only** (picking B+R shows only BR)
-— an exact-or-slider-adjusted deck-count ceiling, and an editable duel
-pool size (the live preview shows both the total commanders matching
-your filters and how many will actually be sampled into the duel —
-the two can differ once a filter matches more than the pool size).
-Tap through duels — with card art when Scryfall images are available
-— and see final standings. Same Elo engine and `data/sessions.db` as
+— an exact-or-slider-adjusted deck-count ceiling, an opt-in price
+ceiling (commanders with no price data are never excluded, even with
+the filter set), an archetype/theme filter, and an editable duel pool
+size (the live preview shows both the total commanders matching your
+filters and how many will actually be sampled into the duel — the two
+can differ once a filter matches more than the pool size). Tap through
+duels — with card art, mana cost, and an EDHREC rank badge when that
+data is available — and see final standings. Press `1`/`2` or the
+arrow keys to pick a duel card instead of tapping, if you'd rather use
+the keyboard. Same Elo engine and `data/sessions.db` as
 `play`/`resume`/`results`, so sessions started in one are visible from
 the other. Flags: `--host`, `--port`, `--reload` (auto-restart on code
 changes, for development).
+
+Tap a ranked commander (on the results screen or the all-time
+leaderboard) to see its card(s) full size in a lightbox, with links to
+view it on EDHREC, or search for it on Moxfield/Archidekt to start
+building.
 
 A **Duel / Bracket** toggle on the filter screen switches to bracket
 mode (see "Bracket mode" above) -- picking Bracket swaps the free pool-size

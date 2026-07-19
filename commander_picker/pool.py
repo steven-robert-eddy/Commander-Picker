@@ -30,7 +30,10 @@ class Commander:
     themes: tuple[str, ...]
     salt: float | None = None
     image_urls: list = field(default_factory=list)  # 2 entries for partner pairs / DFCs, else 0 or 1
-    price: float | None = None  # never populated -- see db.py::CommanderRecord
+    price: float | None = None  # from Scryfall's bulk data, see db.py's card_meta_lookup
+    rank: int | None = None  # this commander's rank on the color/theme page it was found on
+    mana_cost: str | None = None  # Scryfall shorthand, e.g. "{2}{B}{R}" -- from card_meta_lookup
+    type_line: str | None = None  # from Scryfall's card_meta_lookup
 
 
 @dataclass
@@ -41,9 +44,13 @@ class PoolFilters:
     min_decks: int | None = None
     themes: tuple[str, ...] = ()
     themes_mode: str = "any"  # "any" (OR) or "all" (AND)
-    # max_price is deliberately not a field here -- price is never
-    # populated (always NULL), so a real filter would silently exclude
-    # every commander. Add it if/when price gets populated.
+    # Opt-in, unlike max_decks's always-on-but-generous default -- many
+    # commanders (esp. Partner/Background pairs missing one half's
+    # Scryfall match) have no price data at all, so a commander with
+    # price=None is never excluded by this filter even when it's set
+    # (see _filtered_candidates): "we don't know" is friendlier than
+    # silently shrinking the pool over a data gap.
+    max_price: float | None = None
 
 
 def _color_identity_matches(color_identity: str, allowed: set[str], mode: str) -> bool:
@@ -85,7 +92,8 @@ def _filtered_candidates(conn: sqlite3.Connection, filters: PoolFilters) -> list
 
     candidates = []
     for row in conn.execute(
-        "SELECT name, color_identity, num_decks, edhrec_url, salt, image_urls, price FROM commanders"
+        "SELECT name, color_identity, num_decks, edhrec_url, salt, image_urls, price, rank, mana_cost, type_line "
+        "FROM commanders"
     ):
         if allowed_colors is not None and not _color_identity_matches(
             row["color_identity"], allowed_colors, filters.color_mode
@@ -94,6 +102,9 @@ def _filtered_candidates(conn: sqlite3.Connection, filters: PoolFilters) -> list
         if filters.max_decks is not None and row["num_decks"] > filters.max_decks:
             continue
         if filters.min_decks is not None and row["num_decks"] < filters.min_decks:
+            continue
+        # Permissive on missing data -- see PoolFilters.max_price's comment.
+        if filters.max_price is not None and row["price"] is not None and row["price"] > filters.max_price:
             continue
 
         commander_themes = themes_by_commander.get(row["name"], set())
@@ -116,6 +127,9 @@ def _filtered_candidates(conn: sqlite3.Connection, filters: PoolFilters) -> list
                 salt=row["salt"],
                 image_urls=json.loads(row["image_urls"]) if row["image_urls"] else [],
                 price=row["price"],
+                rank=row["rank"],
+                mana_cost=row["mana_cost"],
+                type_line=row["type_line"],
             )
         )
     return candidates

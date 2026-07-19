@@ -96,6 +96,29 @@ def test_api_pool_too_small_returns_422(client):
     assert resp.status_code == 422
 
 
+def test_api_pool_max_price_filters(client, monkeypatch):
+    import sqlite3
+
+    conn = sqlite3.connect(db.DB_PATH)
+    conn.execute("UPDATE commanders SET price = 5.0 WHERE name = 'Rakdos, Lord of Riots'")
+    conn.execute("UPDATE commanders SET price = 80.0 WHERE name LIKE 'Krark%'")
+    conn.commit()
+    conn.close()
+
+    resp = client.post("/api/pool", json=_pool_body(max_decks=10000, max_price=10.0, min_pool_size=1))
+    assert resp.status_code == 200
+    names = {c["name"] for c in resp.json()["candidates"]}
+    assert names == {"Rakdos, Lord of Riots"}
+
+
+def test_api_pool_max_price_none_is_permissive_on_missing_price(client):
+    # Fixture commanders have no price data at all by default -- an
+    # active price filter must not exclude everything.
+    resp = client.post("/api/pool", json=_pool_body(max_decks=10000, max_price=1.0))
+    assert resp.status_code == 200
+    assert len(resp.json()["candidates"]) == 2
+
+
 def test_api_pool_no_catalog_returns_503(tmp_path, monkeypatch):
     monkeypatch.setattr(db, "DB_PATH", tmp_path / "nope.db")
     monkeypatch.setattr(sessions, "SESSIONS_DB_PATH", tmp_path / "sessions.db")

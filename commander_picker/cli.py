@@ -37,18 +37,25 @@ def _cmd_update_data(args: argparse.Namespace) -> int:
             )
 
     image_lookup = None
+    card_meta_lookup = None
     if not args.skip_images:
-        print("Fetching Scryfall card images...")
+        print("Fetching Scryfall card details...")
         try:
             oracle_path = scryfall_client.fetch_oracle_cards(force=args.force)
             image_lookup = scryfall_client.build_image_lookup(oracle_path)
-            print(f"  {len(image_lookup)} card images available")
+            card_meta_lookup = scryfall_client.build_card_meta_lookup(oracle_path)
+            print(f"  {len(image_lookup)} card images, {len(card_meta_lookup)} card details available")
         except scryfall_client.ScryfallFetchError as exc:
-            print(f"  warning: couldn't fetch card images ({exc}) -- continuing without them", file=sys.stderr)
+            print(f"  warning: couldn't fetch card details ({exc}) -- continuing without them", file=sys.stderr)
 
     print("Building data/commanders.db...")
     try:
-        path = db.build_database(color_slugs=color_slugs, theme_slugs=theme_slugs, image_lookup=image_lookup)
+        path = db.build_database(
+            color_slugs=color_slugs,
+            theme_slugs=theme_slugs,
+            image_lookup=image_lookup,
+            card_meta_lookup=card_meta_lookup,
+        )
     except db.DbError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
@@ -96,6 +103,7 @@ def _filters_from_args(args: argparse.Namespace) -> pool.PoolFilters:
         min_decks=args.min_decks,
         themes=themes,
         themes_mode=args.themes_mode,
+        max_price=args.max_price,
     )
 
 
@@ -398,6 +406,13 @@ def _add_pool_filter_args(parser: argparse.ArgumentParser) -> None:
     )
     parser.add_argument("--max-decks", type=int, default=pool.DEFAULT_MAX_DECKS, help="deck-count ceiling (default: 10000)")
     parser.add_argument("--min-decks", type=int, default=None, help="deck-count floor (default: none)")
+    parser.add_argument(
+        "--max-price",
+        type=float,
+        default=None,
+        help="USD price ceiling, from Scryfall data (default: no price filter). "
+        "Commanders with no price data are never excluded by this.",
+    )
     parser.add_argument("--themes", help="comma-separated theme slugs to filter by (default: none)")
     parser.add_argument(
         "--themes-mode",
@@ -417,7 +432,11 @@ def build_parser() -> argparse.ArgumentParser:
     update.add_argument("--force", action="store_true", help="bypass the freshness cache")
     update.add_argument("--colors", help="comma-separated color slugs to fetch (default: all)")
     update.add_argument("--themes", help="comma-separated theme slugs to fetch (default: all)")
-    update.add_argument("--skip-images", action="store_true", help="skip fetching Scryfall card images")
+    update.add_argument(
+        "--skip-images",
+        action="store_true",
+        help="skip fetching Scryfall card details (images, mana cost, type line, price)",
+    )
     update.set_defaults(func=_cmd_update_data)
 
     pool_cmd = subparsers.add_parser("pool", help="preview a filtered candidate pool")

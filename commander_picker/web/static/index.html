@@ -43,14 +43,19 @@
         </div>
 
         <!--
-          Archetype/theme filtering is hidden for now, not removed --
-          EDHREC's tag pages only expose a shallow (~30 commander)
-          "top commanders" list per archetype regardless of color
-          filtering, unlike the much deeper color pages we paginate.
-          Not much signal to filter on yet. The backend/CLI (`pool
-          --themes`, `play --themes`) still fully supports it -- easy
-          to bring back here if EDHREC's data or our sourcing improves.
+          Opt-in, unlike the deck-count ceiling above -- the slider's max
+          value means "no price filter" (see app.js's priceSlider wiring),
+          since plenty of commanders have no Scryfall price data at all.
         -->
+        <div class="filter-label">Max price (USD)</div>
+        <div class="deck-range">
+          <input type="range" id="max-price-slider" min="0" max="200" step="1" value="200" />
+          <input type="number" id="max-price-input" class="num-input" min="0" max="200" step="1" value="200" inputmode="numeric" />
+        </div>
+        <span class="pool-size-hint" id="max-price-hint">No limit</span>
+
+        <div class="filter-label">Archetype/theme</div>
+        <div class="filter-row" id="theme-chips"></div>
 
         <div class="filter-label" id="pool-size-label-row">Duel pool size</div>
         <div class="pool-size-row" id="pool-size-row">
@@ -96,7 +101,7 @@
         <!-- Hidden in bracket mode -- no meaningful "finish early" when
              there's no partial champion, see app.js startSession. -->
         <button class="ghost-btn" id="finish-btn">Finish now →</button>
-        <span class="ghost-btn" style="cursor:default;">tap a card to pick</span>
+        <span class="ghost-btn" style="cursor:default;">tap a card to pick (or press 1/2)</span>
       </div>
     </section>
 
@@ -148,6 +153,7 @@
     <button class="lightbox-close" id="lightbox-close" aria-label="Close">✕</button>
     <div class="lightbox-name" id="lightbox-name"></div>
     <div class="lightbox-images" id="lightbox-images"></div>
+    <div class="lightbox-links" id="lightbox-links"></div>
   </div>
 
   <script src="/static/app.js"></script>

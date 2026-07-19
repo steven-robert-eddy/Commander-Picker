@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from commander_picker import db, edhrec_client
+from commander_picker import db, edhrec_client, scryfall_client
 
 FIXTURES = Path(__file__).parent / "fixtures"
 
@@ -38,6 +38,7 @@ def test_load_commanders_merges_color_and_theme_data(populated_cache):
     valgavoth = commanders["Valgavoth, Harrower of Souls"]
     assert valgavoth.color_identity == ("B", "R")
     assert valgavoth.num_decks == 28969
+    assert valgavoth.rank == 1
     assert valgavoth.themes == set()  # not on the aristocrats theme fixture
 
     rakdos_lor = commanders["Rakdos, Lord of Riots"]
@@ -125,5 +126,66 @@ def test_build_database_without_image_lookup_leaves_image_urls_empty(populated_c
     try:
         rows = conn.execute("SELECT image_urls FROM commanders").fetchall()
         assert all(json.loads(r["image_urls"]) == [] for r in rows)
+    finally:
+        conn.close()
+
+
+def test_build_database_writes_rank(populated_cache):
+    db_path = populated_cache / "commanders.db"
+
+    db.build_database(color_slugs=["rakdos"], theme_slugs=["aristocrats"], db_path=db_path)
+
+    conn = db.connect(db_path=db_path)
+    try:
+        row = conn.execute(
+            "SELECT rank FROM commanders WHERE name = 'Valgavoth, Harrower of Souls'"
+        ).fetchone()
+        assert row["rank"] == 1
+    finally:
+        conn.close()
+
+
+def test_build_database_populates_card_meta_from_lookup(populated_cache):
+    db_path = populated_cache / "commanders.db"
+    card_meta_lookup = {
+        "Rakdos, Lord of Riots": scryfall_client.CardMeta(
+            mana_cost="{2}{B}{R}", type_line="Legendary Creature — Devil", price_usd=5.5
+        ),
+    }
+
+    db.build_database(
+        color_slugs=["rakdos"],
+        theme_slugs=["aristocrats"],
+        db_path=db_path,
+        card_meta_lookup=card_meta_lookup,
+    )
+
+    conn = db.connect(db_path=db_path)
+    try:
+        row = conn.execute(
+            "SELECT mana_cost, type_line, price FROM commanders WHERE name = 'Rakdos, Lord of Riots'"
+        ).fetchone()
+        assert row["mana_cost"] == "{2}{B}{R}"
+        assert row["type_line"] == "Legendary Creature — Devil"
+        assert row["price"] == 5.5
+
+        no_meta_row = conn.execute(
+            "SELECT mana_cost, price FROM commanders WHERE name = 'Valgavoth, Harrower of Souls'"
+        ).fetchone()
+        assert no_meta_row["mana_cost"] is None
+        assert no_meta_row["price"] is None
+    finally:
+        conn.close()
+
+
+def test_build_database_without_card_meta_lookup_leaves_fields_null(populated_cache):
+    db_path = populated_cache / "commanders.db"
+
+    db.build_database(color_slugs=["rakdos"], theme_slugs=["aristocrats"], db_path=db_path)
+
+    conn = db.connect(db_path=db_path)
+    try:
+        rows = conn.execute("SELECT mana_cost, type_line, price FROM commanders").fetchall()
+        assert all(r["mana_cost"] is None and r["type_line"] is None and r["price"] is None for r in rows)
     finally:
         conn.close()

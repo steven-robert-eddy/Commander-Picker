@@ -19,7 +19,10 @@ def _make_conn():
             salt REAL,
             edhrec_url TEXT,
             image_urls TEXT,
-            price REAL
+            price REAL,
+            rank INTEGER,
+            mana_cost TEXT,
+            type_line TEXT
         );
         CREATE TABLE commander_themes (
             commander_name TEXT NOT NULL,
@@ -31,10 +34,10 @@ def _make_conn():
     return conn
 
 
-def _insert(conn, name, color_identity, num_decks, themes=()):
+def _insert(conn, name, color_identity, num_decks, themes=(), price=None):
     conn.execute(
-        "INSERT INTO commanders (name, sanitized, color_identity, num_decks, edhrec_url) VALUES (?, ?, ?, ?, ?)",
-        (name, name.lower(), color_identity, num_decks, f"https://edhrec.com/commanders/{name.lower()}"),
+        "INSERT INTO commanders (name, sanitized, color_identity, num_decks, edhrec_url, price) VALUES (?, ?, ?, ?, ?, ?)",
+        (name, name.lower(), color_identity, num_decks, f"https://edhrec.com/commanders/{name.lower()}", price),
     )
     conn.executemany(
         "INSERT INTO commander_themes (commander_name, theme) VALUES (?, ?)",
@@ -191,3 +194,51 @@ def test_colorless_included_in_subset_when_c_explicitly_selected(conn):
     filters = pool.PoolFilters(colors="RC", color_mode="subset", max_decks=None)
     candidates = pool.build_pool(conn, filters, min_pool_size=1)
     assert "Colorless Golem" in {c.name for c in candidates}
+
+
+def test_max_price_excludes_commanders_priced_above_it():
+    conn = _make_conn()
+    _insert(conn, "Cheap Rakdos", "BR", 1000, price=5.0)
+    _insert(conn, "Pricey Rakdos", "BR", 1000, price=50.0)
+    conn.commit()
+
+    filters = pool.PoolFilters(max_decks=None, max_price=10.0)
+    candidates = pool.build_pool(conn, filters, min_pool_size=1)
+    assert {c.name for c in candidates} == {"Cheap Rakdos"}
+
+
+def test_max_price_none_means_no_price_filter(conn):
+    # Default PoolFilters().max_price is None -- fixture commanders have
+    # no price data at all, so this must not exclude everything.
+    candidates = pool.build_pool(conn, pool.PoolFilters(max_decks=None), min_pool_size=1)
+    assert len(candidates) == 7
+
+
+def test_max_price_is_permissive_on_missing_price_data():
+    # A commander with no price data (e.g. an unresolved Partner pair)
+    # should never be excluded by an active price filter -- "we don't
+    # know" is friendlier than silently shrinking the pool over a data gap.
+    conn = _make_conn()
+    _insert(conn, "No Price Data", "BR", 1000, price=None)
+    _insert(conn, "Pricey Rakdos", "BR", 1000, price=50.0)
+    conn.commit()
+
+    filters = pool.PoolFilters(max_decks=None, max_price=10.0)
+    candidates = pool.build_pool(conn, filters, min_pool_size=1)
+    assert {c.name for c in candidates} == {"No Price Data"}
+
+
+def test_commander_carries_rank_mana_cost_type_line():
+    conn = _make_conn()
+    conn.execute(
+        "INSERT INTO commanders (name, color_identity, num_decks, edhrec_url, rank, mana_cost, type_line) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?)",
+        ("Detailed Commander", "BR", 1000, "https://edhrec.com/commanders/detailed", 3, "{2}{B}{R}", "Legendary Creature — Devil"),
+    )
+    conn.commit()
+
+    candidates = pool.build_pool(conn, pool.PoolFilters(max_decks=None), min_pool_size=1)
+    detailed = next(c for c in candidates if c.name == "Detailed Commander")
+    assert detailed.rank == 3
+    assert detailed.mana_cost == "{2}{B}{R}"
+    assert detailed.type_line == "Legendary Creature — Devil"

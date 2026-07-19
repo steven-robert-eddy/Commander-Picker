@@ -51,6 +51,37 @@ for card art. Standalone project — no dependency on the sibling
   the full tree (every round's slots, seeded upfront so later rounds
   show "TBD" placeholders before they're reached) — see
   `sessions.create_session`/`record_bracket_pick`/`get_bracket`.
+- **Card details: rank, mana cost, type line, price** (`db.py`,
+  `scryfall_client.py`, `pool.py`): EDHREC's per-commander `rank` (its
+  position on the page it was found on) is captured alongside
+  `num_decks`; `scryfall_client.build_card_meta_lookup`/
+  `resolve_card_meta` extract mana cost, type line, and USD price from
+  the same bulk `oracle_cards.json` already downloaded for card art (a
+  second in-memory pass over that file, kept as an additive pair of
+  functions alongside `build_image_lookup`/`resolve_image_urls` rather
+  than merged into them, so neither's existing tests/call sites had to
+  change shape). Shown on duel cards as a rank badge and mana-cost pips
+  (reusing the same Scryfall symbol SVGs as color-identity pips). The
+  price filter (`PoolFilters.max_price`, CLI `--max-price`, web slider)
+  is opt-in and **permissive on missing price data** — a commander with
+  no price (common for unresolved Partner/Background halves) is never
+  excluded even when the filter is active, since "we don't know" is
+  friendlier than silently shrinking the pool over a data gap.
+- **Archetype/theme filter**: re-enabled in the web UI (was fully built
+  server-side and in the CLI already, just hidden behind a comment in
+  `index.html` pending better EDHREC sourcing — that judgment call was
+  revisited and it's back).
+- **Deckbuilder links**: the lightbox (opened from a results/leaderboard
+  row) shows "View on EDHREC" (reliable, uses the stored `edhrec_url`)
+  plus best-effort "Search Moxfield"/"Search Archidekt" links —
+  deliberately placed in the lightbox rather than on the duel screen's
+  card buttons or the clickable rank-list rows themselves, to avoid
+  nesting another tap target inside an existing one (see the mobile
+  reset-button bug from earlier in this project for why that's worth
+  avoiding). The Moxfield/Archidekt query-string format couldn't be
+  verified live from this sandbox — worth a click-test once deployed.
+- **Keyboard shortcuts**: `1`/`2` or the arrow keys pick a duel card on
+  the web UI, mirroring the CLI's `1`/`2` input.
 - **Persistent, cross-session ratings**: a commander's Elo carries
   forward from session to session via a `commander_ratings` table in
   `sessions.db`, instead of resetting to 1000 every time. An all-time
@@ -174,6 +205,46 @@ this project, not a play-by-play changelog.
   once it has more history) — considered while designing bracket mode's
   K-factor, but scoped out as orthogonal to that specific feature. Would
   apply to duel mode too, not just bracket.
+
+## Feature roadmap
+
+A broader UX brainstorm turned up 16 candidate features across four
+areas; the near-free ones (no new schema/infra) shipped as "Phase 1"
+(see the bullets above: card details/price filter, theme filter,
+deckbuilder links, keyboard shortcuts). The rest, sized for whenever
+they're picked up next:
+
+**Picker polish**
+- Undo last pick — medium, contained to `sessions.py` (revert both
+  candidates' ratings, the `comparisons` row, and the global rating bump
+  for the reverted pick).
+- Web UI session list/resume — medium. `resume` only exists in the CLI
+  today; the web UI has no way to pick back up a paused session.
+- Exclude recently-seen commanders across sessions — medium, already
+  covered above under "Session history across visits."
+
+**Social/competitive**
+- Shareable results/bracket link — medium, no auth needed since there's
+  none yet (a read-only URL for a finished session).
+- Shareable leaderboard URL — small-medium.
+- Champion share card (a nice summary after winning a bracket) — small.
+- Group/seasonal bracket multiple people vote into — large; explicitly
+  the first real step toward a public/multi-user version of this app,
+  deliberately deferred rather than bolted on ahead of real accounts.
+
+**Personalization**
+- Collection/favorites tracking ("I already own this") — medium, new
+  table (commander name -> owned/wishlist flag).
+- Saved filter presets — small-medium, new table (name -> serialized
+  `PoolFilters`).
+- AI "why this commander" blurb — large. Needs a live LLM API call:
+  an API key configured on the deployed service, and a real cost/latency
+  tradeoff to think through before committing to it.
+- Salt score filter — medium-large. Unlike rank/mana cost/price above,
+  EDHREC's salt score genuinely isn't on the color/theme list pages this
+  app scrapes at all — it lives on each commander's own detail page, so
+  this needs a whole new per-commander fetch, not just reading more
+  fields out of data already pulled.
 
 ## Known limitations
 

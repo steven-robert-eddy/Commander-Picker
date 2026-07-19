@@ -138,6 +138,9 @@ def _ensure_schema(conn: sqlite3.Connection) -> None:
             themes TEXT NOT NULL DEFAULT '',
             image_urls TEXT NOT NULL DEFAULT '[]',
             rating REAL NOT NULL,
+            rank INTEGER,
+            mana_cost TEXT,
+            type_line TEXT,
             PRIMARY KEY (session_id, commander_name)
         );
         CREATE TABLE IF NOT EXISTS comparisons (
@@ -166,6 +169,12 @@ def _ensure_schema(conn: sqlite3.Connection) -> None:
     existing_columns = {row["name"] for row in conn.execute("PRAGMA table_info(candidates)")}
     if "themes" not in existing_columns:
         conn.execute("ALTER TABLE candidates ADD COLUMN themes TEXT NOT NULL DEFAULT ''")
+    if "rank" not in existing_columns:
+        conn.execute("ALTER TABLE candidates ADD COLUMN rank INTEGER")
+    if "mana_cost" not in existing_columns:
+        conn.execute("ALTER TABLE candidates ADD COLUMN mana_cost TEXT")
+    if "type_line" not in existing_columns:
+        conn.execute("ALTER TABLE candidates ADD COLUMN type_line TEXT")
     if "image_urls" not in existing_columns:
         conn.execute("ALTER TABLE candidates ADD COLUMN image_urls TEXT NOT NULL DEFAULT '[]'")
         if "image_url" in existing_columns:
@@ -270,8 +279,9 @@ def create_session(
         (session_id, time.time(), description, target_rounds, mode),
     )
     conn.executemany(
-        "INSERT INTO candidates (session_id, commander_name, color_identity, num_decks, edhrec_url, themes, image_urls, rating) "
-        "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        "INSERT INTO candidates "
+        "(session_id, commander_name, color_identity, num_decks, edhrec_url, themes, image_urls, rating, rank, mana_cost, type_line) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         [
             (
                 session_id,
@@ -282,6 +292,9 @@ def create_session(
                 ",".join(c.themes),
                 json.dumps(list(c.image_urls)),
                 global_ratings.get(c.name, elo.DEFAULT_RATING),
+                c.rank,
+                c.mana_cost,
+                c.type_line,
             )
             for c in candidates
         ],
@@ -386,6 +399,9 @@ class CandidateDetail:
     themes: tuple[str, ...]
     image_urls: tuple[str, ...]
     rating: float
+    rank: int | None = None
+    mana_cost: str | None = None
+    type_line: str | None = None
 
 
 def get_candidates(conn: sqlite3.Connection, session_id: str) -> dict[str, CandidateDetail]:
@@ -401,6 +417,9 @@ def get_candidates(conn: sqlite3.Connection, session_id: str) -> dict[str, Candi
             themes=tuple(t for t in (r["themes"] or "").split(",") if t),
             image_urls=tuple(json.loads(r["image_urls"])) if r["image_urls"] else (),
             rating=r["rating"],
+            rank=r["rank"],
+            mana_cost=r["mana_cost"],
+            type_line=r["type_line"],
         )
         for r in rows
     }

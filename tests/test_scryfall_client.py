@@ -225,3 +225,88 @@ def test_resolve_image_urls_partner_pair_one_half_missing():
 
 def test_resolve_image_urls_no_match_returns_empty_list():
     assert scryfall_client.resolve_image_urls("Nonexistent Card", {}) == []
+
+
+def test_build_card_meta_lookup_reads_cost_type_price(tmp_path):
+    cards = [
+        {
+            "name": "Simple Card",
+            "mana_cost": "{2}{B}{R}",
+            "type_line": "Legendary Creature — Devil",
+            "prices": {"usd": "12.34", "usd_foil": "20.00"},
+        },
+        {"name": "No Price Card", "mana_cost": "{1}{G}", "type_line": "Creature — Bear", "prices": {"usd": None}},
+    ]
+    path = tmp_path / "oracle_cards.json"
+    path.write_text(json.dumps(cards))
+
+    lookup = scryfall_client.build_card_meta_lookup(path)
+
+    assert lookup["Simple Card"] == scryfall_client.CardMeta(
+        mana_cost="{2}{B}{R}", type_line="Legendary Creature — Devil", price_usd=12.34
+    )
+    assert lookup["No Price Card"].price_usd is None
+
+
+def test_build_card_meta_lookup_falls_back_to_usd_foil(tmp_path):
+    cards = [{"name": "Foil Only", "mana_cost": "{1}{W}", "type_line": "Creature — Human", "prices": {"usd": None, "usd_foil": "5.00"}}]
+    path = tmp_path / "oracle_cards.json"
+    path.write_text(json.dumps(cards))
+
+    lookup = scryfall_client.build_card_meta_lookup(path)
+
+    assert lookup["Foil Only"].price_usd == 5.00
+
+
+def test_build_card_meta_lookup_transform_card_uses_front_face_cost(tmp_path):
+    cards = [
+        {
+            "name": "Valki, God of Lies // Tibalt, Cosmic Impostor",
+            "type_line": "Legendary Creature — God // Legendary Planeswalker — Tibalt",
+            "card_faces": [
+                {"name": "Valki, God of Lies", "mana_cost": "{1}{B}", "type_line": "Legendary Creature — God"},
+                {"name": "Tibalt, Cosmic Impostor", "mana_cost": "", "type_line": "Legendary Planeswalker — Tibalt"},
+            ],
+            "prices": {"usd": "8.00"},
+        }
+    ]
+    path = tmp_path / "oracle_cards.json"
+    path.write_text(json.dumps(cards))
+
+    lookup = scryfall_client.build_card_meta_lookup(path)
+
+    meta = lookup["Valki, God of Lies // Tibalt, Cosmic Impostor"]
+    assert meta.mana_cost == "{1}{B}"  # front face's cost, not the blank top-level one
+    assert meta.type_line == "Legendary Creature — God // Legendary Planeswalker — Tibalt"
+
+
+def test_build_card_meta_lookup_missing_file_raises(tmp_path):
+    with pytest.raises(scryfall_client.ScryfallFetchError):
+        scryfall_client.build_card_meta_lookup(tmp_path / "nope.json")
+
+
+def test_resolve_card_meta_direct_match():
+    lookup = {"Simple Card": scryfall_client.CardMeta(mana_cost="{2}{B}", type_line="Creature", price_usd=3.0)}
+    assert scryfall_client.resolve_card_meta("Simple Card", lookup) == lookup["Simple Card"]
+
+
+def test_resolve_card_meta_partner_pair_combines_both_halves():
+    lookup = {
+        "Krark, the Thumbless": scryfall_client.CardMeta(mana_cost="{1}{U}{R}", type_line="Legendary Creature — Goblin Pirate", price_usd=2.0),
+        "Vial Smasher the Fierce": scryfall_client.CardMeta(mana_cost="{1}{B}{R}", type_line="Legendary Creature — Human Warrior", price_usd=1.5),
+    }
+    meta = scryfall_client.resolve_card_meta("Krark, the Thumbless // Vial Smasher the Fierce", lookup)
+    assert meta.mana_cost == "{1}{U}{R} // {1}{B}{R}"
+    assert meta.type_line == "Legendary Creature — Goblin Pirate // Legendary Creature — Human Warrior"
+    assert meta.price_usd == 3.5
+
+
+def test_resolve_card_meta_partner_pair_one_half_missing_price_gives_none():
+    lookup = {"Krark, the Thumbless": scryfall_client.CardMeta(mana_cost="{1}{U}{R}", price_usd=2.0)}
+    meta = scryfall_client.resolve_card_meta("Krark, the Thumbless // Vial Smasher the Fierce", lookup)
+    assert meta.mana_cost == "{1}{U}{R}"
+    assert meta.price_usd is None  # can't understate a combined price when half is unknown
+
+
+def test_resolve_card_meta_no_match_returns_empty_meta():
+    assert scryfall_client.resolve_card_meta("Nonexistent Card", {}) == scryfall_client.CardMeta()

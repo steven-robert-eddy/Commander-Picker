@@ -6,7 +6,7 @@ from commander_picker import elo, sessions
 from commander_picker.pool import Commander
 
 
-def _commander(name, decks=1000, colors="BR", themes=(), image_urls=()):
+def _commander(name, decks=1000, colors="BR", themes=(), image_urls=(), rank=None, mana_cost=None, type_line=None):
     return Commander(
         name=name,
         color_identity=colors,
@@ -14,6 +14,9 @@ def _commander(name, decks=1000, colors="BR", themes=(), image_urls=()):
         edhrec_url=f"https://edhrec.com/commanders/{name.lower()}",
         themes=themes,
         image_urls=list(image_urls),
+        rank=rank,
+        mana_cost=mana_cost,
+        type_line=type_line,
     )
 
 
@@ -43,6 +46,21 @@ def test_create_session_persists_candidates_at_default_rating(conn, candidates):
     ranked = sessions.get_rankings(conn, session_id)
     assert {r.name for r in ranked} == {"A", "B", "C", "D"}
     assert all(r.rating == pytest.approx(1000.0) for r in ranked)
+
+
+def test_create_session_carries_rank_mana_cost_type_line_through(conn):
+    session_id = sessions.create_session(
+        conn,
+        [
+            _commander("A", rank=1, mana_cost="{2}{B}{R}", type_line="Legendary Creature — Devil"),
+            _commander("B"),
+        ],
+    )
+    details = sessions.get_candidates(conn, session_id)
+    assert details["A"].rank == 1
+    assert details["A"].mana_cost == "{2}{B}{R}"
+    assert details["A"].type_line == "Legendary Creature — Devil"
+    assert details["B"].rank is None
 
 
 def test_next_pairing_returns_two_distinct_candidates(conn, candidates):

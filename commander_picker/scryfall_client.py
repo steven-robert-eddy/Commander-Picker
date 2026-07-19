@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import json
 import time
+from dataclasses import dataclass
 from pathlib import Path
 
 import requests
@@ -176,3 +177,81 @@ def resolve_image_urls(commander_name: str, lookup: dict[str, list[str]]) -> lis
         first_half, second_half = commander_name.split(" // ", 1)
         return lookup.get(first_half, []) + lookup.get(second_half, [])
     return []
+
+
+@dataclass
+class CardMeta:
+    mana_cost: str | None = None
+    type_line: str | None = None
+    price_usd: float | None = None
+
+
+def _card_meta(card: dict) -> CardMeta:
+    faces = card.get("card_faces") or []
+    # Transform/modal-DFC cards carry their real cost/type on the front
+    # face rather than the top level (which is often blank for these) --
+    # same asymmetry _card_face_image_urls already works around for art.
+    mana_cost = card.get("mana_cost") or (faces[0].get("mana_cost") if faces else None)
+    type_line = card.get("type_line") or (faces[0].get("type_line") if faces else None)
+    prices = card.get("prices") or {}
+    raw_price = prices.get("usd") or prices.get("usd_foil")
+    price_usd = float(raw_price) if raw_price else None
+    return CardMeta(mana_cost=mana_cost or None, type_line=type_line or None, price_usd=price_usd)
+
+
+def build_card_meta_lookup(oracle_cards_path: Path = ORACLE_CARDS_PATH) -> dict[str, CardMeta]:
+    """Card name -> CardMeta (mana cost, type line, USD price), for every card.
+
+    A separate pass over the same bulk file build_image_lookup already
+    parses -- kept independent rather than merged into one function so
+    neither one's tests/call sites need to change shape. The Scryfall
+    bulk download is the real bottleneck (per the README), not one extra
+    in-memory iteration over an already-loaded list.
+    """
+    if not oracle_cards_path.exists():
+        raise ScryfallFetchError(
+            f"{oracle_cards_path} does not exist yet. Run `commander-picker update-data` first."
+        )
+    with open(oracle_cards_path, "r", encoding="utf-8") as fh:
+        cards = json.load(fh)
+
+    lookup: dict[str, CardMeta] = {}
+    for card in cards:
+        if card.get("name"):
+            lookup[card["name"]] = _card_meta(card)
+
+    # Same front-face alias as build_image_lookup, for the same reason:
+    # EDHREC names transform commanders after their front face only.
+    for card in cards:
+        faces = card.get("card_faces") or []
+        if len(faces) >= 2 and card.get("name") in lookup:
+            front_name = faces[0].get("name")
+            if front_name:
+                lookup.setdefault(front_name, lookup[card["name"]])
+    return lookup
+
+
+def resolve_card_meta(commander_name: str, lookup: dict[str, "CardMeta"]) -> CardMeta:
+    """Look up a commander's card details, handling EDHREC's Partner-pair naming.
+
+    Mirrors resolve_image_urls's Partner-pair split: an "A // B" pair
+    that isn't a single Scryfall card gets both halves' mana cost/type
+    line concatenated (" // ", matching Scryfall's own DFC convention)
+    and their prices summed (a deck needs both cards) -- only when both
+    halves have a price; otherwise None rather than an understated total.
+    """
+    if commander_name in lookup:
+        return lookup[commander_name]
+    if " // " in commander_name:
+        first_half, second_half = commander_name.split(" // ", 1)
+        a = lookup.get(first_half)
+        b = lookup.get(second_half)
+        if a is None and b is None:
+            return CardMeta()
+        a = a or CardMeta()
+        b = b or CardMeta()
+        mana_cost = " // ".join(m for m in (a.mana_cost, b.mana_cost) if m) or None
+        type_line = " // ".join(t for t in (a.type_line, b.type_line) if t) or None
+        price_usd = a.price_usd + b.price_usd if a.price_usd is not None and b.price_usd is not None else None
+        return CardMeta(mana_cost=mana_cost, type_line=type_line, price_usd=price_usd)
+    return CardMeta()

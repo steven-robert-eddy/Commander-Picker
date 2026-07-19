@@ -41,6 +41,8 @@ class FiltersBody(BaseModel):
     # (single-elimination tournament to one champion) -- see
     # sessions.create_session for the engine each one drives.
     mode: str = "duel"
+    # Opt-in (see pool.PoolFilters.max_price) -- None means no price filter.
+    max_price: float | None = None
 
 
 def _to_pool_filters(body: FiltersBody) -> pool_module.PoolFilters:
@@ -51,6 +53,7 @@ def _to_pool_filters(body: FiltersBody) -> pool_module.PoolFilters:
         min_decks=body.min_decks,
         themes=tuple(body.themes),
         themes_mode=body.themes_mode,
+        max_price=body.max_price,
     )
 
 

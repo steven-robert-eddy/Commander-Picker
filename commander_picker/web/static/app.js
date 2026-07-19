@@ -11,10 +11,13 @@
 
   // ---- filter state ----
   const activeColors = new Set();
-  const activeThemes = new Set(); // archetype UI is hidden (see index.html) -- stays empty
+  const activeThemes = new Set();
   let colorMode = "subset"; // "subset" (any combo within --colors) or "exact"
   let maxDecks = 10000;
   let poolSize = 40;
+  // Opt-in, unlike maxDecks -- null means "no price filter" (see
+  // pool.PoolFilters.max_price and the priceSlider wiring below).
+  let maxPrice = null;
 
   // ---- leaderboard filter state -- deliberately separate from the
   // duel-pool filter state above. Checking "how do my mono-red
@@ -45,6 +48,7 @@
         pool_size: poolSize,
         min_pool_size: 4,
         mode: "duel",
+        max_price: maxPrice,
       },
       overrides || {}
     );
@@ -106,9 +110,6 @@
     });
   }
 
-  // Currently unused -- archetype filtering is hidden in the UI (see
-  // index.html), left defined so it's a one-line change to bring back
-  // (`renderThemeChips();` in the init section below) if that changes.
   async function renderThemeChips() {
     const wrap = $("theme-chips");
     try {
@@ -259,6 +260,24 @@
       .join("");
   }
 
+  // Scryfall's mana-cost shorthand ("{2}{B}{R}") uses the same symbol
+  // codes as its symbol-SVG filenames -- reuses MANA_SYMBOL_BASE_URL, no
+  // new asset dependency, same trick as pipsHTML above. Hybrid symbols
+  // ("{B/R}") use a hyphen in the filename instead of the slash (e.g.
+  // "B-R.svg") -- best-effort, matches Scryfall's own convention but
+  // unverified live from this sandbox, worth a quick visual check once
+  // deployed on a commander with a hybrid-mana cost.
+  function manaCostHTML(manaCost) {
+    const symbols = manaCost.match(/\{([^}]+)\}/g) || [];
+    return symbols
+      .map((s) => s.slice(1, -1))
+      .map((code) => {
+        const filename = code.replace("/", "-");
+        return `<img class="pip" src="${MANA_SYMBOL_BASE_URL}${filename}.svg" alt="${code}" loading="lazy" onerror="this.remove()" />`;
+      })
+      .join("");
+  }
+
   // Target width for a single card face -- each image renders at (up
   // to) this size regardless of how many faces this commander has or
   // how much extra room the duel layout happens to give its button,
@@ -287,14 +306,23 @@
           .map((url) => `<img class="card-art" src="${url}" alt="" loading="lazy" onerror="this.remove()" />`)
           .join("")}</div>`
       : "";
+    // rank/mana_cost/type_line are only populated when `update-data`
+    // captured them (EDHREC rank; mana cost/type line from Scryfall) --
+    // gracefully omit each when absent, same posture as image_urls above.
+    const rankBadge = c.rank ? `<span class="tag rank-tag">#${c.rank} on this page</span>` : "";
+    const manaCost = c.mana_cost ? `<div class="mana-cost">${manaCostHTML(c.mana_cost)}</div>` : "";
+    const typeLine = !c.mana_cost && c.type_line ? `<div class="type-line">${c.type_line}</div>` : "";
     return `
       ${art}
       <div class="card-top">
         <div class="card-name">${c.name}</div>
         <div class="pips">${pipsHTML(c.color_identity)}</div>
       </div>
+      ${manaCost}
+      ${typeLine}
       <div class="card-stats"><span>Decks <b>${c.num_decks.toLocaleString()}</b></span></div>
       ${tags}
+      ${rankBadge}
     `;
   }
 
@@ -452,11 +480,11 @@
     // image URLs or names.
     list.querySelectorAll(".rank-row.has-art").forEach((row) => {
       const c = rankings[Number(row.dataset.idx)];
-      row.addEventListener("click", () => openLightbox(c.image_urls, c.name));
+      row.addEventListener("click", () => openLightbox(c.image_urls, c.name, c.edhrec_url));
       row.addEventListener("keydown", (e) => {
         if (e.key === "Enter" || e.key === " ") {
           e.preventDefault(); // stop the page from scrolling on Space
-          openLightbox(c.image_urls, c.name);
+          openLightbox(c.image_urls, c.name, c.edhrec_url);
         }
       });
     });
@@ -560,18 +588,32 @@
     }
   }
 
-  function openLightbox(imageUrls, name) {
+  function openLightbox(imageUrls, name, edhrecUrl) {
     if (!imageUrls || !imageUrls.length) return;
     $("lightbox-name").textContent = name || "";
     $("lightbox-images").innerHTML = imageUrls
       .map((url) => `<img src="${url}" alt="${name || ""}" />`)
       .join("");
+    // EDHREC's own link is always reliable (stored per commander).
+    // Moxfield/Archidekt are best-effort generic search links -- their
+    // exact deep-link query format can't be verified from this sandbox
+    // (no live network access), worth a quick click-test once deployed.
+    const query = encodeURIComponent(name || "");
+    const links = [
+      edhrecUrl ? `<a href="${edhrecUrl}" target="_blank" rel="noopener">View on EDHREC →</a>` : "",
+      name ? `<a href="https://www.moxfield.com/decks?q=${query}" target="_blank" rel="noopener">Search Moxfield</a>` : "",
+      name ? `<a href="https://archidekt.com/search/decks?q=${query}" target="_blank" rel="noopener">Search Archidekt</a>` : "",
+    ]
+      .filter(Boolean)
+      .join("");
+    $("lightbox-links").innerHTML = links;
     $("lightbox").classList.remove("hidden");
   }
 
   function closeLightbox() {
     $("lightbox").classList.add("hidden");
     $("lightbox-images").innerHTML = "";
+    $("lightbox-links").innerHTML = "";
   }
 
   $("card-a").addEventListener("click", () => {
@@ -588,7 +630,22 @@
     if (e.target.id === "lightbox") closeLightbox(); // click on backdrop, not the card image itself
   });
   document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape") closeLightbox();
+    if (e.key === "Escape") {
+      closeLightbox();
+      return;
+    }
+    // 1/2 or the arrow keys pick a duel card, mirroring the CLI's 1/2
+    // input -- only while the duel screen is actually showing, a
+    // pairing is loaded, and the cards aren't already mid-pick-animation
+    // locked (renderPairing re-enables them; pick() disables them).
+    if ($("screen-duel").classList.contains("hidden") || !currentPairing) return;
+    const cardA = $("card-a"), cardB = $("card-b");
+    if (cardA.disabled || cardB.disabled) return;
+    if (e.key === "1" || e.key === "ArrowLeft") {
+      pick(currentPairing.candidates[0].name, currentPairing.candidates[1].name, cardA, cardB);
+    } else if (e.key === "2" || e.key === "ArrowRight") {
+      pick(currentPairing.candidates[1].name, currentPairing.candidates[0].name, cardB, cardA);
+    }
   });
   $("again-btn").addEventListener("click", () => {
     sessionId = null;
@@ -654,6 +711,38 @@
     refreshPoolPreview();
   });
 
+  // Same slider+number pairing as maxDecks above, but the slider's max
+  // value ($200) means "no price filter" (maxPrice stays null) rather
+  // than an actual $200 ceiling -- see PoolFilters.max_price's comment.
+  // #max-price-hint (a plain text label, not the number input -- browsers
+  // silently reject non-numeric values assigned to a type="number" input)
+  // shows "No limit" at that end instead of a literal 200.
+  const priceSlider = $("max-price-slider");
+  const priceInput = $("max-price-input");
+  const priceHint = $("max-price-hint");
+  const updatePriceHint = () => {
+    const atMax = Number(priceSlider.value) >= 200;
+    priceHint.textContent = atMax ? "No limit" : `$${priceSlider.value} max`;
+  };
+  priceSlider.addEventListener("input", () => {
+    priceInput.value = priceSlider.value;
+    updatePriceHint();
+  });
+  priceSlider.addEventListener("change", () => {
+    const value = Number(priceSlider.value);
+    maxPrice = value >= 200 ? null : value;
+    refreshPoolPreview();
+  });
+  priceInput.addEventListener("change", () => {
+    const value = Math.min(200, Math.max(0, Math.floor(Number(priceInput.value) || 0)));
+    priceInput.value = value;
+    priceSlider.value = value;
+    maxPrice = value >= 200 ? null : value;
+    updatePriceHint();
+    refreshPoolPreview();
+  });
+  updatePriceHint();
+
   const poolSizeInput = $("pool-size-input");
   poolSizeInput.addEventListener("change", () => {
     const value = Math.min(200, Math.max(4, Math.floor(Number(poolSizeInput.value) || 40)));
@@ -668,6 +757,7 @@
 
   renderColorChips("color-chips", activeColors, refreshPoolPreview);
   renderColorChips("leaderboard-color-chips", leaderboardActiveColors, showLeaderboard);
+  renderThemeChips();
   refreshPoolPreview();
   showScreen("screen-intro");
 })();

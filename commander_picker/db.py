@@ -44,7 +44,10 @@ class CommanderRecord:
     themes: set = field(default_factory=set)
     salt: float | None = None  # never populated -- not on EDHREC's color/theme list endpoints
     image_urls: list = field(default_factory=list)  # 2 entries for partner pairs / DFCs, else 0 or 1
-    price: float | None = None  # never populated
+    price: float | None = None  # populated from Scryfall's bulk data, see build_database's card_meta_lookup
+    rank: int | None = None  # this commander's rank within the page it was found on
+    mana_cost: str | None = None  # populated from Scryfall's bulk data, see build_database's card_meta_lookup
+    type_line: str | None = None  # populated from Scryfall's bulk data, see build_database's card_meta_lookup
 
 
 def _cardviews_from_page(page_json: dict) -> list[dict]:
@@ -72,6 +75,7 @@ def _cardview_to_record(cardview: dict, color_identity: tuple) -> CommanderRecor
         color_identity=color_identity,
         num_decks=cardview.get("num_decks", 0),
         edhrec_url=f"https://edhrec.com{url}" if url else None,
+        rank=cardview.get("rank"),
     )
 
 
@@ -121,6 +125,7 @@ def build_database(
     theme_slugs: list[str] | None = None,
     db_path: Path = DB_PATH,
     image_lookup: dict[str, list[str]] | None = None,
+    card_meta_lookup: dict[str, "scryfall_client.CardMeta"] | None = None,
 ) -> Path:
     """Load cached pages and (re)write `data/commanders.db`.
 
@@ -131,12 +136,26 @@ def build_database(
     via ``scryfall_client.resolve_image_urls``). Omitted entirely
     (``None``) if the caller skipped fetching images — left as ``[]``
     in that case, same as before this existed.
+
+    ``card_meta_lookup`` is a card name -> CardMeta dict (from
+    ``scryfall_client.build_card_meta_lookup``); when given, each
+    commander's ``mana_cost``/``type_line``/``price`` are resolved from
+    it the same way, via ``scryfall_client.resolve_card_meta``. Kept as a
+    separate optional param from ``image_lookup`` (not folded into one
+    lookup) so a caller can supply either independently.
     """
     commanders = load_commanders(color_slugs=color_slugs, theme_slugs=theme_slugs)
 
     if image_lookup is not None:
         for record in commanders.values():
             record.image_urls = scryfall_client.resolve_image_urls(record.name, image_lookup)
+
+    if card_meta_lookup is not None:
+        for record in commanders.values():
+            meta = scryfall_client.resolve_card_meta(record.name, card_meta_lookup)
+            record.mana_cost = meta.mana_cost
+            record.type_line = meta.type_line
+            record.price = meta.price_usd
 
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     if db_path.exists():
@@ -154,7 +173,10 @@ def build_database(
                 salt REAL,
                 edhrec_url TEXT,
                 image_urls TEXT NOT NULL DEFAULT '[]',
-                price REAL
+                price REAL,
+                rank INTEGER,
+                mana_cost TEXT,
+                type_line TEXT
             );
             CREATE TABLE commander_themes (
                 commander_name TEXT NOT NULL REFERENCES commanders(name),
@@ -171,8 +193,8 @@ def build_database(
             conn.execute(
                 """
                 INSERT INTO commanders
-                    (name, sanitized, color_identity, num_decks, salt, edhrec_url, image_urls, price)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    (name, sanitized, color_identity, num_decks, salt, edhrec_url, image_urls, price, rank, mana_cost, type_line)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     record.name,
@@ -183,6 +205,9 @@ def build_database(
                     record.edhrec_url,
                     json.dumps(record.image_urls),
                     record.price,
+                    record.rank,
+                    record.mana_cost,
+                    record.type_line,
                 ),
             )
             conn.executemany(
