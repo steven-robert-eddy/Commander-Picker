@@ -1,5 +1,7 @@
 # Commander Picker
 
+[![Tests](https://github.com/steven-robert-eddy/Commander-Picker/actions/workflows/tests.yml/badge.svg)](https://github.com/steven-robert-eddy/Commander-Picker/actions/workflows/tests.yml)
+
 Help decide which EDH/Commander deck to build next. Pulls commander
 popularity and archetype/theme data from EDHREC, lets you filter down
 to a candidate pool (colors, archetype, an "underbuilt" deck-count
