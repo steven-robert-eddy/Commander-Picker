@@ -6,6 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "commander-picker"
 version = "0.1.0"
 description = "Pick your next EDH/Commander build from EDHREC data via an Elo-style swipe picker."
+license = {file = "LICENSE"}
 requires-python = ">=3.9"
 dependencies = [
     "requests>=2.31",
