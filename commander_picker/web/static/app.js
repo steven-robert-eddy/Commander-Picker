@@ -11,13 +11,10 @@
 
   // ---- filter state ----
   const activeColors = new Set();
-  const activeThemes = new Set();
+  const activeThemes = new Set(); // archetype UI is hidden (see index.html) -- stays empty
   let colorMode = "subset"; // "subset" (any combo within --colors) or "exact"
   let maxDecks = 10000;
   let poolSize = 40;
-  // Opt-in, unlike maxDecks -- null means "no price filter" (see
-  // pool.PoolFilters.max_price and the priceSlider wiring below).
-  let maxPrice = null;
 
   // ---- leaderboard filter state -- deliberately separate from the
   // duel-pool filter state above. Checking "how do my mono-red
@@ -48,7 +45,6 @@
         pool_size: poolSize,
         min_pool_size: 4,
         mode: "duel",
-        max_price: maxPrice,
       },
       overrides || {}
     );
@@ -110,6 +106,9 @@
     });
   }
 
+  // Currently unused -- archetype filtering is hidden in the UI (see
+  // index.html), left defined so it's a one-line change to bring back
+  // (`renderThemeChips();` in the init section below) if that changes.
   async function renderThemeChips() {
     const wrap = $("theme-chips");
     try {
@@ -711,38 +710,6 @@
     refreshPoolPreview();
   });
 
-  // Same slider+number pairing as maxDecks above, but the slider's max
-  // value ($200) means "no price filter" (maxPrice stays null) rather
-  // than an actual $200 ceiling -- see PoolFilters.max_price's comment.
-  // #max-price-hint (a plain text label, not the number input -- browsers
-  // silently reject non-numeric values assigned to a type="number" input)
-  // shows "No limit" at that end instead of a literal 200.
-  const priceSlider = $("max-price-slider");
-  const priceInput = $("max-price-input");
-  const priceHint = $("max-price-hint");
-  const updatePriceHint = () => {
-    const atMax = Number(priceSlider.value) >= 200;
-    priceHint.textContent = atMax ? "No limit" : `$${priceSlider.value} max`;
-  };
-  priceSlider.addEventListener("input", () => {
-    priceInput.value = priceSlider.value;
-    updatePriceHint();
-  });
-  priceSlider.addEventListener("change", () => {
-    const value = Number(priceSlider.value);
-    maxPrice = value >= 200 ? null : value;
-    refreshPoolPreview();
-  });
-  priceInput.addEventListener("change", () => {
-    const value = Math.min(200, Math.max(0, Math.floor(Number(priceInput.value) || 0)));
-    priceInput.value = value;
-    priceSlider.value = value;
-    maxPrice = value >= 200 ? null : value;
-    updatePriceHint();
-    refreshPoolPreview();
-  });
-  updatePriceHint();
-
   const poolSizeInput = $("pool-size-input");
   poolSizeInput.addEventListener("change", () => {
     const value = Math.min(200, Math.max(4, Math.floor(Number(poolSizeInput.value) || 40)));
@@ -757,7 +724,6 @@
 
   renderColorChips("color-chips", activeColors, refreshPoolPreview);
   renderColorChips("leaderboard-color-chips", leaderboardActiveColors, showLeaderboard);
-  renderThemeChips();
   refreshPoolPreview();
   showScreen("screen-intro");
 })();

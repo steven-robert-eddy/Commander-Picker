@@ -66,11 +66,16 @@ for card art. Standalone project — no dependency on the sibling
   is opt-in and **permissive on missing price data** — a commander with
   no price (common for unresolved Partner/Background halves) is never
   excluded even when the filter is active, since "we don't know" is
-  friendlier than silently shrinking the pool over a data gap.
-- **Archetype/theme filter**: re-enabled in the web UI (was fully built
-  server-side and in the CLI already, just hidden behind a comment in
-  `index.html` pending better EDHREC sourcing — that judgment call was
-  revisited and it's back).
+  friendlier than silently shrinking the pool over a data gap. The web
+  UI's price slider was briefly shown, then hidden again (no data-quality
+  issue — just simplifying the UI for now) — `--max-price`/`max_price`
+  stay fully working on the CLI and API.
+- **Archetype/theme filter**: briefly re-enabled in the web UI, then
+  re-hidden after live testing confirmed the same limitation that hid it
+  the first time (see "Known limitations" below) — EDHREC's tag pages
+  just don't carry enough signal yet. Still fully built and available via
+  the CLI/API (`pool --themes`, `play --themes`); see "Feature roadmap"
+  for the deeper-sourcing follow-up this is waiting on.
 - **Deckbuilder links**: the lightbox (opened from a results/leaderboard
   row) shows "View on EDHREC" (reliable, uses the stored `edhrec_url`)
   plus best-effort "Search Moxfield"/"Search Archidekt" links —
@@ -245,6 +250,14 @@ they're picked up next:
   app scrapes at all — it lives on each commander's own detail page, so
   this needs a whole new per-commander fetch, not just reading more
   fields out of data already pulled.
+- Richer theme/archetype data — medium-large, worth tackling alongside
+  salt score above since both need the same kind of new sourcing: a
+  per-commander EDHREC detail-page fetch (or some other deeper endpoint)
+  rather than the shallow ~30-commander tag-page lists this app currently
+  scrapes (see "Known limitations"). The theme filter's UI was built and
+  briefly re-enabled twice now without this — worth solving the data
+  problem once, together with salt, rather than re-litigating the UI
+  each time.
 
 ## Known limitations
 

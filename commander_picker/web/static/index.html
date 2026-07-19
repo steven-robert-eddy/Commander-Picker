@@ -43,19 +43,25 @@
         </div>
 
         <!--
-          Opt-in, unlike the deck-count ceiling above -- the slider's max
-          value means "no price filter" (see app.js's priceSlider wiring),
-          since plenty of commanders have no Scryfall price data at all.
+          Price filtering is hidden for now, not removed -- fully built
+          server-side and in the CLI (`pool --max-price`, `PoolFilters.max_price`,
+          the API's `max_price` field). Re-shown briefly, then pulled back
+          out of the web UI while other things get simplified -- no data
+          issue, easy to bring back here if/when that changes.
         -->
-        <div class="filter-label">Max price (USD)</div>
-        <div class="deck-range">
-          <input type="range" id="max-price-slider" min="0" max="200" step="1" value="200" />
-          <input type="number" id="max-price-input" class="num-input" min="0" max="200" step="1" value="200" inputmode="numeric" />
-        </div>
-        <span class="pool-size-hint" id="max-price-hint">No limit</span>
 
-        <div class="filter-label">Archetype/theme</div>
-        <div class="filter-row" id="theme-chips"></div>
+        <!--
+          Archetype/theme filtering is hidden for now, not removed --
+          EDHREC's tag pages only expose a shallow (~30 commander)
+          "top commanders" list per archetype regardless of color
+          filtering, unlike the much deeper color pages we paginate.
+          Not much signal to filter on yet. The backend/CLI (`pool
+          --themes`, `play --themes`) still fully supports it -- easy
+          to bring back here if EDHREC's data or our sourcing improves.
+          Briefly re-shown and re-hidden after live testing confirmed
+          this is still the limiting factor -- see PLAN.md's "Feature
+          roadmap" for the deeper-sourcing follow-up.
+        -->
 
         <div class="filter-label" id="pool-size-label-row">Duel pool size</div>
         <div class="pool-size-row" id="pool-size-row">
