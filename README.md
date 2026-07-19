@@ -333,3 +333,6 @@ pytest
 
 Tests run entirely offline against hand-built fixtures in
 `tests/fixtures/`, so they don't require network access to EDHREC.
+
+A GitHub Actions workflow (`.github/workflows/tests.yml`) runs this same
+suite automatically on every push and pull request.
