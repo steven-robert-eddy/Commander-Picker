@@ -187,7 +187,9 @@ mono-R, and BR) vs. **exact colors only** (picking B+R shows only BR)
 — an exact-or-slider-adjusted deck-count ceiling, and an editable duel
 pool size (the live preview shows both the total commanders matching
 your filters and how many will actually be sampled into the duel — the
-two can differ once a filter matches more than the pool size). Price
+two can differ once a filter matches more than the pool size). "Reset
+filters" clears all of this back to defaults (also switches back to
+duel mode if you'd picked bracket) without a page reload. Price
 and archetype/theme filtering exist server-side and on the CLI
 (`--max-price`, `--themes`) but aren't currently shown in the web UI —
 EDHREC's theme data is too shallow to filter on meaningfully yet (see

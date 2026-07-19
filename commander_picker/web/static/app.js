@@ -680,6 +680,32 @@
     refreshPoolPreview();
   });
   $("start-btn").addEventListener("click", startSession);
+  $("filter-reset-btn").addEventListener("click", () => {
+    activeColors.clear();
+    colorMode = "subset";
+    maxDecks = 10000;
+    poolSize = 40;
+
+    renderColorChips("color-chips", activeColors, refreshPoolPreview);
+    document.querySelectorAll("#color-mode-toggle .segmented-btn").forEach((b) => {
+      b.setAttribute("aria-pressed", String(b.dataset.mode === "subset"));
+    });
+    $("max-decks-slider").value = maxDecks;
+    $("max-decks-input").value = maxDecks;
+    $("pool-size-input").value = poolSize;
+
+    // setFilterMode("duel") handles the pool-size-row/bracket-size-chips
+    // visibility toggle, the start-btn label, and rebuilding the bracket
+    // chips fresh (which resets bracketPoolSize to null as a side effect) --
+    // same reason wireColorModeToggle's own click handler doesn't reset
+    // aria-pressed on its own, just wires clicks.
+    setFilterMode("duel");
+    document.querySelectorAll("#mode-toggle .segmented-btn").forEach((b) => {
+      b.setAttribute("aria-pressed", String(b.dataset.mode === "duel"));
+    });
+
+    refreshPoolPreview();
+  });
   $("leaderboard-link").addEventListener("click", showLeaderboard);
   $("results-leaderboard-link").addEventListener("click", showLeaderboard);
   $("leaderboard-back-btn").addEventListener("click", () => {
