@@ -34,6 +34,7 @@ class Commander:
     rank: int | None = None  # this commander's rank on the color/theme page it was found on
     mana_cost: str | None = None  # Scryfall shorthand, e.g. "{2}{B}{R}" -- from card_meta_lookup
     type_line: str | None = None  # from Scryfall's card_meta_lookup
+    power_level: int | None = None  # dominant EDHREC Commander Bracket (1-5), from a cached detail page
 
 
 @dataclass
@@ -92,7 +93,7 @@ def _filtered_candidates(conn: sqlite3.Connection, filters: PoolFilters) -> list
 
     candidates = []
     for row in conn.execute(
-        "SELECT name, color_identity, num_decks, edhrec_url, salt, image_urls, price, rank, mana_cost, type_line "
+        "SELECT name, color_identity, num_decks, edhrec_url, salt, image_urls, price, rank, mana_cost, type_line, power_level "
         "FROM commanders"
     ):
         if allowed_colors is not None and not _color_identity_matches(
@@ -130,6 +131,7 @@ def _filtered_candidates(conn: sqlite3.Connection, filters: PoolFilters) -> list
                 rank=row["rank"],
                 mana_cost=row["mana_cost"],
                 type_line=row["type_line"],
+                power_level=row["power_level"],
             )
         )
     return candidates
@@ -257,7 +259,7 @@ def commanders_by_names(conn: sqlite3.Connection, names: list[str]) -> list[Comm
     rows_by_name = {
         row["name"]: row
         for row in conn.execute(
-            "SELECT name, color_identity, num_decks, edhrec_url, salt, image_urls, price, rank, mana_cost, type_line "
+            "SELECT name, color_identity, num_decks, edhrec_url, salt, image_urls, price, rank, mana_cost, type_line, power_level "
             "FROM commanders"
         )
     }
@@ -282,6 +284,7 @@ def commanders_by_names(conn: sqlite3.Connection, names: list[str]) -> list[Comm
                 rank=row["rank"],
                 mana_cost=row["mana_cost"],
                 type_line=row["type_line"],
+                power_level=row["power_level"],
             )
         )
     if missing:

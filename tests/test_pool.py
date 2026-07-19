@@ -22,7 +22,8 @@ def _make_conn():
             price REAL,
             rank INTEGER,
             mana_cost TEXT,
-            type_line TEXT
+            type_line TEXT,
+            power_level INTEGER
         );
         CREATE TABLE commander_themes (
             commander_name TEXT NOT NULL,
@@ -242,6 +243,20 @@ def test_commander_carries_rank_mana_cost_type_line():
     assert detailed.rank == 3
     assert detailed.mana_cost == "{2}{B}{R}"
     assert detailed.type_line == "Legendary Creature — Devil"
+
+
+def test_commander_carries_power_level(conn):
+    conn.execute("UPDATE commanders SET power_level = 3 WHERE name = 'Big Rakdos'")
+    conn.commit()
+
+    candidates = pool.build_pool(conn, pool.PoolFilters(max_decks=None), min_pool_size=1)
+    big_rakdos = next(c for c in candidates if c.name == "Big Rakdos")
+    assert big_rakdos.power_level == 3
+    small_rakdos = next(c for c in candidates if c.name == "Small Rakdos")
+    assert small_rakdos.power_level is None
+
+    named = pool.commanders_by_names(conn, ["Big Rakdos"])
+    assert named[0].power_level == 3
 
 
 def test_search_commanders_substring_match_ordered_by_deck_count(conn):

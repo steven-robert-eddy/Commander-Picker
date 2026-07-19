@@ -48,6 +48,7 @@ class CommanderRecord:
     rank: int | None = None  # this commander's rank within the page it was found on
     mana_cost: str | None = None  # populated from Scryfall's bulk data, see build_database's card_meta_lookup
     type_line: str | None = None  # populated from Scryfall's bulk data, see build_database's card_meta_lookup
+    power_level: int | None = None  # dominant EDHREC Commander Bracket (1-5), from a cached detail page
 
 
 def _cardviews_from_page(page_json: dict) -> list[dict]:
@@ -106,6 +107,14 @@ def _apply_commander_detail(record: CommanderRecord, payload: dict) -> None:
     taglinks = payload.get("panels", {}).get("taglinks", [])
     top_tags = sorted(taglinks, key=lambda t: t.get("count", 0), reverse=True)[:TOP_TAGS_PER_COMMANDER]
     record.themes.update(t["slug"] for t in top_tags if t.get("slug"))
+
+    # EDHREC's own distribution of which Commander Bracket (1 Exhibition
+    # .. 5 cEDH) real decks running this commander fall into -- the
+    # dominant one (by deck count) is a quick "how strong is this
+    # typically built" signal.
+    bracket_counts = payload.get("bracket_counts", {})
+    if bracket_counts:
+        record.power_level = int(max(bracket_counts.items(), key=lambda kv: kv[1])[0])
 
 
 def load_commanders(
@@ -212,7 +221,8 @@ def build_database(
                 price REAL,
                 rank INTEGER,
                 mana_cost TEXT,
-                type_line TEXT
+                type_line TEXT,
+                power_level INTEGER
             );
             CREATE TABLE commander_themes (
                 commander_name TEXT NOT NULL REFERENCES commanders(name),
@@ -229,8 +239,8 @@ def build_database(
             conn.execute(
                 """
                 INSERT INTO commanders
-                    (name, sanitized, color_identity, num_decks, salt, edhrec_url, image_urls, price, rank, mana_cost, type_line)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    (name, sanitized, color_identity, num_decks, salt, edhrec_url, image_urls, price, rank, mana_cost, type_line, power_level)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     record.name,
@@ -244,6 +254,7 @@ def build_database(
                     record.rank,
                     record.mana_cost,
                     record.type_line,
+                    record.power_level,
                 ),
             )
             conn.executemany(

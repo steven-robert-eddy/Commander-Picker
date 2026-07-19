@@ -114,6 +114,31 @@ def test_api_pool_max_price_filters(client, monkeypatch):
     assert names == {"Rakdos, Lord of Riots"}
 
 
+def test_power_level_flows_through_pool_pairing_and_results(client):
+    import sqlite3
+
+    conn = sqlite3.connect(db.DB_PATH)
+    conn.execute("UPDATE commanders SET power_level = 2 WHERE name = 'Rakdos, Lord of Riots'")
+    conn.commit()
+    conn.close()
+
+    pool_resp = client.post("/api/pool", json=_pool_body(max_decks=10000, min_pool_size=1))
+    pool_by_name = {c["name"]: c for c in pool_resp.json()["candidates"]}
+    assert pool_by_name["Rakdos, Lord of Riots"]["power_level"] == 2
+    assert pool_by_name["Krark, the Thumbless // Vial Smasher the Fierce"]["power_level"] is None
+
+    created = client.post("/api/sessions", json=_pool_body(max_decks=10000)).json()
+    pairing_by_name = {c["name"]: c for c in created["pairing"]["candidates"]}
+    assert pairing_by_name["Rakdos, Lord of Riots"]["power_level"] == 2
+
+    session_id = created["session_id"]
+    a, b = created["pairing"]["candidates"]
+    client.post(f"/api/sessions/{session_id}/pick", json={"winner": a["name"], "loser": b["name"]})
+    results = client.get(f"/api/sessions/{session_id}/results").json()
+    results_by_name = {r["name"]: r for r in results["rankings"]}
+    assert results_by_name["Rakdos, Lord of Riots"]["power_level"] == 2
+
+
 def test_api_pool_max_price_none_is_permissive_on_missing_price(client):
     # Fixture commanders have no price data at all by default -- an
     # active price filter must not exclude everything.

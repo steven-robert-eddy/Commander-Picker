@@ -496,6 +496,12 @@ header {
    so it can sit apart from the theme-tags row (see cardInnerHTML). */
 .rank-tag { display: inline-block; margin-top: 6px; }
 
+/* Power-level badge (EDHREC's dominant Commander Bracket for this
+   commander) -- same .tag pill base as rank-tag, shown on duel/bracket
+   cards (cardInnerHTML) and session-results rows (renderRankList). */
+.power-tag { display: inline-block; margin-top: 6px; margin-left: 6px; }
+.rank-name-line .power-tag { margin-top: 0; }
+
 /* Mana cost (Scryfall symbol SVGs, see manaCostHTML in app.js) / type
    line -- shown between the card name and the deck-count stats. Only
    one of the two ever renders for a given card (type line is the

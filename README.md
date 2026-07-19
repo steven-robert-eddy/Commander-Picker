@@ -75,13 +75,13 @@ commander-picker list-themes
 Both `data/edhrec/*.json` and `data/commanders.db` are gitignored —
 regenerated locally rather than committed.
 
-### Salt score + richer per-commander themes
+### Salt score, richer per-commander themes, and power level
 
-Salt score and any real archetype signal live on each commander's own
-EDHREC detail page (a per-commander fetch — one request per commander,
-not per color/theme), not on the color/theme list pages `update-data`
-scrapes above. A separate, explicitly-invoked, resumable command
-backfills this:
+Salt score, real archetype signal, and power level all live on each
+commander's own EDHREC detail page (a per-commander fetch — one
+request per commander, not per color/theme), not on the color/theme
+list pages `update-data` scrapes above. A separate, explicitly-invoked,
+resumable command backfills this:
 
 ```bash
 commander-picker enrich-commanders
@@ -92,9 +92,13 @@ freshness/politeness-delay rules as everything else) — it never touches
 `commanders.db` directly, since `update-data` rebuilds that from scratch
 every time and would otherwise silently wipe the enrichment on its next
 run. Run `commander-picker update-data` afterward to fold the cached
-detail pages in (salt score, plus each commander's own top 10
-deck-count-weighted tags, merged into `commander_themes` alongside
-whatever the shallow tag pages already contributed).
+detail pages in: salt score, each commander's own top 10
+deck-count-weighted tags (merged into `commander_themes` alongside
+whatever the shallow tag pages already contributed), and its dominant
+EDHREC Commander Bracket (1 Exhibition / 2 Core / 3 Upgraded /
+4 Optimized / 5 cEDH — whichever bracket the most real decks running
+that commander fall into), shown as a badge on duel/bracket cards and
+session results.
 
 A full-catalog backfill is a genuinely long, one-request-per-commander
 operation — `--limit N` caps how many *new* fetches happen in one run
@@ -227,8 +231,12 @@ having the data. `GET /api/themes` already reflects whatever's actually
 in `commander_themes` (not a hand-curated list), so any client built
 against the API sees real tags as soon as they're enriched. Tap through
 duels — with card
-art, mana cost, and an EDHREC rank badge when that data is available —
-and see final standings. Press `1`/`2` or the arrow keys to pick a
+art, mana cost, an EDHREC rank badge, and a power-level badge (its
+dominant EDHREC Commander Bracket — Exhibition/Core/Upgraded/Optimized/
+cEDH — once `commander-picker enrich-commanders` has fetched that
+commander's detail page) when that data is available — and see final
+standings, which show the same power-level badge. Press `1`/`2` or the
+arrow keys to pick a
 duel card instead of tapping, `u` (or the "← Undo" button) to revert
 your last pick exactly, if you'd rather use the keyboard. Same Elo
 engine and `data/sessions.db` as `play`/`resume`/`results`, so sessions

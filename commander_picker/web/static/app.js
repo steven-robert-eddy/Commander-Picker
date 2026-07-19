@@ -9,6 +9,10 @@
   const MIN_POOL_SIZE = 4;
   const $ = (id) => document.getElementById(id);
 
+  // WotC's official Commander Bracket names -- mirrors the 1-5 scale
+  // db.py's _apply_commander_detail derives from EDHREC's bracket_counts.
+  const BRACKET_LABELS = { 1: "Exhibition", 2: "Core", 3: "Upgraded", 4: "Optimized", 5: "cEDH" };
+
   // ---- filter state ----
   const activeColors = new Set();
   const activeThemes = new Set(); // archetype UI is hidden (see index.html) -- stays empty
@@ -426,10 +430,15 @@
           .map((url) => `<img class="card-art" src="${url}" alt="" loading="lazy" onerror="this.remove()" />`)
           .join("")}</div>`
       : "";
-    // rank/mana_cost/type_line are only populated when `update-data`
-    // captured them (EDHREC rank; mana cost/type line from Scryfall) --
-    // gracefully omit each when absent, same posture as image_urls above.
+    // rank/mana_cost/type_line/power_level are only populated when
+    // `update-data`/`enrich-commanders` captured them (EDHREC rank;
+    // mana cost/type line from Scryfall; power_level from a cached
+    // per-commander detail page) -- gracefully omit each when absent,
+    // same posture as image_urls above.
     const rankBadge = c.rank ? `<span class="tag rank-tag">#${c.rank} on this page</span>` : "";
+    const powerBadge = c.power_level
+      ? `<span class="tag power-tag">Bracket ${c.power_level} · ${BRACKET_LABELS[c.power_level]}</span>`
+      : "";
     const manaCost = c.mana_cost ? `<div class="mana-cost">${manaCostHTML(c.mana_cost)}</div>` : "";
     const typeLine = !c.mana_cost && c.type_line ? `<div class="type-line">${c.type_line}</div>` : "";
     return `
@@ -443,6 +452,7 @@
       <div class="card-stats"><span>Decks <b>${c.num_decks.toLocaleString()}</b></span></div>
       ${tags}
       ${rankBadge}
+      ${powerBadge}
     `;
   }
 
@@ -677,6 +687,12 @@
               .join("")}</div>`
           : "";
         const interactiveAttrs = hasArt ? 'tabindex="0" role="button"' : "";
+        // power_level only exists on session-results rows (RankedCommander),
+        // not the all-time leaderboard's GlobalRanking -- absent there, so
+        // this simply renders nothing for that call site.
+        const powerBadge = c.power_level
+          ? `<span class="tag power-tag">Bracket ${c.power_level} · ${BRACKET_LABELS[c.power_level]}</span>`
+          : "";
         return `
           <div class="rank-row ${i === 0 ? "top1" : ""} ${hasArt ? "has-art" : ""}" data-idx="${i}" ${interactiveAttrs}>
             <div class="rank-num">${i + 1}</div>
@@ -684,6 +700,7 @@
               ${thumb}
               <div class="pips">${pipsHTML(c.color_identity)}</div>
               <div class="rank-name">${c.name}</div>
+              ${powerBadge}
             </div>
             <div class="rank-rating ${cls}">${html}</div>
           </div>

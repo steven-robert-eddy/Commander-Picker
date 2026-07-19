@@ -1,5 +1,12 @@
 {
   "header": "Rakdos, Lord of Riots (Commander)",
+  "bracket_counts": {
+    "1": 27,
+    "2": 1140,
+    "3": 846,
+    "4": 270,
+    "5": 43
+  },
   "tag_counts": {
     "Demons": 404,
     "Burn": 361,

@@ -206,10 +206,13 @@ def test_load_commanders_applies_cached_detail_page(populated_cache):
     assert "demons" in rakdos_lor.themes
     assert "burn" in rakdos_lor.themes
     assert len(rakdos_lor.themes - {"aristocrats"}) == db.TOP_TAGS_PER_COMMANDER
+    # bracket_counts: {"1": 27, "2": 1140, "3": 846, "4": 270, "5": 43} -- 2 is dominant.
+    assert rakdos_lor.power_level == 2
 
     # No cached detail page for this one -- left exactly as before.
     valgavoth = commanders["Valgavoth, Harrower of Souls"]
     assert valgavoth.salt is None
+    assert valgavoth.power_level is None
 
 
 def test_apply_commander_detail_keeps_only_top_n_tags_by_count():
@@ -233,6 +236,34 @@ def test_apply_commander_detail_keeps_only_top_n_tags_by_count():
     assert len(record.themes) == db.TOP_TAGS_PER_COMMANDER
     assert "tag-24" in record.themes  # highest count kept
     assert "tag-1" not in record.themes  # lowest count dropped
+    assert record.power_level is None  # no bracket_counts in this payload
+
+
+def test_apply_commander_detail_sets_dominant_power_level():
+    record = db.CommanderRecord(
+        name="Test Commander",
+        sanitized="test-commander",
+        color_identity=("B", "R"),
+        num_decks=100,
+        edhrec_url=None,
+    )
+    payload = {"card": {}, "bracket_counts": {"1": 5, "2": 5, "3": 400, "4": 10, "5": 1}}
+
+    db._apply_commander_detail(record, payload)
+
+    assert record.power_level == 3
+
+
+def test_apply_commander_detail_empty_bracket_counts_leaves_power_level_none():
+    record = db.CommanderRecord(
+        name="Test Commander",
+        sanitized="test-commander",
+        color_identity=("B", "R"),
+        num_decks=100,
+        edhrec_url=None,
+    )
+    db._apply_commander_detail(record, {"card": {}, "bracket_counts": {}})
+    assert record.power_level is None
 
 
 def test_build_database_persists_salt_and_detail_themes(populated_cache):
@@ -246,8 +277,9 @@ def test_build_database_persists_salt_and_detail_themes(populated_cache):
 
     conn = db.connect(db_path=db_path)
     try:
-        row = conn.execute("SELECT salt FROM commanders WHERE name = 'Rakdos, Lord of Riots'").fetchone()
+        row = conn.execute("SELECT salt, power_level FROM commanders WHERE name = 'Rakdos, Lord of Riots'").fetchone()
         assert row["salt"] == 0.4550264550264551
+        assert row["power_level"] == 2
 
         theme_rows = conn.execute(
             "SELECT theme FROM commander_themes WHERE commander_name = 'Rakdos, Lord of Riots'"

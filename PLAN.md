@@ -158,6 +158,26 @@ dropped, just intentionally after that.
   still drives which shallow tag pages get fetched by default. Data
   plumbing only this pass -- no salt filter, no theme-filter UI
   re-enablement (see Roadmap).
+- **Power-level badge**: the first item picked off the "Next:
+  Personalization" roadmap tier. The same cached per-commander detail
+  page fetched for salt/themes also carries `bracket_counts` -- EDHREC's
+  own distribution of which Commander Bracket (1 Exhibition / 2 Core /
+  3 Upgraded / 4 Optimized / 5 cEDH) real decks running that commander
+  fall into. `db.py`'s `_apply_commander_detail` now also sets a new
+  `power_level` field to the dominant bracket (highest deck count),
+  stored as a `power_level` column in `commanders.db`. Threaded through
+  the same path every other commander field follows: `CommanderRecord`
+  -> `pool.Commander` (`_filtered_candidates`/`commanders_by_names`) ->
+  `sessions.py`'s `candidates` table (new column, with a guarded
+  `ALTER TABLE` migration since `sessions.db` persists across runs,
+  unlike `commanders.db`) -> `CandidateDetail`/`RankedCommander` -> API
+  responses (no endpoint changes needed, they already `asdict()` these
+  dataclasses) -> a `.tag`-styled "Bracket N · <name>" badge in
+  `app.js`'s `cardInnerHTML` (duel/bracket cards) and `renderRankList`
+  (duel-mode session results only -- the all-time leaderboard's
+  `GlobalRanking` doesn't carry this field, out of scope for this pass).
+  Data + a visible badge only, same scoping as when salt/rank first
+  shipped -- no filter yet (still on the Roadmap).
 - **32-deck challenge tracker**: a personal planning tool for building
   one Commander deck per color-identity combination, riding entirely on
   data this app already produces -- not a new rating/Elo concept.
@@ -342,20 +362,6 @@ Not new features — tightening what's already shipped, per the
 The agreed next big goal — builds on data/patterns already in place,
 no new infrastructure (auth, sharing links) required:
 
-- **Power-level indicator** (newly scoped): the same per-commander
-  detail-page fetch already wired up for salt/themes
-  (`enrich-commanders`, `db.py`'s `_apply_commander_detail`) also
-  carries `bracket_counts` — EDHREC's own distribution of which
-  Commander Bracket (1 Exhibition / 2 Core / 3 Upgraded / 4 Optimized /
-  5 cEDH) real decks running that commander fall into. Parse it into a
-  new `power_level` field (e.g. the mode of `bracket_counts`) alongside
-  `salt`, thread it through the same path `salt`/`rank`/`price` already
-  follow (`CommanderRecord` → `Commander` → `sessions.py`'s
-  candidates/rankings → API → a small badge on duel cards and results
-  rows, reusing the existing rank-badge/mana-cost-pip visual pattern),
-  and show it as a badge. No filter yet in this pass — just the data +
-  a visible badge, same order salt/rank shipped in before their filters
-  existed.
 - **Salt-score filter + theme-filter UI decision**: `PoolFilters` gains
   `max_salt`/`min_salt` (mirrors `max_price` exactly, including the
   permissive-on-missing-data posture). Separately, decide whether/how

@@ -6,7 +6,9 @@ from commander_picker import elo, sessions
 from commander_picker.pool import Commander
 
 
-def _commander(name, decks=1000, colors="BR", themes=(), image_urls=(), rank=None, mana_cost=None, type_line=None):
+def _commander(
+    name, decks=1000, colors="BR", themes=(), image_urls=(), rank=None, mana_cost=None, type_line=None, power_level=None
+):
     return Commander(
         name=name,
         color_identity=colors,
@@ -17,6 +19,7 @@ def _commander(name, decks=1000, colors="BR", themes=(), image_urls=(), rank=Non
         rank=rank,
         mana_cost=mana_cost,
         type_line=type_line,
+        power_level=power_level,
     )
 
 
@@ -293,6 +296,22 @@ def test_image_urls_flow_through_candidates_and_rankings(conn):
     ranked = {r.name: r for r in sessions.get_rankings(conn, session_id)}
     assert ranked["Pictured"].image_urls == ("https://img/pictured-front.jpg", "https://img/pictured-back.jpg")
     assert ranked["Unpictured"].image_urls == ()
+
+
+def test_power_level_flows_through_candidates_and_rankings(conn):
+    candidates = [
+        _commander("Strong", power_level=4),
+        _commander("Unknown Power"),
+    ]
+    session_id = sessions.create_session(conn, candidates)
+
+    details = sessions.get_candidates(conn, session_id)
+    assert details["Strong"].power_level == 4
+    assert details["Unknown Power"].power_level is None
+
+    ranked = {r.name: r for r in sessions.get_rankings(conn, session_id)}
+    assert ranked["Strong"].power_level == 4
+    assert ranked["Unknown Power"].power_level is None
 
 
 def test_migration_adds_image_urls_column_to_old_db(tmp_path):

@@ -142,6 +142,7 @@ def _ensure_schema(conn: sqlite3.Connection) -> None:
             rank INTEGER,
             mana_cost TEXT,
             type_line TEXT,
+            power_level INTEGER,
             PRIMARY KEY (session_id, commander_name)
         );
         CREATE TABLE IF NOT EXISTS comparisons (
@@ -206,6 +207,8 @@ def _ensure_schema(conn: sqlite3.Connection) -> None:
         conn.execute("ALTER TABLE candidates ADD COLUMN mana_cost TEXT")
     if "type_line" not in existing_columns:
         conn.execute("ALTER TABLE candidates ADD COLUMN type_line TEXT")
+    if "power_level" not in existing_columns:
+        conn.execute("ALTER TABLE candidates ADD COLUMN power_level INTEGER")
     if "image_urls" not in existing_columns:
         conn.execute("ALTER TABLE candidates ADD COLUMN image_urls TEXT NOT NULL DEFAULT '[]'")
         if "image_url" in existing_columns:
@@ -311,8 +314,8 @@ def create_session(
     )
     conn.executemany(
         "INSERT INTO candidates "
-        "(session_id, commander_name, color_identity, num_decks, edhrec_url, themes, image_urls, rating, rank, mana_cost, type_line) "
-        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        "(session_id, commander_name, color_identity, num_decks, edhrec_url, themes, image_urls, rating, rank, mana_cost, type_line, power_level) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         [
             (
                 session_id,
@@ -326,6 +329,7 @@ def create_session(
                 c.rank,
                 c.mana_cost,
                 c.type_line,
+                c.power_level,
             )
             for c in candidates
         ],
@@ -433,6 +437,7 @@ class CandidateDetail:
     rank: int | None = None
     mana_cost: str | None = None
     type_line: str | None = None
+    power_level: int | None = None
 
 
 def get_candidates(conn: sqlite3.Connection, session_id: str) -> dict[str, CandidateDetail]:
@@ -451,6 +456,7 @@ def get_candidates(conn: sqlite3.Connection, session_id: str) -> dict[str, Candi
             rank=r["rank"],
             mana_cost=r["mana_cost"],
             type_line=r["type_line"],
+            power_level=r["power_level"],
         )
         for r in rows
     }
@@ -761,12 +767,13 @@ class RankedCommander:
     edhrec_url: str | None
     themes: tuple[str, ...]
     image_urls: tuple[str, ...]
+    power_level: int | None = None
 
 
 def get_rankings(conn: sqlite3.Connection, session_id: str) -> list[RankedCommander]:
     rows = conn.execute(
-        "SELECT commander_name, rating, color_identity, num_decks, edhrec_url, themes, image_urls FROM candidates "
-        "WHERE session_id = ? ORDER BY rating DESC",
+        "SELECT commander_name, rating, color_identity, num_decks, edhrec_url, themes, image_urls, power_level "
+        "FROM candidates WHERE session_id = ? ORDER BY rating DESC",
         (session_id,),
     ).fetchall()
     return [
@@ -778,6 +785,7 @@ def get_rankings(conn: sqlite3.Connection, session_id: str) -> list[RankedComman
             edhrec_url=r["edhrec_url"],
             themes=tuple(t for t in (r["themes"] or "").split(",") if t),
             image_urls=tuple(json.loads(r["image_urls"])) if r["image_urls"] else (),
+            power_level=r["power_level"],
         )
         for r in rows
     ]
