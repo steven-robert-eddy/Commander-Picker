@@ -180,17 +180,18 @@
     <!-- RESULTS SCREEN -->
     <section id="screen-results" class="hidden">
       <p class="lede" id="results-lede">Final standings for this run — every pick also feeds the all-time leaderboard below. Tap a commander to see its card(s) full size.</p>
-      <!-- Bracket mode only -->
-      <div class="champion-banner hidden" id="champion-banner"></div>
-      <div class="panel" id="rank-list"></div>
-      <div class="bracket-tree hidden" id="bracket-tree-final"></div>
       <!-- 32-deck challenge tie-in: a one-click nudge to add the winner
            as a candidate for its color combo, see app.js maybeShowChallengeNudge.
-           Hidden unless the winner isn't already a candidate for that combo. -->
+           Hidden unless the winner isn't already a candidate for that combo.
+           Shown up top, above the standings, so it's the first thing seen. -->
       <div class="challenge-nudge hidden" id="challenge-nudge">
         <span id="challenge-nudge-text"></span>
         <button class="ghost-btn" id="challenge-nudge-btn" type="button">Add →</button>
       </div>
+      <!-- Bracket mode only -->
+      <div class="champion-banner hidden" id="champion-banner"></div>
+      <div class="panel" id="rank-list"></div>
+      <div class="bracket-tree hidden" id="bracket-tree-final"></div>
       <button class="again-btn" id="again-btn">Duel again</button>
       <button class="ghost-btn" id="results-leaderboard-link" type="button">All-time leaderboard →</button>
     </section>
