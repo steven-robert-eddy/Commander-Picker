@@ -10,8 +10,13 @@ or a browser, with ratings that persist and compound across sessions.
 Stack: Python, SQLite (local cache + queryable DB), Turso (managed
 libSQL) for session storage, EDHREC's JSON data as the source, Scryfall
 for card art. Standalone project — no dependency on the sibling
-`commander-synergy` repo's package, though the two may link later
-(e.g. "find synergy for this pick" once a commander is chosen).
+`commander-synergy` repo's package; that project isn't in a state worth
+linking to right now, so cross-linking is on hold (see "Someday" below).
+
+Direction, as of 2026-07-19: staying a personal, single-user tool for
+now — the goal is a genuinely solid product before expanding who it's
+for. Real multi-user accounts are a deliberate "someday" goal, not
+dropped, just intentionally after that.
 
 ## Status: all core functionality done and live-verified
 
@@ -74,8 +79,8 @@ for card art. Standalone project — no dependency on the sibling
   re-hidden after live testing confirmed the same limitation that hid it
   the first time (see "Known limitations" below) — EDHREC's tag pages
   just don't carry enough signal yet. Still fully built and available via
-  the CLI/API (`pool --themes`, `play --themes`); see "Feature roadmap"
-  for the deeper-sourcing follow-up this is waiting on.
+  the CLI/API (`pool --themes`, `play --themes`); see "Roadmap" for the
+  theme-filter UI decision this is waiting on.
 - **Deckbuilder links**: the lightbox (opened from a results/leaderboard
   row) shows "View on EDHREC" (reliable, uses the stored `edhrec_url`)
   plus best-effort "Search Moxfield"/"Search Archidekt" links —
@@ -152,7 +157,7 @@ for card art. Standalone project — no dependency on the sibling
   data as soon as it exists; `THEME_SLUGS` itself is untouched and
   still drives which shallow tag pages get fetched by default. Data
   plumbing only this pass -- no salt filter, no theme-filter UI
-  re-enablement (see Feature roadmap).
+  re-enablement (see Roadmap).
 - **32-deck challenge tracker**: a personal planning tool for building
   one Commander deck per color-identity combination, riding entirely on
   data this app already produces -- not a new rating/Elo concept.
@@ -308,15 +313,87 @@ this project, not a play-by-play changelog.
   no longer blocked on moving off local SQLite first, since
   `sessions.db` can already live on Turso.
 
-## Not yet started
+## Roadmap
 
-- Session history across visits (which commanders have already been
-  shown/picked/rejected before, so repeat sessions can exclude recent
-  picks).
-- Cross-link to `commander-synergy`: once a commander is chosen, jump
-  straight into that project's synergy finder for it.
-- Real multi-user accounts (see above).
-- Backfilling the all-time leaderboard from pre-leaderboard-feature
+Reorganized 2026-07-19 around a real strategy conversation (previously
+a flat "Feature roadmap" + "Not yet started" list that had grown
+organically pass by pass) into four tiers: harden what exists, the
+agreed next big goal, and an explicit someday backlog. Pull items from
+here one at a time the same way every feature in this project has been
+built so far — this is a backlog, not a schedule.
+
+### 1. Harden before expanding
+
+Not new features — tightening what's already shipped, per the
+"good working product first" direction above:
+
+- Trim/verify `themes.py::THEME_SLUGS` against EDHREC's real tag list
+  (currently a curated guess; `update-data` skips 404s gracefully, but
+  the list itself is noisy and worth correcting).
+- Revisit Elo K-factor/round-count constants (`elo.py`) once there's
+  been enough real usage to observe — currently hand-picked priors.
+- A due-diligence pass confirming the fast-growing recent surface area
+  (custom lists, the 32-deck challenge tracker, undo, bracket mode) all
+  still behave correctly together — not a known bug, just worth
+  checking before piling on more.
+
+### 2. Next: Personalization
+
+The agreed next big goal — builds on data/patterns already in place,
+no new infrastructure (auth, sharing links) required:
+
+- **Power-level indicator** (newly scoped): the same per-commander
+  detail-page fetch already wired up for salt/themes
+  (`enrich-commanders`, `db.py`'s `_apply_commander_detail`) also
+  carries `bracket_counts` — EDHREC's own distribution of which
+  Commander Bracket (1 Exhibition / 2 Core / 3 Upgraded / 4 Optimized /
+  5 cEDH) real decks running that commander fall into. Parse it into a
+  new `power_level` field (e.g. the mode of `bracket_counts`) alongside
+  `salt`, thread it through the same path `salt`/`rank`/`price` already
+  follow (`CommanderRecord` → `Commander` → `sessions.py`'s
+  candidates/rankings → API → a small badge on duel cards and results
+  rows, reusing the existing rank-badge/mana-cost-pip visual pattern),
+  and show it as a badge. No filter yet in this pass — just the data +
+  a visible badge, same order salt/rank shipped in before their filters
+  existed.
+- **Salt-score filter + theme-filter UI decision**: `PoolFilters` gains
+  `max_salt`/`min_salt` (mirrors `max_price` exactly, including the
+  permissive-on-missing-data posture). Separately, decide whether/how
+  to re-enable the web UI's theme filter now that `GET /api/themes`
+  reflects real per-commander tags instead of the old shallow list.
+- **Saved filter presets**: small new `sessions.db` table (name ->
+  serialized `PoolFilters`), a "Save this filter" action and a preset
+  picker on the filter screen.
+- **Favorites/collection tracking**: new table (commander name ->
+  owned/wishlist flag), surfaced as a toggle on results/leaderboard
+  rows and the lightbox. Pairs naturally with the 32-deck challenge
+  tracker (mark a combo's chosen commander "owned" once the physical
+  deck exists) without either feature needing to know about the
+  other's schema.
+
+### 3. Someday (recorded, not scheduled)
+
+- **Real multi-user accounts** — the genuine long-term direction per
+  this conversation, not a maybe, just deliberately after "harden" and
+  "personalization." Comes with per-user session/leaderboard scoping
+  (`sessions.db` already lives on Turso, so no longer blocked on moving
+  off local SQLite first).
+- **Social/competitive**: shareable results/leaderboard links, a
+  champion share card, group/seasonal brackets (the last explicitly
+  waits on multi-user).
+- **Richer detail-page data**: the `similar` commanders list, and top
+  EDHREC-ranked synergy nonland cards as a "starter list" once a
+  commander's chosen — genuinely interesting, flagged as "maybe more
+  later," not scheduled.
+- **`commander-synergy` cross-link** — on hold; that sibling project
+  isn't in a state worth linking to right now, revisit later.
+- **AI "why this commander" blurb** — large. Needs a live LLM API call:
+  an API key configured on the deployed service, and a real cost/latency
+  tradeoff to think through before committing to it.
+- **Session history across visits** (which commanders have already
+  been shown/picked/rejected before, so repeat sessions can exclude
+  recent picks).
+- **Backfilling the all-time leaderboard** from pre-leaderboard-feature
   session history: the ~65 local sessions played before
   `commander_ratings` existed have their full `comparisons` history
   (every winner/loser pair with a timestamp) but no reconstructed
@@ -324,48 +401,11 @@ this project, not a play-by-play changelog.
   deliberately skipped when Turso was set up (started that leaderboard
   fresh instead, by request) — the local history remains available if
   this is revisited later.
-- Provisional/games_played-based K-factor taper (chess-style: bigger
-  rating swings for a commander's first few games system-wide, smaller
-  once it has more history) — considered while designing bracket mode's
-  K-factor, but scoped out as orthogonal to that specific feature. Would
-  apply to duel mode too, not just bracket.
-
-## Feature roadmap
-
-A broader UX brainstorm turned up 16 candidate features across four
-areas; the near-free ones (no new schema/infra) shipped as "Phase 1"
-(see the bullets above: card details/price filter, theme filter,
-deckbuilder links, keyboard shortcuts). The rest, sized for whenever
-they're picked up next:
-
-**Picker polish**
-- Exclude recently-seen commanders across sessions — medium, already
-  covered above under "Session history across visits."
-
-**Social/competitive**
-- Shareable results/bracket link — medium, no auth needed since there's
-  none yet (a read-only URL for a finished session).
-- Shareable leaderboard URL — small-medium.
-- Champion share card (a nice summary after winning a bracket) — small.
-- Group/seasonal bracket multiple people vote into — large; explicitly
-  the first real step toward a public/multi-user version of this app,
-  deliberately deferred rather than bolted on ahead of real accounts.
-
-**Personalization**
-- Collection/favorites tracking ("I already own this") — medium, new
-  table (commander name -> owned/wishlist flag).
-- Saved filter presets — small-medium, new table (name -> serialized
-  `PoolFilters`).
-- AI "why this commander" blurb — large. Needs a live LLM API call:
-  an API key configured on the deployed service, and a real cost/latency
-  tradeoff to think through before committing to it.
-- Salt-score filter + theme-filter UI re-enablement — now that real
-  salt/theme data can exist (see the Status section's
-  "Salt score + richer per-commander themes" entry), the last remaining
-  piece is surfacing it: a `PoolFilters.max_salt`/`min_salt` filter, and
-  deciding whether/how to re-enable the web UI's theme filter now that
-  `GET /api/themes` reflects real, much richer per-commander tags
-  instead of the old shallow tag-page list.
+- **Provisional/games_played-based K-factor taper** (chess-style:
+  bigger rating swings for a commander's first few games system-wide,
+  smaller once it has more history) — considered while designing
+  bracket mode's K-factor, but scoped out as orthogonal to that
+  specific feature. Would apply to duel mode too, not just bracket.
 
 ## Known limitations
 
