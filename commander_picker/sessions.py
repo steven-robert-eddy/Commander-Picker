@@ -714,7 +714,7 @@ class BracketState:
 def get_bracket(conn: sqlite3.Connection, session_id: str) -> BracketState:
     """Full bracket tree for a session -- the single source of truth for
     both the in-progress compact tree view and the final results tree."""
-    info = get_session(conn, session_id)
+    get_session(conn, session_id)  # raises SessionError if the session doesn't exist
     rows = conn.execute(
         "SELECT round_num, slot, seed_a, seed_b, winner FROM bracket_matches "
         "WHERE session_id = ? ORDER BY round_num, slot",

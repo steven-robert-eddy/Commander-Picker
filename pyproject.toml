@@ -16,7 +16,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=7", "httpx>=0.27"]
+dev = ["pytest>=7", "httpx>=0.27", "ruff>=0.6"]
 
 [project.scripts]
 commander-picker = "commander_picker.cli:main"
@@ -26,3 +26,15 @@ include = ["commander_picker*"]
 
 [tool.setuptools.package-data]
 "commander_picker.web" = ["static/*.html", "static/*.js", "static/*.css"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py39"
+
+[tool.ruff.lint]
+# Defaults (E4, E7, E9, F) already cover real bugs -- unused
+# imports/variables, undefined names, syntax issues -- without
+# line-length nagging (E501 isn't in the default set), which this
+# codebase's long, deliberately descriptive comments don't fit anyway.
+# "I" (isort) adds import-order checking on top.
+extend-select = ["I"]

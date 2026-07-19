@@ -334,8 +334,20 @@ pytest
 Tests run entirely offline against hand-built fixtures in
 `tests/fixtures/`, so they don't require network access to EDHREC.
 
-A GitHub Actions workflow (`.github/workflows/tests.yml`) runs this same
-suite automatically on every push and pull request.
+## Linting
+
+```bash
+ruff check .
+```
+
+[Ruff](https://docs.astral.sh/ruff/)'s default rules (unused
+imports/variables, undefined names, syntax issues) plus import-order
+checking (`I`) — deliberately not the line-length rule (`E501`), since
+this codebase leans on long, descriptive comments throughout. Config
+lives in `pyproject.toml`'s `[tool.ruff]`/`[tool.ruff.lint]` sections.
+
+A GitHub Actions workflow (`.github/workflows/tests.yml`) runs both this
+and the test suite automatically on every push and pull request.
 
 ## License
 

@@ -17,7 +17,8 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from commander_picker import db, elo, pool as pool_module, sessions
+from commander_picker import db, elo, sessions
+from commander_picker import pool as pool_module
 from commander_picker.themes import THEME_SLUGS
 
 STATIC_DIR = Path(__file__).resolve().parent / "static"
