@@ -274,3 +274,14 @@ def test_commanders_by_names_unknown_name_raises(conn):
 def test_commanders_by_names_duplicate_raises(conn):
     with pytest.raises(pool.CommanderLookupError, match="Duplicate"):
         pool.commanders_by_names(conn, ["Big Rakdos", "Big Rakdos"])
+
+
+def test_list_known_themes_returns_distinct_themes(conn):
+    assert pool.list_known_themes(conn) == ["aristocrats", "tokens"]
+
+
+def test_list_known_themes_empty_when_no_themes():
+    conn = _make_conn()
+    _insert(conn, "No Themes Commander", "BR", 1000)
+    conn.commit()
+    assert pool.list_known_themes(conn) == []

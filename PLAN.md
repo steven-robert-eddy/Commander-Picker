@@ -128,6 +128,31 @@ for card art. Standalone project — no dependency on the sibling
   `sessions.create_session`, Elo, undo, bracket engine, or resume --
   they already operate on a plain `list[Commander]` regardless of how it
   was built. CLI equivalent (`--names`) intentionally deferred.
+- **Salt score + richer per-commander themes**: confirmed live
+  2026-07-19 against `.../pages/commanders/rakdos-lord-of-riots.json`
+  that a commander's own EDHREC detail page (same URL template as color
+  pages, just with the commander's own `sanitized` slug) is flat at the
+  top level (no `container` wrapper) with salt at `card.salt` and
+  deck-count-weighted tags at `panels.taglinks` -- far richer than the
+  shallow ~30-commander tag-page lists this app has scraped since early
+  on. New `commander-picker enrich-commanders [--limit N] [--force]`
+  CLI command fetches+caches each commander's detail page (deliberately
+  never touches `commanders.db` directly, only `edhrec_client`'s
+  on-disk cache -- `db.build_database()` rebuilds the whole DB from
+  scratch every time, so writing enrichment straight into it would get
+  silently wiped by the next ordinary `update-data` run; this command
+  is the same cache-first pattern color/theme pages already use). Run
+  `update-data` afterward to fold it in: `db.load_commanders()` applies
+  each commander's cached detail page last (if present), setting `salt`
+  and merging its top `TOP_TAGS_PER_COMMANDER` (10) tags by deck count
+  into `themes`, alongside whatever the shallow tag pages already
+  contributed. `GET /api/themes` now returns `pool.list_known_themes`
+  (a `SELECT DISTINCT theme FROM commander_themes`) instead of the
+  hand-curated `themes.py::THEME_SLUGS` list, so the API reflects real
+  data as soon as it exists; `THEME_SLUGS` itself is untouched and
+  still drives which shallow tag pages get fetched by default. Data
+  plumbing only this pass -- no salt filter, no theme-filter UI
+  re-enablement (see Feature roadmap).
 - **Persistent, cross-session ratings**: a commander's Elo carries
   forward from session to session via a `commander_ratings` table in
   `sessions.db`, instead of resetting to 1000 every time. An all-time
@@ -281,19 +306,13 @@ they're picked up next:
 - AI "why this commander" blurb — large. Needs a live LLM API call:
   an API key configured on the deployed service, and a real cost/latency
   tradeoff to think through before committing to it.
-- Salt score filter — medium-large. Unlike rank/mana cost/price above,
-  EDHREC's salt score genuinely isn't on the color/theme list pages this
-  app scrapes at all — it lives on each commander's own detail page, so
-  this needs a whole new per-commander fetch, not just reading more
-  fields out of data already pulled.
-- Richer theme/archetype data — medium-large, worth tackling alongside
-  salt score above since both need the same kind of new sourcing: a
-  per-commander EDHREC detail-page fetch (or some other deeper endpoint)
-  rather than the shallow ~30-commander tag-page lists this app currently
-  scrapes (see "Known limitations"). The theme filter's UI was built and
-  briefly re-enabled twice now without this — worth solving the data
-  problem once, together with salt, rather than re-litigating the UI
-  each time.
+- Salt-score filter + theme-filter UI re-enablement — now that real
+  salt/theme data can exist (see the Status section's
+  "Salt score + richer per-commander themes" entry), the last remaining
+  piece is surfacing it: a `PoolFilters.max_salt`/`min_salt` filter, and
+  deciding whether/how to re-enable the web UI's theme filter now that
+  `GET /api/themes` reflects real, much richer per-commander tags
+  instead of the old shallow tag-page list.
 
 ## Known limitations
 

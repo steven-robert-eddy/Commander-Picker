@@ -19,7 +19,6 @@ from pydantic import BaseModel, Field
 
 from commander_picker import db, elo, sessions
 from commander_picker import pool as pool_module
-from commander_picker.themes import THEME_SLUGS
 
 STATIC_DIR = Path(__file__).resolve().parent / "static"
 
@@ -135,7 +134,8 @@ def _bracket_pairing_payload(conn, session_id: str, info: sessions.SessionInfo) 
 
 @app.get("/api/themes")
 def api_themes():
-    return {"slugs": THEME_SLUGS}
+    with _catalog_conn() as conn:
+        return {"slugs": pool_module.list_known_themes(conn)}
 
 
 @app.get("/api/commanders/search")

@@ -1,0 +1,51 @@
+{
+  "header": "Rakdos, Lord of Riots (Commander)",
+  "tag_counts": {
+    "Demons": 404,
+    "Burn": 361,
+    "Aggro": 330,
+    "Group Slug": 222,
+    "Eldrazi": 175,
+    "Combo": 86,
+    "Big Mana": 80,
+    "Chaos": 54,
+    "Midrange": 54,
+    "Ramp": 52,
+    "Pingers": 48,
+    "Reanimator": 48,
+    "Stompy": 42
+  },
+  "panels": {
+    "taglinks": [
+      {"count": 404, "slug": "demons", "value": "Demons"},
+      {"count": 361, "slug": "burn", "value": "Burn"},
+      {"count": 330, "slug": "aggro", "value": "Aggro"},
+      {"count": 222, "slug": "group-slug", "value": "Group Slug"},
+      {"count": 175, "slug": "eldrazi", "value": "Eldrazi"},
+      {"count": 86, "slug": "combo", "value": "Combo"},
+      {"count": 80, "slug": "big-mana", "value": "Big Mana"},
+      {"count": 54, "slug": "chaos", "value": "Chaos"},
+      {"count": 54, "slug": "midrange", "value": "Midrange"},
+      {"count": 52, "slug": "ramp", "value": "Ramp"},
+      {"count": 48, "slug": "pingers", "value": "Pingers"},
+      {"count": 48, "slug": "reanimator", "value": "Reanimator"},
+      {"count": 42, "slug": "stompy", "value": "Stompy"}
+    ]
+  },
+  "card": {
+    "num_decks": 9973,
+    "rank": 225,
+    "cmc": 4.0,
+    "color_identity": ["B", "R"],
+    "name": "Rakdos, Lord of Riots",
+    "primary_type": "Creature",
+    "rarity": "mythic",
+    "salt": 0.4550264550264551,
+    "sanitized": "rakdos-lord-of-riots",
+    "slug": "rakdos-lord-of-riots",
+    "type_line": "Legendary Creature — Demon",
+    "is_commander": true,
+    "legal_commander": true,
+    "url": "/commanders/rakdos-lord-of-riots"
+  }
+}

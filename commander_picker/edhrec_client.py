@@ -52,6 +52,9 @@ META_PATH = DATA_DIR / "edhrec_meta.json"
 # (e.g. a hypothetical color combo and theme sharing a name).
 _COLOR_PREFIX = "color__"
 _THEME_PREFIX = "theme__"
+_COMMANDER_PREFIX = "commander__"
+
+_CACHE_PREFIXES = {"color": _COLOR_PREFIX, "theme": _THEME_PREFIX, "commander": _COMMANDER_PREFIX}
 
 # EDHREC's own data updates roughly daily; matches the cadence
 # commander-synergy uses for Scryfall bulk data.
@@ -79,8 +82,7 @@ class FetchResult:
 
 
 def _cache_key(kind: str, slug: str) -> str:
-    prefix = _COLOR_PREFIX if kind == "color" else _THEME_PREFIX
-    return f"{prefix}{slug}"
+    return f"{_CACHE_PREFIXES[kind]}{slug}"
 
 
 def _page_path(kind: str, slug: str) -> Path:
@@ -88,7 +90,12 @@ def _page_path(kind: str, slug: str) -> Path:
 
 
 def _url_for(kind: str, slug: str) -> str:
-    template = COLOR_PAGE_URL_TEMPLATE if kind == "color" else THEME_PAGE_URL_TEMPLATE
+    # "commander" (an individual commander's detail page) shares the same
+    # URL template as "color" -- EDHREC uses one route,
+    # /pages/commanders/<slug>.json, for both a color-combo slug (e.g.
+    # "rakdos") and a specific commander's own slug (e.g.
+    # "rakdos-lord-of-riots"). Verified live 2026-07-19.
+    template = THEME_PAGE_URL_TEMPLATE if kind == "theme" else COLOR_PAGE_URL_TEMPLATE
     return template.format(slug=slug)
 
 
@@ -192,6 +199,19 @@ def fetch_color_page(slug: str, force: bool = False, max_age_seconds: int = DEFA
 def fetch_theme_page(slug: str, force: bool = False, max_age_seconds: int = DEFAULT_MAX_AGE_SECONDS) -> FetchResult:
     """Ensure the cached JSON page for a theme/archetype slug exists and is fresh."""
     return _fetch_page("theme", slug, force, max_age_seconds)
+
+
+def fetch_commander_detail_page(
+    slug: str, force: bool = False, max_age_seconds: int = DEFAULT_MAX_AGE_SECONDS
+) -> FetchResult:
+    """Ensure the cached JSON detail page for one specific commander exists and is fresh.
+
+    Unlike a color/theme list page, a detail page has no
+    `container.json_dict.cardlists` to paginate -- `_paginate_page` (run
+    by `_fetch_page` for every kind) already no-ops harmlessly on it,
+    confirmed against the live shape (no `container` key at all).
+    """
+    return _fetch_page("commander", slug, force, max_age_seconds)
 
 
 @dataclass

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import sys
+import time
 
 from commander_picker import db, edhrec_client, elo, pool, scryfall_client, sessions
 from commander_picker.colors import all_slugs
@@ -60,6 +61,57 @@ def _cmd_update_data(args: argparse.Namespace) -> int:
         print(f"error: {exc}", file=sys.stderr)
         return 1
     print(f"  wrote {path}")
+    return 0
+
+
+def _cmd_enrich_commanders(args: argparse.Namespace) -> int:
+    """Fetch+cache each commander's own EDHREC detail page (salt score,
+    richer per-commander tags) -- see edhrec_client.fetch_commander_detail_page.
+
+    Deliberately only touches edhrec_client's on-disk JSON cache, never
+    commanders.db directly -- `update-data` rebuilds commanders.db from
+    scratch every time, so writing enrichment straight into it would get
+    silently wiped by the next ordinary update-data run. Run
+    `commander-picker update-data` after this to fold the newly cached
+    detail pages in (mirrors the fetch-then-build split update-data
+    already does internally for color/theme pages).
+    """
+    try:
+        conn = db.connect()
+    except db.DbError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+
+    try:
+        rows = conn.execute("SELECT name, sanitized FROM commanders ORDER BY name").fetchall()
+    finally:
+        conn.close()
+
+    fetched = 0
+    skipped = 0
+    failed = 0
+    for name, sanitized in ((row["name"], row["sanitized"]) for row in rows):
+        if not sanitized:
+            continue
+        if not args.force and edhrec_client.page_exists("commander", sanitized):
+            skipped += 1
+            continue
+        if args.limit is not None and fetched >= args.limit:
+            break
+        try:
+            edhrec_client.fetch_commander_detail_page(sanitized, force=args.force)
+        except edhrec_client.EdhrecFetchError as exc:
+            print(f"  warning: {name} ({sanitized}): {exc}", file=sys.stderr)
+            failed += 1
+            continue
+        fetched += 1
+        if fetched % 50 == 0:
+            print(f"  ...{fetched} fetched so far")
+        time.sleep(edhrec_client.REQUEST_DELAY_SECONDS)
+
+    print(f"Done: {fetched} fetched, {skipped} already cached, {failed} failed.")
+    if fetched:
+        print("Run `commander-picker update-data` to fold the newly cached detail pages into commanders.db.")
     return 0
 
 
@@ -445,6 +497,16 @@ def build_parser() -> argparse.ArgumentParser:
         help="skip fetching Scryfall card details (images, mana cost, type line, price)",
     )
     update.set_defaults(func=_cmd_update_data)
+
+    enrich = subparsers.add_parser(
+        "enrich-commanders",
+        help="fetch+cache each commander's own EDHREC detail page (salt score, richer tags)",
+    )
+    enrich.add_argument(
+        "--limit", type=int, default=None, help="stop after this many NEW fetches (default: unbounded)"
+    )
+    enrich.add_argument("--force", action="store_true", help="bypass the freshness cache")
+    enrich.set_defaults(func=_cmd_enrich_commanders)
 
     pool_cmd = subparsers.add_parser("pool", help="preview a filtered candidate pool")
     _add_pool_filter_args(pool_cmd)

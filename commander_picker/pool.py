@@ -135,6 +135,18 @@ def _filtered_candidates(conn: sqlite3.Connection, filters: PoolFilters) -> list
     return candidates
 
 
+def list_known_themes(conn: sqlite3.Connection) -> list[str]:
+    """Every distinct theme tag actually stored in commander_themes.
+
+    Data-driven, unlike the curated `themes.py::THEME_SLUGS` list (which
+    only drives which shallow tag pages get fetched) -- once commanders
+    have real per-commander tags (see db.py's `_apply_commander_detail`),
+    this reflects that richer, EDHREC-defined vocabulary directly.
+    """
+    rows = conn.execute("SELECT DISTINCT theme FROM commander_themes ORDER BY theme").fetchall()
+    return [row["theme"] for row in rows]
+
+
 def count_matches(conn: sqlite3.Connection, filters: PoolFilters) -> int:
     """Total commanders matching filters, before pool-size bounding.
 

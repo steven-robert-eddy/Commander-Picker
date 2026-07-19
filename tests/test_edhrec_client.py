@@ -278,3 +278,53 @@ def test_pagination_stops_at_max_continuation_pages(monkeypatch):
     cardlist = cached["container"]["json_dict"]["cardlists"][0]
     # 1 (first page) + MAX_CONTINUATION_PAGES continuation pages.
     assert len(cardlist["cardviews"]) == 1 + edhrec_client.MAX_CONTINUATION_PAGES
+
+
+def test_fetch_commander_detail_page_uses_color_url_template(monkeypatch):
+    # Same URL template as color pages -- EDHREC serves both a
+    # color-combo slug and a specific commander's own slug from
+    # /pages/commanders/<slug>.json (confirmed live 2026-07-19).
+    payload = {"header": "Rakdos, Lord of Riots (Commander)", "card": {"salt": 0.5}}
+    calls = []
+
+    def fake_get(url, headers, timeout):
+        calls.append(url)
+        return _FakeResponse(payload)
+
+    monkeypatch.setattr(edhrec_client.requests, "get", fake_get)
+
+    result = edhrec_client.fetch_commander_detail_page("rakdos-lord-of-riots")
+
+    assert not result.from_cache
+    assert calls == ["https://json.edhrec.com/pages/commanders/rakdos-lord-of-riots.json"]
+    assert json.loads(result.path.read_text()) == payload
+
+
+def test_commander_detail_page_cache_does_not_collide_with_color_page(monkeypatch):
+    # Deliberately the SAME slug for both -- "rakdos" is both a real color
+    # combo and (in principle) could be a commander's own slug. Since both
+    # kinds share the exact same URL template, the request URL is
+    # literally identical for the two fetches below; the cache-key prefix
+    # ("color__" vs "commander__") is what has to keep them apart, not the
+    # URL, so the two responses are told apart by call order instead.
+    color_payload = {"container": {"json_dict": {"cardlists": []}}}
+    detail_payload = {"header": "Rakdos (Commander)", "card": {"salt": 0.5}}
+    payloads = iter([color_payload, detail_payload])
+
+    def fake_get(url, headers, timeout):
+        return _FakeResponse(next(payloads))
+
+    monkeypatch.setattr(edhrec_client.requests, "get", fake_get)
+
+    edhrec_client.fetch_color_page("rakdos")
+    edhrec_client.fetch_commander_detail_page("rakdos")
+
+    assert edhrec_client.load_page("color", "rakdos") == color_payload
+    assert edhrec_client.load_page("commander", "rakdos") == detail_payload
+
+
+def test_page_exists_for_commander_kind(monkeypatch):
+    monkeypatch.setattr(edhrec_client.requests, "get", lambda *a, **k: _FakeResponse({"card": {}}))
+    assert not edhrec_client.page_exists("commander", "rakdos-lord-of-riots")
+    edhrec_client.fetch_commander_detail_page("rakdos-lord-of-riots")
+    assert edhrec_client.page_exists("commander", "rakdos-lord-of-riots")

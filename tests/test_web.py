@@ -64,7 +64,10 @@ def test_static_files_served(client):
 def test_api_themes(client):
     resp = client.get("/api/themes")
     assert resp.status_code == 200
-    assert "tokens" in resp.json()["slugs"]
+    # Data-driven from commander_themes, not the static THEME_SLUGS list --
+    # only "tokens" was actually fetched/tagged by the fixture, so a
+    # curated-but-untagged slug like "aggro" must not show up.
+    assert resp.json()["slugs"] == ["tokens"]
 
 
 def test_api_pool_returns_filtered_candidates(client):

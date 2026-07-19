@@ -189,3 +189,71 @@ def test_build_database_without_card_meta_lookup_leaves_fields_null(populated_ca
         assert all(r["mana_cost"] is None and r["type_line"] is None and r["price"] is None for r in rows)
     finally:
         conn.close()
+
+
+def test_load_commanders_applies_cached_detail_page(populated_cache):
+    shutil.copy(
+        FIXTURES / "sample_commander_detail_page.json",
+        populated_cache / "edhrec" / "commander__rakdos-lord-of-riots.json",
+    )
+
+    commanders = db.load_commanders(color_slugs=["rakdos"], theme_slugs=["aristocrats"])
+
+    rakdos_lor = commanders["Rakdos, Lord of Riots"]
+    assert rakdos_lor.salt == 0.4550264550264551
+    # Merged with the pre-existing tag-page theme, not replaced by it.
+    assert "aristocrats" in rakdos_lor.themes
+    assert "demons" in rakdos_lor.themes
+    assert "burn" in rakdos_lor.themes
+    assert len(rakdos_lor.themes - {"aristocrats"}) == db.TOP_TAGS_PER_COMMANDER
+
+    # No cached detail page for this one -- left exactly as before.
+    valgavoth = commanders["Valgavoth, Harrower of Souls"]
+    assert valgavoth.salt is None
+
+
+def test_apply_commander_detail_keeps_only_top_n_tags_by_count():
+    record = db.CommanderRecord(
+        name="Test Commander",
+        sanitized="test-commander",
+        color_identity=("B", "R"),
+        num_decks=100,
+        edhrec_url=None,
+    )
+    payload = {
+        "card": {"salt": 0.9},
+        "panels": {
+            "taglinks": [{"count": i, "slug": f"tag-{i}", "value": f"Tag {i}"} for i in range(1, 25)]
+        },
+    }
+
+    db._apply_commander_detail(record, payload)
+
+    assert record.salt == 0.9
+    assert len(record.themes) == db.TOP_TAGS_PER_COMMANDER
+    assert "tag-24" in record.themes  # highest count kept
+    assert "tag-1" not in record.themes  # lowest count dropped
+
+
+def test_build_database_persists_salt_and_detail_themes(populated_cache):
+    shutil.copy(
+        FIXTURES / "sample_commander_detail_page.json",
+        populated_cache / "edhrec" / "commander__rakdos-lord-of-riots.json",
+    )
+    db_path = populated_cache / "commanders.db"
+
+    db.build_database(color_slugs=["rakdos"], theme_slugs=["aristocrats"], db_path=db_path)
+
+    conn = db.connect(db_path=db_path)
+    try:
+        row = conn.execute("SELECT salt FROM commanders WHERE name = 'Rakdos, Lord of Riots'").fetchone()
+        assert row["salt"] == 0.4550264550264551
+
+        theme_rows = conn.execute(
+            "SELECT theme FROM commander_themes WHERE commander_name = 'Rakdos, Lord of Riots'"
+        ).fetchall()
+        themes = {r["theme"] for r in theme_rows}
+        assert "demons" in themes
+        assert "aristocrats" in themes
+    finally:
+        conn.close()

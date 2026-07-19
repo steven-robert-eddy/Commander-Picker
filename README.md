@@ -75,6 +75,32 @@ commander-picker list-themes
 Both `data/edhrec/*.json` and `data/commanders.db` are gitignored —
 regenerated locally rather than committed.
 
+### Salt score + richer per-commander themes
+
+Salt score and any real archetype signal live on each commander's own
+EDHREC detail page (a per-commander fetch — one request per commander,
+not per color/theme), not on the color/theme list pages `update-data`
+scrapes above. A separate, explicitly-invoked, resumable command
+backfills this:
+
+```bash
+commander-picker enrich-commanders
+```
+
+This only caches each commander's detail page to `data/edhrec/` (same
+freshness/politeness-delay rules as everything else) — it never touches
+`commanders.db` directly, since `update-data` rebuilds that from scratch
+every time and would otherwise silently wipe the enrichment on its next
+run. Run `commander-picker update-data` afterward to fold the cached
+detail pages in (salt score, plus each commander's own top 10
+deck-count-weighted tags, merged into `commander_themes` alongside
+whatever the shallow tag pages already contributed).
+
+A full-catalog backfill is a genuinely long, one-request-per-commander
+operation — `--limit N` caps how many *new* fetches happen in one run
+(already-cached commanders are always skipped, so it's safe to run in
+batches over time); `--force` bypasses the freshness cache.
+
 ## Filtering a candidate pool
 
 Once `data/commanders.db` exists, preview a filtered pool before
@@ -194,9 +220,13 @@ filters" clears all of this back to defaults (also switches back to
 duel mode if you'd picked bracket) without a page reload. Price
 and archetype/theme filtering exist server-side and on the CLI
 (`--max-price`, `--themes`) but aren't currently shown in the web UI —
-EDHREC's theme data is too shallow to filter on meaningfully yet (see
-`PLAN.md`'s "Known limitations"), and price was pulled back out
-alongside it while the UI stays simple. Tap through duels — with card
+kept simple for now even though `commander-picker enrich-commanders`
+(see "Fetching data" above) can now back real per-commander salt/theme
+data, since re-enabling that filter UI is a separate decision from
+having the data. `GET /api/themes` already reflects whatever's actually
+in `commander_themes` (not a hand-curated list), so any client built
+against the API sees real tags as soon as they're enriched. Tap through
+duels — with card
 art, mana cost, and an EDHREC rank badge when that data is available —
 and see final standings. Press `1`/`2` or the arrow keys to pick a
 duel card instead of tapping, `u` (or the "← Undo" button) to revert

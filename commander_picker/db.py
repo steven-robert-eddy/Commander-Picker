@@ -79,8 +79,33 @@ def _cardview_to_record(cardview: dict, color_identity: tuple) -> CommanderRecor
     )
 
 
+# Keep only the highest-count tags per commander -- a popular commander
+# can have 50-100+ EDHREC taglinks, many down to count:1 (noise). Top-N
+# by count is signal, not the full tail.
+TOP_TAGS_PER_COMMANDER = 10
+
+
 def _available_slugs(kind: str, requested: list[str]) -> list[str]:
     return [slug for slug in requested if edhrec_client.page_exists(kind, slug)]
+
+
+def _apply_commander_detail(record: CommanderRecord, payload: dict) -> None:
+    """Merge salt + top taglinks-derived themes from a cached per-commander
+    detail page into an already-built CommanderRecord.
+
+    Verified 2026-07-19 against a live
+    ``.../pages/commanders/rakdos-lord-of-riots.json`` response: unlike a
+    color/theme list page, a detail page is flat at the top level (no
+    ``container`` wrapper) -- salt lives at ``card.salt``, and deck-count-
+    weighted tags at ``panels.taglinks`` (each a
+    ``{"count", "slug", "value"}`` dict).
+    """
+    card = payload.get("card", {})
+    record.salt = card.get("salt")
+
+    taglinks = payload.get("panels", {}).get("taglinks", [])
+    top_tags = sorted(taglinks, key=lambda t: t.get("count", 0), reverse=True)[:TOP_TAGS_PER_COMMANDER]
+    record.themes.update(t["slug"] for t in top_tags if t.get("slug"))
 
 
 def load_commanders(
@@ -92,7 +117,13 @@ def load_commanders(
     Color pages are authoritative for identity/deck-count fields; theme
     pages only contribute theme tags for commanders already found on a
     color page (a commander missing its color page is skipped with no
-    error -- the contract here is "load what's cached").
+    error -- the contract here is "load what's cached"). A commander's
+    own detail page (fetched separately via
+    ``commander-picker enrich-commanders``, cached under EDHREC's
+    "commander" kind) is applied last, if cached, adding its salt score
+    and its own richer, deck-count-weighted tags -- a commander with no
+    cached detail page yet is left exactly as before (``salt=None``,
+    tag-page-only themes), same "load what's cached" contract.
     """
     color_slugs = _available_slugs("color", all_slugs() if color_slugs is None else color_slugs)
     theme_slugs = _available_slugs("theme", THEME_SLUGS if theme_slugs is None else theme_slugs)
@@ -116,6 +147,11 @@ def load_commanders(
             name = cardview.get("name")
             if name in commanders:
                 commanders[name].themes.add(slug)
+
+    for record in commanders.values():
+        if edhrec_client.page_exists("commander", record.sanitized):
+            payload = edhrec_client.load_page("commander", record.sanitized)
+            _apply_commander_detail(record, payload)
 
     return commanders
 
