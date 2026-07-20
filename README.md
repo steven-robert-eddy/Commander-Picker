@@ -7,7 +7,8 @@ commander popularity and archetype/theme data from EDHREC, lets you
 filter down to a candidate pool (colors, archetype, an "underbuilt"
 deck-count ceiling), and runs a swipe-style head-to-head picker with
 Elo ratings to narrow the pool to a ranked shortlist. Also tracks a
-32-deck color-identity challenge alongside the picker, from one home
+32-deck color-identity challenge and a pod tracker — Elo ratings for
+real games, players, and decks — alongside the picker, from one home
 screen.
 
 The repo, git remote, deploy URL, and installed CLI command
@@ -22,9 +23,10 @@ Fully built and live-verified: EDHREC data ingestion (a real
 identities, deck counts, theme tags, and card art), filtering /
 candidate pools, the Elo-style swipe picker with cross-session
 persistent ratings and an all-time leaderboard, a 32-deck challenge
-tracker, a home screen tying it all together, a web UI on top of the
-same engine, and a Docker deployment for a public URL — see
-`PLAN.md` for architecture notes and what's not yet started.
+tracker, a pod tracker with separate player/deck Elo ratings, a home
+screen tying it all together, a web UI on top of the same engine, and
+a Docker deployment for a public URL — see `PLAN.md` for architecture
+notes and what's not yet started.
 
 ## Setup
 
@@ -296,6 +298,22 @@ finishes, if the winning commander isn't already a candidate for its
 color combo, the results screen offers a one-click "Add {commander} as
 an option for {combo}?" nudge -- purely additive, it never overwrites
 or auto-chooses anything already there.
+
+**Pod tracker →** (home screen) logs real multiplayer EDH games played
+at the table and keeps two separate, persistent Elo ratings: one per
+**player** (freeform name -- no accounts, a rating starts the first
+time a name is used in a logged game) and one per **deck** (registered
+once with a name and optional linked commander/owner, then reused
+across many games). Logging a game needs at least two participants and
+exactly one winner -- like most casual EDH pods, this tracks "who won,"
+not a full ranked placement -- and updates both ratings via a genuine
+multiplayer Elo generalization (a softmax across the whole field, not
+naive 1v1 pairwise math), so a bigger pod or a lower-rated underdog
+winning swings ratings differently than a coin-flip duel would. A deck
+can be archived (hidden from the "log a game" picker) without losing
+it or its history -- decks are never deleted outright. The single most
+recently logged game can be deleted, reverting every participant's
+rating change; older games can't be deleted individually.
 
 Local-only, no auth, no rate limiting — fine for a single-user local
 tool, would need attention before exposing beyond localhost.

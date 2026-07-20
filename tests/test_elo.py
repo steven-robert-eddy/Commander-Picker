@@ -122,3 +122,65 @@ def test_choose_pairing_late_phase_prefers_rating_adjacent():
     for _ in range(30):
         pair = elo.choose_pairing(names, ratings, rounds_completed=10, target_rounds=9, already_paired=set(), rng=rng)
         assert frozenset(pair) != frozenset(("low", "high"))
+
+
+# ---- multiplayer (pod tracker) Elo ----
+
+
+def test_multiplayer_expected_scores_sums_to_one():
+    scores = elo.multiplayer_expected_scores([1000.0, 1200.0, 800.0, 1000.0])
+    assert sum(scores) == pytest.approx(1.0)
+
+
+def test_multiplayer_expected_scores_equal_ratings_even_split():
+    scores = elo.multiplayer_expected_scores([1000.0, 1000.0, 1000.0, 1000.0])
+    assert scores == pytest.approx([0.25, 0.25, 0.25, 0.25])
+
+
+def test_multiplayer_expected_scores_monotonic_in_rating():
+    scores = elo.multiplayer_expected_scores([800.0, 1000.0, 1200.0])
+    assert scores[0] < scores[1] < scores[2]
+
+
+def test_update_multiplayer_ratings_is_zero_sum():
+    ratings = [1000.0, 1100.0, 900.0, 1000.0]
+    new_ratings = elo.update_multiplayer_ratings(ratings, winner_index=2)
+    assert sum(new_ratings) == pytest.approx(sum(ratings))
+
+
+def test_update_multiplayer_ratings_winner_always_gains():
+    ratings = [1200.0, 1000.0, 800.0, 1000.0]
+    for winner_index in range(len(ratings)):
+        new_ratings = elo.update_multiplayer_ratings(ratings, winner_index)
+        assert new_ratings[winner_index] > ratings[winner_index]
+
+
+def test_update_multiplayer_ratings_underdog_gains_more_than_favorite():
+    ratings = [1200.0, 1000.0, 800.0, 1000.0]
+    favorite_win, _, underdog_win, _ = (
+        elo.update_multiplayer_ratings(ratings, winner_index=0)[0],
+        None,
+        elo.update_multiplayer_ratings(ratings, winner_index=2)[2],
+        None,
+    )
+    assert (underdog_win - ratings[2]) > (favorite_win - ratings[0])
+
+
+def test_update_multiplayer_ratings_loser_above_expected_still_loses():
+    # Standard Elo property generalized to N players: even a player who
+    # didn't win can still lose rating if their expected score (given
+    # their rating relative to the field) was higher than what "not
+    # winning" (actual score 0) gives them.
+    ratings = [1400.0, 1000.0, 1000.0, 1000.0]
+    new_ratings = elo.update_multiplayer_ratings(ratings, winner_index=1)
+    assert new_ratings[0] < ratings[0]
+
+
+def test_update_multiplayer_ratings_two_player_matches_pairwise_direction():
+    # Sanity cross-check against the 1v1 formula -- not an exact match
+    # (different K-factors), but the direction and rough magnitude
+    # should agree for a 2-player field.
+    winner_new, loser_new = elo.update_ratings(1000.0, 1000.0, k=elo.MULTIPLAYER_K_FACTOR)
+    mp_winner_new, mp_loser_new = elo.update_multiplayer_ratings([1000.0, 1000.0], winner_index=0)
+    assert mp_winner_new == pytest.approx(winner_new)
+    assert mp_loser_new == pytest.approx(loser_new)

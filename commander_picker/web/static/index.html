@@ -17,8 +17,8 @@
     <section id="screen-home">
       <p class="lede">
         Everything for building out your Commander collection — pick a
-        new commander, track your 32-deck challenge, or browse past
-        sessions and the all-time leaderboard.
+        new commander, track your 32-deck challenge, log real pod
+        games, or browse past sessions and the all-time leaderboard.
       </p>
       <div class="home-grid">
         <button class="home-card" id="home-picker-card" type="button">
@@ -28,6 +28,10 @@
         <button class="home-card" id="home-challenge-card" type="button">
           <div class="home-card-title">32-deck challenge</div>
           <div class="home-card-desc">Track a deck for every color-identity combination, colorless through five-color.</div>
+        </button>
+        <button class="home-card" id="home-pod-card" type="button">
+          <div class="home-card-title">Pod tracker</div>
+          <div class="home-card-desc">Log real games with your playgroup — Elo ratings for both players and decks.</div>
         </button>
         <button class="home-card" id="home-leaderboard-card" type="button">
           <div class="home-card-title">All-time leaderboard</div>
@@ -173,6 +177,47 @@
       <button class="ghost-btn" id="challenge-back-btn" type="button">← Home</button>
     </section>
 
+    <!-- POD TRACKER SCREEN -->
+    <section id="screen-pod" class="hidden">
+      <p class="lede">
+        Log real games with your playgroup — every game updates two
+        separate Elo ratings: one for each player, one for each deck.
+        Decks are registered once and reused across games.
+      </p>
+
+      <div class="panel">
+        <div class="filter-label">Log a game</div>
+        <div id="pod-participants-list"></div>
+        <button class="ghost-btn" id="pod-add-participant-btn" type="button">+ Add player</button>
+        <input type="text" id="pod-notes-input" class="num-input" placeholder="Notes (optional)" autocomplete="off" />
+        <div class="error-note hidden" id="pod-log-error"></div>
+        <button class="start-btn" id="pod-log-game-btn" type="button">Log game</button>
+      </div>
+
+      <div class="panel">
+        <div class="filter-label">Register a deck</div>
+        <input type="text" id="pod-deck-name-input" class="num-input" placeholder="Deck name…" autocomplete="off" />
+        <div class="autocomplete-wrap">
+          <input type="text" id="pod-deck-commander-input" class="num-input" placeholder="Commander (optional)…" autocomplete="off" />
+          <div class="autocomplete-dropdown hidden" id="pod-deck-commander-results"></div>
+        </div>
+        <input type="text" id="pod-deck-owner-input" class="num-input" placeholder="Owner (optional)…" autocomplete="off" />
+        <div class="error-note hidden" id="pod-deck-error"></div>
+        <button class="ghost-btn" id="pod-register-deck-btn" type="button">Add deck</button>
+      </div>
+
+      <div class="filter-label">Decks</div>
+      <div class="panel" id="pod-decks-list"></div>
+
+      <div class="filter-label">Players</div>
+      <div class="panel" id="pod-players-list"></div>
+
+      <div class="filter-label">Recent games</div>
+      <div class="panel" id="pod-games-list"></div>
+
+      <button class="ghost-btn" id="pod-back-btn" type="button">← Home</button>
+    </section>
+
     <!-- DUEL SCREEN -->
     <section id="screen-duel" class="hidden">
       <div class="round-meta">
@@ -272,6 +317,7 @@
   <script src="/static/js/leaderboard.js"></script>
   <script src="/static/js/sessions-list.js"></script>
   <script src="/static/js/challenge.js"></script>
+  <script src="/static/js/pod.js"></script>
   <script src="/static/js/home.js"></script>
   <script src="/static/js/init.js"></script>
 </body>

@@ -10,7 +10,8 @@ archetype, an "underbuilt" deck-count ceiling), then runs a swipe-style
 head-to-head picker with Elo ratings to narrow the pool to a ranked
 shortlist — playable from the terminal or a browser, with ratings that
 persist and compound across sessions. Also tracks a 32-deck
-color-identity challenge alongside the picker, from one home screen.
+color-identity challenge and a pod tracker (Elo for real games,
+players, and decks) alongside the picker, from one home screen.
 
 Stack: Python, SQLite (local cache + queryable DB), Turso (managed
 libSQL) for session storage, EDHREC's JSON data as the source, Scryfall
@@ -270,8 +271,37 @@ dropped, just intentionally after that.
   Cross-module function calls always go through `CP.foo(...)` at the
   call site rather than being destructured at module-load time, since
   the modules' own `<script>` tags don't load in strict dependency
-  order. Done to make room for the next pass (a pod tracker) without
-  the frontend growing past what one file can hold.
+  order. Done to make room for the pod tracker (below) without the
+  frontend growing past what one file can hold.
+- **Pod tracker**: extends the picker's Elo idea to real multiplayer
+  EDH games actually played at the table. Two separate rated entities,
+  both in `sessions.db` (same "one growing schema" precedent the
+  challenge tracker set — no new `pods.py` module): **players**
+  (`players` table, freeform names, a row created implicitly the first
+  time a name is used in a logged game, same posture as
+  `commander_ratings`) and **decks** (`decks` table, a pre-registered
+  catalog via `register_deck` — reused across many games, never
+  hard-deleted, only archived/unarchived via `archive_deck`/
+  `unarchive_deck`). A logged game (`log_pod_game`, backed by
+  `pod_games`/`pod_game_participants`) needs >=2 participants and
+  exactly one winner (EDH pods are almost always tracked casually as
+  "who won," not a full ranked placement) and updates both ratings via
+  a genuine N-player Elo generalization
+  (`elo.multiplayer_expected_scores`/`update_multiplayer_ratings` --
+  Bradley-Terry-Luce softmax across the whole field, zero-sum, applied
+  once for players and once for decks) rather than naive pairwise
+  decomposition, using `elo.MULTIPLAYER_K_FACTOR` (between the duel's
+  and bracket's — see elo.py's comment for why). `delete_last_pod_game`
+  mirrors `undo_last_pick`'s "only the most recent step" precedent, and
+  is deliberately asymmetric: a player's row can vanish if that was
+  their first-ever game (implicitly created, same as undoing a
+  commander's first-ever pick), a deck's row never does (pre-
+  registered independently of any game). Web UI: a new "Pod tracker"
+  home card / `#screen-pod` / `pod.js` — log-a-game form, register-a-
+  deck form (reuses the same commander search-as-you-type autocomplete
+  the challenge tracker/custom-list already use), player and deck
+  leaderboards, and a recent-games list with a delete button on the
+  single most-recent entry only.
 
 See `README.md` for setup and usage. The sections below cover
 architecture notes and decisions worth knowing if you're extending

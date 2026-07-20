@@ -474,6 +474,132 @@ def api_add_challenge_commander_auto(body: ChallengeAddByColorBody):
     return {"slug": slug, **asdict(entry)}
 
 
+# ---- pod tracker: real multiplayer games, players, decks ----
+
+
+def _enrich_decks(decks: list) -> list[dict]:
+    """Attach image_urls to each deck's response, for a card-art view
+    instead of plain text -- same posture as _enrich_challenge_entries:
+    a best-effort catalog lookup by commander_name that degrades to no
+    art (not an error) when there's no match or no catalog yet.
+    """
+    names = {d.commander_name for d in decks if d.commander_name}
+    images_by_name: dict[str, dict] = {}
+    if names:
+        try:
+            with _catalog_conn() as conn:
+                images_by_name = pool_module.commander_images_by_name(conn, list(names))
+        except HTTPException:
+            pass  # no catalog yet -- decks just render without art
+
+    result = []
+    for d in decks:
+        row = asdict(d)
+        info = images_by_name.get(d.commander_name or "", {})
+        row["image_urls"] = info.get("image_urls", [])
+        result.append(row)
+    return result
+
+
+@app.get("/api/pod/players")
+def api_list_players():
+    with _sessions_conn() as conn:
+        return {"players": [asdict(p) for p in sessions.list_players(conn)]}
+
+
+@app.get("/api/pod/decks")
+def api_list_decks():
+    with _sessions_conn() as conn:
+        decks = sessions.list_decks(conn)
+    return {"decks": _enrich_decks(decks)}
+
+
+class RegisterDeckBody(BaseModel):
+    name: str
+    commander_name: str | None = None
+    # Taken as given from the frontend's own commander-search result --
+    # same posture as ChallengeAddByColorBody above, no server-side
+    # catalog lookup needed at registration time (see sessions.
+    # register_deck's docstring for why sessions.py itself never
+    # touches the catalog DB).
+    color_identity: str | None = None
+    owner_name: str | None = None
+
+
+@app.post("/api/pod/decks")
+def api_register_deck(body: RegisterDeckBody):
+    with _sessions_conn() as conn:
+        try:
+            deck = sessions.register_deck(
+                conn, body.name, commander_name=body.commander_name, color_identity=body.color_identity, owner_name=body.owner_name
+            )
+        except sessions.SessionError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return _enrich_decks([deck])[0]
+
+
+@app.post("/api/pod/decks/{deck_id}/archive")
+def api_archive_deck(deck_id: str):
+    with _sessions_conn() as conn:
+        try:
+            deck = sessions.archive_deck(conn, deck_id)
+        except sessions.SessionError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return _enrich_decks([deck])[0]
+
+
+@app.post("/api/pod/decks/{deck_id}/unarchive")
+def api_unarchive_deck(deck_id: str):
+    with _sessions_conn() as conn:
+        try:
+            deck = sessions.unarchive_deck(conn, deck_id)
+        except sessions.SessionError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return _enrich_decks([deck])[0]
+
+
+@app.get("/api/pod/games")
+def api_list_pod_games(limit: int | None = Query(default=None, ge=1, le=200)):
+    with _sessions_conn() as conn:
+        games = sessions.list_pod_games(conn, limit=limit)
+    return {"games": [asdict(g) for g in games]}
+
+
+class PodParticipantBody(BaseModel):
+    player_name: str
+    deck_id: str
+    is_winner: bool = False
+
+
+class LogPodGameBody(BaseModel):
+    participants: list[PodParticipantBody]
+    notes: str = ""
+
+
+@app.post("/api/pod/games")
+def api_log_pod_game(body: LogPodGameBody):
+    with _sessions_conn() as conn:
+        try:
+            game = sessions.log_pod_game(
+                conn,
+                [(p.player_name, p.deck_id, p.is_winner) for p in body.participants],
+                notes=body.notes,
+            )
+        except sessions.SessionError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return asdict(game)
+
+
+@app.delete("/api/pod/games/last")
+def api_delete_last_pod_game():
+    with _sessions_conn() as conn:
+        try:
+            sessions.delete_last_pod_game(conn)
+        except sessions.SessionError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return {"ok": True}
+
+
 class NoCacheStaticFiles(StaticFiles):
     """Discourage browsers from caching static assets at all.
 

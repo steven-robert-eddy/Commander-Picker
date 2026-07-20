@@ -847,6 +847,43 @@ header {
   font-size: 0.85rem;
 }
 
+/* Pod tracker (screen-pod) -- see pod.js. Deck/player rows reuse
+   .session-row/.session-info/.session-desc/.session-meta as-is (a
+   flex row with a trailing action button already fits both), so only
+   what's genuinely new gets its own rules here: the log-a-game form's
+   dynamic participant rows, archived-deck dimming, and the recent-
+   games list's per-game participant summary. */
+.pod-participant-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+.pod-participant-row .pod-participant-name { flex: 1 1 40%; }
+.pod-participant-row .pod-participant-deck { flex: 1 1 40%; }
+.pod-winner-label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.82rem;
+  color: var(--ink-dim);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.pod-participant-remove { flex-shrink: 0; }
+
+.pod-archived-row { opacity: 0.55; }
+
+.pod-game-row {
+  padding: 10px 4px;
+  border-bottom: 1px solid var(--border);
+}
+.pod-game-row:last-child { border-bottom: none; }
+.pod-game-participants { margin-top: 4px; font-size: 0.88rem; }
+.pod-game-participant { padding: 2px 0; }
+.pod-game-participant.pod-winner { color: var(--accent); font-weight: 600; }
+.pod-game-row .pod-delete-last-btn { margin-top: 6px; }
+
 /* Bracket champion banner (results screen, bracket mode only). */
 .champion-banner {
   text-align: center;

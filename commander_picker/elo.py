@@ -23,6 +23,17 @@ K_FACTOR = 32.0
 # is variance from too few games per commander, which this dampens.
 BRACKET_K_FACTOR = 16.0
 
+# For real multiplayer EDH pod games (sessions.py's pod tracker) --
+# one shot per game, same as a bracket match (no averaging
+# across a session), so it doesn't deserve the duel's full K_FACTOR.
+# But a pod's outcome carries more noise per game than a seeded bracket
+# match does: turn order, multiplayer politics/targeting, and table
+# dynamics all swing a single game's result in a way a seeded 1v1
+# bracket match doesn't, so it shouldn't be dampened as hard as
+# BRACKET_K_FACTOR either. Untuned against real data -- a reasonable
+# starting point between the two, not a derived constant.
+MULTIPLAYER_K_FACTOR = 24.0
+
 # How many pairing attempts to try before giving up on finding a fresh
 # (not-yet-compared) pair and just allowing a repeat.
 _MAX_FRESH_PAIR_ATTEMPTS = 20
@@ -39,6 +50,40 @@ def update_ratings(winner_rating: float, loser_rating: float, k: float = K_FACTO
     new_winner = winner_rating + k * (1 - expected_winner)
     new_loser = loser_rating + k * (0 - (1 - expected_winner))
     return new_winner, new_loser
+
+
+def multiplayer_expected_scores(ratings: list[float]) -> list[float]:
+    """Bradley-Terry-Luce softmax generalization of expected_score to N players.
+
+    Each rating's "win strength" is 10**(rating/400), normalized so the
+    whole field sums to 1 -- an N-player field starts near 1/N expected
+    win probability each (not 50/50, the way naively pairing every
+    participant against every other one would imply). Used identically
+    for player ratings and deck ratings in the pod tracker -- call this
+    twice per game, once per rating list, rather than modeling
+    players-and-decks jointly.
+    """
+    strengths = [10 ** (r / 400.0) for r in ratings]
+    total = sum(strengths)
+    return [s / total for s in strengths]
+
+
+def update_multiplayer_ratings(
+    ratings: list[float], winner_index: int, k: float = MULTIPLAYER_K_FACTOR
+) -> list[float]:
+    """New ratings after one N-player game with a single winner.
+
+    Winner's actual score is 1, everyone else's is 0 (single-winner-
+    take-all -- this is how EDH pods are almost always tracked
+    casually: one winner, no ranked placements among the rest).
+    new_i = ratings[i] + k * (actual_i - expected_i). Zero-sum overall
+    since expected_i sums to 1 across the field, same as actual_i does.
+    """
+    expected = multiplayer_expected_scores(ratings)
+    return [
+        r + k * ((1.0 if i == winner_index else 0.0) - expected[i])
+        for i, r in enumerate(ratings)
+    ]
 
 
 def target_round_count(pool_size: int) -> int:

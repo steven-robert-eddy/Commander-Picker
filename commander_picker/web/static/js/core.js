@@ -117,6 +117,7 @@
     "screen-leaderboard",
     "screen-sessions",
     "screen-challenge",
+    "screen-pod",
   ];
 
   function showScreen(id) {
@@ -130,6 +131,7 @@
       : id === "screen-results" ? "Results"
       : id === "screen-sessions" ? "Sessions"
       : id === "screen-challenge" ? "32-Deck Challenge"
+      : id === "screen-pod" ? "Pod Tracker"
       : "Leaderboard";
   }
 

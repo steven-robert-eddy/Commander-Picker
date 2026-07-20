@@ -638,3 +638,134 @@ def test_bracket_includes_winner_challenge_slug(client):
     assert resp.status_code == 200
     assert resp.json()["champion"] is not None
     assert resp.json()["winner_challenge_slug"] == "rakdos"
+
+
+# ---- pod tracker ----
+
+
+def _register_deck(client, name, **kwargs):
+    body = {"name": name, **kwargs}
+    resp = client.post("/api/pod/decks", json=body)
+    assert resp.status_code == 200, resp.json()
+    return resp.json()
+
+
+def test_pod_register_deck_enriches_with_catalog_art(client):
+    deck = _register_deck(client, "Rakdos Aggro", commander_name="Rakdos, Lord of Riots", color_identity="BR", owner_name="Alice")
+    assert deck["rating"] == 1000.0
+    assert deck["archived"] is False
+    assert deck["owner_name"] == "Alice"
+    assert isinstance(deck["image_urls"], list)
+
+
+def test_pod_register_deck_requires_name(client):
+    resp = client.post("/api/pod/decks", json={"name": ""})
+    assert resp.status_code == 422
+
+
+def test_pod_list_decks_empty(client):
+    resp = client.get("/api/pod/decks")
+    assert resp.status_code == 200
+    assert resp.json()["decks"] == []
+
+
+def test_pod_archive_and_unarchive_deck(client):
+    deck = _register_deck(client, "Krenko Goblins")
+    resp = client.post(f"/api/pod/decks/{deck['id']}/archive")
+    assert resp.status_code == 200
+    assert resp.json()["archived"] is True
+
+    resp = client.post(f"/api/pod/decks/{deck['id']}/unarchive")
+    assert resp.status_code == 200
+    assert resp.json()["archived"] is False
+
+
+def test_pod_archive_unknown_deck_404s(client):
+    resp = client.post("/api/pod/decks/no-such-deck/archive")
+    assert resp.status_code == 404
+
+
+def test_pod_log_game_and_leaderboards(client):
+    a = _register_deck(client, "Deck A")
+    b = _register_deck(client, "Deck B")
+    c = _register_deck(client, "Deck C")
+
+    resp = client.post(
+        "/api/pod/games",
+        json={
+            "participants": [
+                {"player_name": "Alice", "deck_id": a["id"], "is_winner": True},
+                {"player_name": "Bob", "deck_id": b["id"], "is_winner": False},
+                {"player_name": "Carol", "deck_id": c["id"], "is_winner": False},
+            ],
+            "notes": "Tuesday night pod",
+        },
+    )
+    assert resp.status_code == 200
+    game = resp.json()
+    assert len(game["participants"]) == 3
+    assert game["notes"] == "Tuesday night pod"
+
+    players = client.get("/api/pod/players").json()["players"]
+    assert {p["name"] for p in players} == {"Alice", "Bob", "Carol"}
+    winner = next(p for p in players if p["name"] == "Alice")
+    assert winner["rating"] > 1000.0
+
+    decks = client.get("/api/pod/decks").json()["decks"]
+    assert all(d["games_played"] == 1 for d in decks)
+
+    games = client.get("/api/pod/games").json()["games"]
+    assert len(games) == 1
+
+
+def test_pod_log_game_validation_errors(client):
+    a = _register_deck(client, "Deck A")
+    resp = client.post("/api/pod/games", json={"participants": [{"player_name": "Alice", "deck_id": a["id"], "is_winner": True}]})
+    assert resp.status_code == 422
+
+    b = _register_deck(client, "Deck B")
+    resp = client.post(
+        "/api/pod/games",
+        json={
+            "participants": [
+                {"player_name": "Alice", "deck_id": a["id"], "is_winner": False},
+                {"player_name": "Bob", "deck_id": b["id"], "is_winner": False},
+            ]
+        },
+    )
+    assert resp.status_code == 422
+
+    resp = client.post(
+        "/api/pod/games",
+        json={
+            "participants": [
+                {"player_name": "Alice", "deck_id": "no-such-deck", "is_winner": True},
+                {"player_name": "Bob", "deck_id": b["id"], "is_winner": False},
+            ]
+        },
+    )
+    assert resp.status_code == 422
+
+
+def test_pod_delete_last_game_reverts_and_errors_when_empty(client):
+    a = _register_deck(client, "Deck A")
+    b = _register_deck(client, "Deck B")
+    client.post(
+        "/api/pod/games",
+        json={
+            "participants": [
+                {"player_name": "Alice", "deck_id": a["id"], "is_winner": True},
+                {"player_name": "Bob", "deck_id": b["id"], "is_winner": False},
+            ]
+        },
+    )
+
+    resp = client.delete("/api/pod/games/last")
+    assert resp.status_code == 200
+    assert client.get("/api/pod/games").json()["games"] == []
+    assert client.get("/api/pod/players").json()["players"] == []
+    decks = client.get("/api/pod/decks").json()["decks"]
+    assert all(d["rating"] == 1000.0 and d["games_played"] == 0 for d in decks)
+
+    resp = client.delete("/api/pod/games/last")
+    assert resp.status_code == 422
