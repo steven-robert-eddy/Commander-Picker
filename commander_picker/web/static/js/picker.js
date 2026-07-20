@@ -24,7 +24,13 @@
   let colorMode = "subset"; // "subset" (any combo within --colors) or "exact"
   let maxDecks = 10000;
   let minDecks = 100;
-  let poolSize = 40;
+  // Derived from the input's own HTML value (see index.html's
+  // #pool-size-input) rather than a second hardcoded literal here -- a
+  // duplicate default is exactly how this drifted before: the HTML's
+  // value was changed from 40 to 10 without this copy following, so the
+  // field displayed 10 while every request still silently sent 40.
+  const DEFAULT_POOL_SIZE = Number($("pool-size-input").value) || 40;
+  let poolSize = DEFAULT_POOL_SIZE;
 
   // ---- session state ----
   let sessionId = null;
@@ -663,7 +669,7 @@
     themeMode = "any";
     maxDecks = 10000;
     minDecks = 100;
-    poolSize = 40;
+    poolSize = DEFAULT_POOL_SIZE;
     customList.length = 0;
     $("commander-search-input").value = "";
     $("commander-search-results").classList.add("hidden");
