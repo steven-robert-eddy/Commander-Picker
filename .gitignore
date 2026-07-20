@@ -4,6 +4,7 @@ __pycache__/
 *.egg-info/
 build/
 dist/
+.idea/
 
 # Cached EDHREC/Scryfall pages and derived DB — regenerated via `commander-picker update-data`
 data/edhrec/*.json
