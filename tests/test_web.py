@@ -218,13 +218,19 @@ def test_undo_un_finishes_completed_session(client):
     session_id = created["session_id"]
     target_rounds = created["info"]["target_rounds"]
     pairing = created["pairing"]
+    last_winner = last_loser = None
     for _ in range(target_rounds):
         a, b = pairing["candidates"]
+        last_winner, last_loser = a["name"], b["name"]
         resp = client.post(f"/api/sessions/{session_id}/pick", json={"winner": a["name"], "loser": b["name"]})
         pairing = resp.json()
 
     info = client.get(f"/api/sessions/{session_id}").json()
     assert info["status"] == "complete"
+
+    board = {row["name"]: row for row in client.get("/api/leaderboard").json()["leaderboard"]}
+    winner_games_before_undo = board[last_winner]["games_played"]
+    loser_games_before_undo = board[last_loser]["games_played"]
 
     undo_resp = client.post(f"/api/sessions/{session_id}/undo")
     assert undo_resp.status_code == 200
@@ -232,6 +238,18 @@ def test_undo_un_finishes_completed_session(client):
     info = client.get(f"/api/sessions/{session_id}").json()
     assert info["status"] == "active"
     assert info["rounds_completed"] == target_rounds - 1
+
+    # Undoing the pick that finished the session must revert its
+    # all-time rating effect too, not just the session's own status --
+    # the last pick's winner/loser games_played should each drop by one
+    # (or the row should vanish entirely if this was that commander's
+    # only-ever game, same as test_undo_reverts_last_pick).
+    board = {row["name"]: row for row in client.get("/api/leaderboard").json()["leaderboard"]}
+    for name, before in ((last_winner, winner_games_before_undo), (last_loser, loser_games_before_undo)):
+        if before == 1:
+            assert name not in board
+        else:
+            assert board[name]["games_played"] == before - 1
 
 
 def test_undo_rejects_bracket_mode(client):
@@ -480,6 +498,60 @@ def test_create_custom_bracket_session(client):
     assert data["info"]["mode"] == "bracket"
     assert data["info"]["pool_size"] == 4
     assert data["info"]["target_rounds"] == 2
+
+
+def test_custom_duel_session_plays_through_to_leaderboard(client):
+    # A custom hand-picked list has no pool_source/origin tracked
+    # anywhere server-side -- record_pick/finish don't branch on it --
+    # but nothing in the fixtures/existing tests actually plays a
+    # custom session past creation to confirm that in practice.
+    resp = client.post(
+        "/api/sessions/custom",
+        json={"names": ["Rakdos, Lord of Riots", "Prosper, Tome-Bound"], "mode": "duel"},
+    )
+    created = resp.json()
+    session_id = created["session_id"]
+    a, b = created["pairing"]["candidates"]
+
+    client.post(f"/api/sessions/{session_id}/pick", json={"winner": a["name"], "loser": b["name"]})
+    finish_resp = client.post(f"/api/sessions/{session_id}/finish")
+    assert finish_resp.status_code == 200
+
+    board = {row["name"]: row for row in client.get("/api/leaderboard").json()["leaderboard"]}
+    assert board[a["name"]]["games_played"] == 1
+    assert board[b["name"]]["games_played"] == 1
+
+
+def test_custom_bracket_session_plays_through_to_leaderboard(client):
+    resp = client.post(
+        "/api/sessions/custom",
+        json={
+            "names": [
+                "Rakdos, Lord of Riots",
+                "Prosper, Tome-Bound",
+                "Valgavoth, Harrower of Souls",
+                "Krark, the Thumbless // Vial Smasher the Fierce",
+            ],
+            "mode": "bracket",
+        },
+    )
+    created = resp.json()
+    session_id = created["session_id"]
+    pairing = created["pairing"]
+    all_names = {c["name"] for c in pairing["candidates"]}
+    while pairing is not None:
+        a, b = pairing["candidates"]
+        pick_resp = client.post(f"/api/sessions/{session_id}/pick", json={"winner": a["name"], "loser": b["name"]})
+        pairing = pick_resp.json()
+        if pairing:
+            all_names |= {c["name"] for c in pairing["candidates"]}
+
+    info = client.get(f"/api/sessions/{session_id}").json()
+    assert info["status"] == "complete"
+
+    board = {row["name"]: row for row in client.get("/api/leaderboard").json()["leaderboard"]}
+    for name in all_names:
+        assert board[name]["games_played"] >= 1
 
 
 def test_create_custom_bracket_session_rejects_non_power_of_two(client):

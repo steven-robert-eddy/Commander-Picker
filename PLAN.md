@@ -464,13 +464,36 @@ Not new features — tightening what's already shipped, per the
 
 - Trim/verify `themes.py::THEME_SLUGS` against EDHREC's real tag list
   (currently a curated guess; `update-data` skips 404s gracefully, but
-  the list itself is noisy and worth correcting).
+  the list itself is noisy and worth correcting) — **needs a live
+  request to `json.edhrec.com`, which this sandbox's outbound proxy
+  blocks (confirmed: 403 on the CONNECT tunnel)**; handed off to run
+  from an environment with real network access. Still open.
 - Revisit Elo K-factor/round-count constants (`elo.py`) once there's
   been enough real usage to observe — currently hand-picked priors.
-- A due-diligence pass confirming the fast-growing recent surface area
-  (custom lists, the 32-deck challenge tracker, undo, bracket mode) all
-  still behave correctly together — not a known bug, just worth
-  checking before piling on more.
+  **Still blocked**: no `sessions.db` with real accumulated games
+  exists in this checkout (production data lives on Turso), so there's
+  nothing to tune against yet. Revisit once real play volume exists.
+- ~~A due-diligence pass confirming the fast-growing recent surface
+  area (custom lists, the 32-deck challenge tracker, undo, bracket
+  mode) all still behave correctly together~~ — **done**. Findings:
+  custom-list bracket sizing and undo-vs-bracket-mode are already
+  enforced server-side, not just hidden in the UI (`sessions.py`'s
+  `create_session`/`undo_last_pick`, both re-checked via a raw API
+  call bypassing the UI). Undoing the pick that finished a session
+  un-finishing it (`sessions.py:395-398`) is documented, intentional
+  behavior, not a bug — it just had no test coverage of the leaderboard
+  reverting correctly, now covered
+  (`test_undo_un_finishes_completed_session`). Custom-list sessions
+  had never been played through to `/finish`/the leaderboard in any
+  test even though the pick/rating code doesn't branch on session
+  origin — now covered
+  (`test_custom_duel_session_plays_through_to_leaderboard`,
+  `test_custom_bracket_session_plays_through_to_leaderboard`). No
+  application bug found. One gap intentionally left open: this repo
+  has no JS test framework at all, so `picker.js`'s resume/bracket-mode
+  undo-button-visibility logic (confirmed correct by code inspection,
+  shared via `enterDuelScreen`) has nothing automated guarding it from
+  a future regression — see "Known limitations."
 
 ### 2. Next: Personalization
 
@@ -539,6 +562,12 @@ no new infrastructure (auth, sharing links) required:
   fresh without hammering the site on every session.
 - Elo K-factor and round-count scaling are hand-picked priors — worth
   tuning once there's real usage to observe.
+- No JS test framework exists for the frontend (`commander_picker/web/
+  static/js/*.js`) — correctness there (e.g. `picker.js`'s resume/
+  bracket-mode undo/finish-button visibility logic) is only verified
+  by code inspection and the standing manual Playwright pass, not by
+  anything that runs automatically. Worth revisiting if frontend logic
+  keeps growing in complexity.
 - Render's free tier has no persistent disk. `commanders.db` is
   unaffected since it's rebuilt fresh on every deploy anyway;
   `sessions.db` only survives redeploys/restarts if `TURSO_DATABASE_URL`/
