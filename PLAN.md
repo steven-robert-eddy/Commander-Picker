@@ -359,6 +359,20 @@ this project, not a play-by-play changelog.
   leaderboard screens all size these consistently regardless of
   count (a 1-image commander doesn't balloon just because its
   opponent has fewer images to show).
+- **Scryfall's bulk `oracle_cards` file isn't only real cards**: it
+  also includes non-game collectible objects (Art Series cards, tokens,
+  emblems, etc.) that Scryfall names identically to the real card they
+  depict/reference. `scryfall_client.py`'s `build_image_lookup`/
+  `build_card_meta_lookup` key their lookups by plain card name, so
+  without filtering, a same-named non-game entry can silently overwrite
+  a real commander's image/mana-cost/type-line data depending purely on
+  file order (found via a real bug report: "Cosima, God of the Voyage"
+  was showing a Kaldheim Art Series card back instead of her real
+  second face). `_is_game_card`/`_NON_GAME_LAYOUTS` filters out
+  `layout in {"art_series", "token", "double_faced_token", "emblem",
+  "scheme", "vanguard", "planar"}` before either lookup is built —
+  none of these are ever legal commanders, so excluding them can't
+  remove a real card's real data.
 - **Round count is a hard cutoff, not a suggestion**: a session
   auto-finishes once `rounds_completed` reaches `target_round_count`,
   both proactively (`next_pairing`) and reactively (`record_pick`),

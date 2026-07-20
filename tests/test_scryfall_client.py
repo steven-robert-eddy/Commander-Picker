@@ -174,6 +174,30 @@ def test_build_image_lookup_front_face_alias_does_not_override_real_card(tmp_pat
     assert lookup["Shared Name"] == ["https://img/real-card.jpg"]
 
 
+@pytest.mark.parametrize("order", ["real_first", "art_series_first"])
+def test_build_image_lookup_ignores_art_series_duplicate_name(tmp_path, order):
+    # Scryfall's oracle_cards bulk file includes Art Series collectible
+    # cards, which Scryfall names identically to the real card they
+    # depict. Regardless of which entry appears first in the file, the
+    # real card's image must win -- not just whichever is processed last.
+    real_card = {"name": "Cosima, God of the Voyage", "image_uris": {"normal": "https://img/cosima-real.jpg"}}
+    art_series_card = {
+        "name": "Cosima, God of the Voyage",
+        "layout": "art_series",
+        "card_faces": [
+            {"image_uris": {"normal": "https://img/cosima-art-front.jpg"}},
+            {"image_uris": {"normal": "https://img/cosima-art-back.jpg"}},
+        ],
+    }
+    cards = [real_card, art_series_card] if order == "real_first" else [art_series_card, real_card]
+    path = tmp_path / "oracle_cards.json"
+    path.write_text(json.dumps(cards))
+
+    lookup = scryfall_client.build_image_lookup(path)
+
+    assert lookup["Cosima, God of the Voyage"] == ["https://img/cosima-real.jpg"]
+
+
 def test_build_image_lookup_split_card_uses_single_whole_card_image(tmp_path):
     # Split/adventure layouts also carry `card_faces`, but (unlike
     # transform/MDFC) share one whole-card `image_uris` at the top
@@ -278,6 +302,33 @@ def test_build_card_meta_lookup_transform_card_uses_front_face_cost(tmp_path):
     meta = lookup["Valki, God of Lies // Tibalt, Cosmic Impostor"]
     assert meta.mana_cost == "{1}{B}"  # front face's cost, not the blank top-level one
     assert meta.type_line == "Legendary Creature — God // Legendary Planeswalker — Tibalt"
+
+
+@pytest.mark.parametrize("order", ["real_first", "art_series_first"])
+def test_build_card_meta_lookup_ignores_art_series_duplicate_name(tmp_path, order):
+    # Same collision as build_image_lookup's art-series test, but for
+    # the independent meta lookup -- Art Series cards are typed "Card"
+    # by Scryfall, which must not clobber the real card's mana cost/type.
+    real_card = {
+        "name": "Cosima, God of the Voyage",
+        "mana_cost": "{2}{U}",
+        "type_line": "Legendary Creature — God",
+        "prices": {"usd": "5.00"},
+    }
+    art_series_card = {
+        "name": "Cosima, God of the Voyage",
+        "layout": "art_series",
+        "type_line": "Card // Card",
+    }
+    cards = [real_card, art_series_card] if order == "real_first" else [art_series_card, real_card]
+    path = tmp_path / "oracle_cards.json"
+    path.write_text(json.dumps(cards))
+
+    lookup = scryfall_client.build_card_meta_lookup(path)
+
+    meta = lookup["Cosima, God of the Voyage"]
+    assert meta.mana_cost == "{2}{U}"
+    assert meta.type_line == "Legendary Creature — God"
 
 
 def test_build_card_meta_lookup_missing_file_raises(tmp_path):
