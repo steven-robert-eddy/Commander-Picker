@@ -629,7 +629,7 @@ _STATIC_REF_RE = re.compile(r'((?:src|href)="/static/[^"?]+)"')
 
 @app.get("/")
 def index():
-    html = (STATIC_DIR / "index.html").read_text()
+    html = (STATIC_DIR / "index.html").read_text(encoding="utf-8")
     # Append ?v=<process-start-time> to every /static/ reference so each
     # deploy's script/link tags point at genuinely different URLs -- see
     # _BUILD_VERSION above for why Cache-Control alone isn't trusted here.

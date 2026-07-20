@@ -98,17 +98,21 @@
           -->
 
           <!--
-            Archetype/theme filtering is hidden for now, not removed --
-            EDHREC's tag pages only expose a shallow (~30 commander)
-            "top commanders" list per archetype regardless of color
-            filtering, unlike the much deeper color pages we paginate.
-            Not much signal to filter on yet. The backend/CLI (`pool
-            --themes`, `play --themes`) still fully supports it -- easy
-            to bring back here if EDHREC's data or our sourcing improves.
-            Briefly re-shown and re-hidden after live testing confirmed
-            this is still the limiting factor -- see PLAN.md's "Feature
-            roadmap" for the deeper-sourcing follow-up.
+            Re-enabled 2026-07-20 (see PLAN.md) now that themes.py::THEME_SLUGS
+            is a live-verified 43-slug list instead of an unverified guess.
+            Note: each tag page's own "Top Commanders" cardlist only carries
+            ~25-30 commanders (confirmed live, see db.py's module docstring),
+            so combining a theme with a narrow color filter can still turn up
+            few/no matches unless `enrich-commanders` has also run.
           -->
+          <div class="filter-label">Archetype / theme</div>
+          <div class="filter-row" id="theme-chips"></div>
+
+          <div class="filter-label">Theme match</div>
+          <div class="segmented" id="theme-mode-toggle">
+            <button type="button" class="segmented-btn" data-mode="any" aria-pressed="true">Any selected theme</button>
+            <button type="button" class="segmented-btn" data-mode="all" aria-pressed="false">All selected themes</button>
+          </div>
 
           <div class="filter-label" id="pool-size-label-row">Duel pool size</div>
           <div class="pool-size-row" id="pool-size-row">

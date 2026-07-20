@@ -18,7 +18,9 @@
 
   // ---- filter state ----
   const activeColors = new Set();
-  const activeThemes = new Set(); // archetype UI is hidden (see index.html) -- stays empty
+  const activeThemes = new Set();
+  let themeMode = "any"; // "any" or "all", mirrors colorMode's subset/exact split
+  let themeSlugsCache = null; // fetched once from /api/themes, reused on filter-reset re-render
   let colorMode = "subset"; // "subset" (any combo within --colors) or "exact"
   let maxDecks = 10000;
   let minDecks = 100;
@@ -49,7 +51,7 @@
         max_decks: maxDecks,
         min_decks: minDecks,
         themes: [...activeThemes],
-        themes_mode: "any",
+        themes_mode: themeMode,
         pool_size: poolSize,
         min_pool_size: 4,
         mode: "duel",
@@ -153,6 +155,51 @@
           btn.setAttribute("aria-pressed", "false");
         }
       });
+  }
+
+  // "plus-1-plus-1-counters" is the one THEME_SLUGS entry whose slugified
+  // form doesn't read naturally as title case -- every other slug does.
+  function humanizeThemeSlug(slug) {
+    if (slug === "plus-1-plus-1-counters") return "+1/+1 Counters";
+    return slug
+      .split("-")
+      .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+      .join(" ");
+  }
+
+  function renderThemeChips(slugs) {
+    const wrap = $("theme-chips");
+    wrap.innerHTML = "";
+    slugs.forEach((slug) => {
+      const b = document.createElement("button");
+      b.className = "chip";
+      b.type = "button";
+      b.textContent = humanizeThemeSlug(slug);
+      b.setAttribute("aria-pressed", String(activeThemes.has(slug)));
+      b.addEventListener("click", () => {
+        if (activeThemes.has(slug)) activeThemes.delete(slug);
+        else activeThemes.add(slug);
+        b.setAttribute("aria-pressed", String(activeThemes.has(slug)));
+        refreshPoolPreview();
+      });
+      wrap.appendChild(b);
+    });
+  }
+
+  // Fetched once from the live commander_themes vocabulary (see
+  // pool.list_known_themes) rather than hardcoded from themes.py::THEME_SLUGS
+  // -- reflects only tags actually present in the current data, so an
+  // empty/partial dataset just shows fewer (or no) chips instead of a
+  // full list of dead filters.
+  async function loadThemeChips() {
+    try {
+      const { slugs } = await api("GET", "/api/themes");
+      themeSlugsCache = slugs;
+      renderThemeChips(slugs);
+    } catch (e) {
+      // Non-critical -- the rest of the filter screen still works with
+      // no theme chips shown (e.g. `update-data` hasn't run yet).
+    }
   }
 
   function setFilterMode(mode) {
@@ -612,6 +659,8 @@
   $("filter-reset-btn").addEventListener("click", () => {
     activeColors.clear();
     colorMode = "subset";
+    activeThemes.clear();
+    themeMode = "any";
     maxDecks = 10000;
     minDecks = 100;
     poolSize = 40;
@@ -623,6 +672,10 @@
     renderColorChips("color-chips", activeColors, refreshPoolPreview);
     document.querySelectorAll("#color-mode-toggle .segmented-btn").forEach((b) => {
       b.setAttribute("aria-pressed", String(b.dataset.mode === "subset"));
+    });
+    if (themeSlugsCache) renderThemeChips(themeSlugsCache);
+    document.querySelectorAll("#theme-mode-toggle .segmented-btn").forEach((b) => {
+      b.setAttribute("aria-pressed", String(b.dataset.mode === "any"));
     });
     $("max-decks-slider").value = maxDecks;
     $("max-decks-input").value = maxDecks;
@@ -688,6 +741,7 @@
   });
 
   wireColorModeToggle("color-mode-toggle", (m) => { colorMode = m; }, refreshPoolPreview);
+  wireColorModeToggle("theme-mode-toggle", (m) => { themeMode = m; }, refreshPoolPreview);
   wireColorModeToggle("mode-toggle", setFilterMode, () => {});
 
   document.querySelectorAll("#pool-source-toggle .segmented-btn").forEach((btn) => {
@@ -706,6 +760,7 @@
   });
 
   renderColorChips("color-chips", activeColors, refreshPoolPreview);
+  loadThemeChips();
 
   Object.assign(window.CP, {
     showFilterScreen: () => {

@@ -11,8 +11,12 @@ specifically so that verifying/fixing the real response shape against
 live edhrec.com is a local change — the rest of the pipeline (caching,
 SQLite schema, CLI) doesn't need to move. Color-identity pages are
 verified as of 2026-07-16 (see ``_cardview_to_record``'s docstring);
-theme pages are still unverified — the URL template 403s against real
-EDHREC and needs the correct pattern confirmed.
+theme/tag pages are verified as of 2026-07-20 (see ``themes.py``'s
+docstring) -- each tag page's own "Top Commanders"/"New Commanders"
+cardlists only carry ~25-30 commanders though (confirmed live), so a
+tag-page-only theme tagging stays a shallow signal unless
+``commander-picker enrich-commanders`` has also filled in each
+commander's own richer per-commander tags (see ``_apply_commander_detail``).
 """
 
 from __future__ import annotations
