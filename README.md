@@ -128,7 +128,7 @@ commander-picker pool --colors BRG --color-mode subset --max-decks 10000 --theme
 - `--color-mode` — `subset` (commander's identity fits within
   `--colors`, the default) or `exact` (identity must match exactly).
 - `--max-decks` / `--min-decks` — deck-count range (default: max
-  10,000, no minimum) — this is the "underbuilt commander" filter.
+  10,000, min 100) — this is the "underbuilt commander" filter.
 - `--max-price` — USD price ceiling, from Scryfall's bulk data (default:
   no price filter). A commander with no price data (e.g. an unresolved
   Partner/Background half) is never excluded by this, even when it's set.

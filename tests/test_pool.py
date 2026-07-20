@@ -74,6 +74,10 @@ def test_default_filters_exclude_over_10k_and_apply_no_color_filter(conn):
     }
 
 
+def test_default_filters_min_decks_is_100():
+    assert pool.PoolFilters().min_decks == pool.DEFAULT_MIN_DECKS == 100
+
+
 def test_max_decks_and_min_decks(conn):
     filters = pool.PoolFilters(max_decks=4000, min_decks=1000)
     candidates = pool.build_pool(conn, filters, min_pool_size=1)

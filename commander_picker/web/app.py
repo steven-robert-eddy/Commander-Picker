@@ -45,7 +45,7 @@ class FiltersBody(BaseModel):
     colors: str | None = None
     color_mode: str = "subset"
     max_decks: int | None = pool_module.DEFAULT_MAX_DECKS
-    min_decks: int | None = None
+    min_decks: int | None = pool_module.DEFAULT_MIN_DECKS
     themes: list[str] = []
     themes_mode: str = "any"
     # Bounded so a stray client value (or someone poking the API

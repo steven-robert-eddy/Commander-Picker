@@ -464,7 +464,7 @@ def _add_pool_filter_args(parser: argparse.ArgumentParser) -> None:
         help="'subset' (commander's colors fit within --colors) or 'exact' match (default: subset)",
     )
     parser.add_argument("--max-decks", type=int, default=pool.DEFAULT_MAX_DECKS, help="deck-count ceiling (default: 10000)")
-    parser.add_argument("--min-decks", type=int, default=None, help="deck-count floor (default: none)")
+    parser.add_argument("--min-decks", type=int, default=pool.DEFAULT_MIN_DECKS, help="deck-count floor (default: 100)")
     parser.add_argument(
         "--max-price",
         type=float,

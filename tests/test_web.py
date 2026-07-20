@@ -38,7 +38,7 @@ def _pool_body(**overrides):
         "colors": None,
         "color_mode": "subset",
         "max_decks": 30000,
-        "min_decks": None,
+        "min_decks": 100,
         "themes": [],
         "themes_mode": "any",
         "pool_size": 40,

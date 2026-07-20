@@ -80,6 +80,12 @@
             <input type="number" id="max-decks-input" class="num-input" min="1" max="1000000" step="1" value="10000" inputmode="numeric" />
           </div>
 
+          <div class="filter-label">Min decks (obscurity floor)</div>
+          <div class="deck-range">
+            <input type="range" id="min-decks-slider" min="0" max="5000" step="10" value="100" />
+            <input type="number" id="min-decks-input" class="num-input" min="0" max="1000000" step="1" value="100" inputmode="numeric" />
+          </div>
+
           <!--
             Price filtering is hidden for now, not removed -- fully built
             server-side and in the CLI (`pool --max-price`, `PoolFilters.max_price`,

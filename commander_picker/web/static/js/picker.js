@@ -21,6 +21,7 @@
   const activeThemes = new Set(); // archetype UI is hidden (see index.html) -- stays empty
   let colorMode = "subset"; // "subset" (any combo within --colors) or "exact"
   let maxDecks = 10000;
+  let minDecks = 100;
   let poolSize = 40;
 
   // ---- session state ----
@@ -46,7 +47,7 @@
         colors: activeColors.size ? [...activeColors].join("") : null,
         color_mode: colorMode,
         max_decks: maxDecks,
-        min_decks: null,
+        min_decks: minDecks,
         themes: [...activeThemes],
         themes_mode: "any",
         pool_size: poolSize,
@@ -613,6 +614,7 @@
     activeColors.clear();
     colorMode = "subset";
     maxDecks = 10000;
+    minDecks = 100;
     poolSize = 40;
     customList.length = 0;
     $("commander-search-input").value = "";
@@ -625,6 +627,8 @@
     });
     $("max-decks-slider").value = maxDecks;
     $("max-decks-input").value = maxDecks;
+    $("min-decks-slider").value = minDecks;
+    $("min-decks-input").value = minDecks;
     $("pool-size-input").value = poolSize;
 
     // setFilterMode("duel") handles the pool-size-row/bracket-size-chips
@@ -658,6 +662,21 @@
     // Keep the slider in sync when the typed value is in its range;
     // clamp visually rather than fighting the slider's own min/max.
     decksSlider.value = Math.min(Math.max(value, Number(decksSlider.min)), Number(decksSlider.max));
+    refreshPoolPreview();
+  });
+
+  const minDecksSlider = $("min-decks-slider");
+  const minDecksInput = $("min-decks-input");
+  minDecksSlider.addEventListener("input", () => {
+    minDecks = Number(minDecksSlider.value);
+    minDecksInput.value = minDecks;
+  });
+  minDecksSlider.addEventListener("change", refreshPoolPreview);
+  minDecksInput.addEventListener("change", () => {
+    const value = Math.max(0, Math.floor(Number(minDecksInput.value) || 0));
+    minDecks = value;
+    minDecksInput.value = value;
+    minDecksSlider.value = Math.min(Math.max(value, Number(minDecksSlider.min)), Number(minDecksSlider.max));
     refreshPoolPreview();
   });
 

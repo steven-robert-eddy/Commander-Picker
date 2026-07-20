@@ -426,6 +426,15 @@ this project, not a play-by-play changelog.
   new `--card-radius` on structural chrome is only 4px, just enough to
   soften a corner without reading as the generic "rounded-lg" default.
 
+- **Deck-count filter is a range, not just a ceiling**: `max_decks`
+  (default 10,000) excludes over-popular commanders so the picker
+  stays focused on underbuilt ones; `min_decks` (default 100) excludes
+  the opposite extreme — commanders with too few registered decks to
+  be a meaningful signal (often a data artifact or a genuinely fringe
+  pick). Both are plain `PoolFilters`/`FiltersBody` fields with the
+  same "generous default, always adjustable" treatment; `None` means
+  no floor/ceiling on either side.
+
 ## Roadmap
 
 Reorganized 2026-07-19 around a real strategy conversation (previously

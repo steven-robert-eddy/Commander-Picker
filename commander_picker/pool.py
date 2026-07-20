@@ -13,6 +13,7 @@ import sqlite3
 from dataclasses import dataclass, field
 
 DEFAULT_MAX_DECKS = 10_000
+DEFAULT_MIN_DECKS = 100
 DEFAULT_MIN_POOL_SIZE = 4
 DEFAULT_MAX_POOL_SIZE = 40
 
@@ -42,7 +43,7 @@ class PoolFilters:
     colors: str | None = None  # e.g. "BRG" -- allowed colors; None = no color filter
     color_mode: str = "subset"  # "subset" (commander's colors must fit within `colors`) or "exact"
     max_decks: int | None = DEFAULT_MAX_DECKS
-    min_decks: int | None = None
+    min_decks: int | None = DEFAULT_MIN_DECKS
     themes: tuple[str, ...] = ()
     themes_mode: str = "any"  # "any" (OR) or "all" (AND)
     # Opt-in, unlike max_decks's always-on-but-generous default -- many
