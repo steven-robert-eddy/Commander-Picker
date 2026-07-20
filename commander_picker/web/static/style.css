@@ -75,7 +75,7 @@
   --ink-dim: oklch(0.43 0.018 135);
   --ink-faint: oklch(0.52 0.016 130);
   --primary: oklch(0.36 0.09 132);
-  --primary-soft: oklch(0.36 0.09 132 / 0.14);
+  --primary-soft: oklch(0.36 0.09 132 / 0.34);
   --accent: oklch(0.48 0.15 42);
   --accent-fill: oklch(0.48 0.15 42);
   --accent-soft: oklch(0.48 0.15 42 / 0.14);
@@ -95,7 +95,7 @@
     --ink-dim: oklch(0.40 0.02 140);
     --ink-faint: oklch(0.50 0.018 135);
     --primary: oklch(0.42 0.13 145);
-    --primary-soft: oklch(0.42 0.13 145 / 0.16);
+    --primary-soft: oklch(0.42 0.13 145 / 0.36);
     --accent: oklch(0.52 0.19 40);
     --accent-fill: oklch(0.48 0.19 40);
     --accent-soft: oklch(0.52 0.19 40 / 0.16);
@@ -271,6 +271,7 @@ header {
 .segmented-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 .segmented-btn[aria-pressed="true"] {
   background: var(--primary-soft);
+  box-shadow: inset 0 0 0 2px var(--primary);
   color: var(--primary);
   font-weight: 600;
 }
@@ -336,8 +337,9 @@ header {
 .chip:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .chip[aria-pressed="true"] {
   background: var(--primary-soft);
-  box-shadow: var(--emboss-ghost), inset 0 0 0 1px var(--primary);
+  box-shadow: var(--emboss-ghost), inset 0 0 0 2px var(--primary);
   color: var(--primary);
+  font-weight: 600;
 }
 /* Real Scryfall mana symbol, same source as the duel/results pips
    (see MANA_SYMBOL_BASE_URL in app.js) -- not affected by the chip's
