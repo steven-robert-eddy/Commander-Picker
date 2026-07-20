@@ -462,12 +462,16 @@ built so far — this is a backlog, not a schedule.
 Not new features — tightening what's already shipped, per the
 "good working product first" direction above:
 
-- Trim/verify `themes.py::THEME_SLUGS` against EDHREC's real tag list
-  (currently a curated guess; `update-data` skips 404s gracefully, but
-  the list itself is noisy and worth correcting) — **needs a live
-  request to `json.edhrec.com`, which this sandbox's outbound proxy
-  blocks (confirmed: 403 on the CONNECT tunnel)**; handed off to run
-  from an environment with real network access. Still open.
+- ~~Trim/verify `themes.py::THEME_SLUGS` against EDHREC's real tag
+  list~~ — done 2026-07-20 (an earlier attempt from this sandbox hit a
+  blocked outbound proxy on `json.edhrec.com`; a later run had real
+  network access). Every one of the original 18 slugs was verified
+  live (all real, none dropped); 25 more genuine archetype tags were
+  added by cross-checking against EDHREC's own tag index
+  (`https://json.edhrec.com/pages/tags.json`, ~400 tags total),
+  excluding tribal/creature-type and narrow single-keyword mechanic
+  tags to keep the list focused on deck-building strategies. 43 slugs
+  total now, all confirmed live.
 - Revisit Elo K-factor/round-count constants (`elo.py`) once there's
   been enough real usage to observe — currently hand-picked priors.
   **Still blocked**: no `sessions.db` with real accumulated games
@@ -553,10 +557,11 @@ no new infrastructure (auth, sharing links) required:
 
 ## Known limitations
 
-- EDHREC's `THEME_SLUGS` list is a curated guess of which archetype
-  tag pages exist — `update-data` skips any slug that 404s, so this
-  degrades gracefully but the list is worth trimming/correcting
-  against EDHREC's real tag list at some point.
+- `themes.py::THEME_SLUGS` (43 slugs) is verified live against EDHREC
+  as of 2026-07-20 — see PLAN.md's "Harden before expanding" entry
+  above. `update-data` still skips any slug that 404s (defense in
+  depth against EDHREC renaming/removing a tag later), but the list
+  itself is no longer an unverified guess.
 - EDHREC's "num decks" figure is a moving target (updates
   continuously) — the cache freshness window keeps this reasonably
   fresh without hammering the site on every session.

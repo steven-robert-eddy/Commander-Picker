@@ -30,8 +30,9 @@ def _cmd_update_data(args: argparse.Namespace) -> int:
             for f in color_failures:
                 print(f"    {f.slug}: {f.error}", file=sys.stderr)
         if theme_failures:
-            # Expected to happen sometimes -- THEME_SLUGS is an unverified
-            # guess of which tag slugs actually exist on EDHREC.
+            # THEME_SLUGS is verified live (see themes.py), but EDHREC
+            # can still rename/remove a tag later -- surface it rather
+            # than aborting the whole run.
             print(
                 f"  note: {len(theme_failures)} theme slug(s) skipped (not found on EDHREC): "
                 + ", ".join(f.slug for f in theme_failures)

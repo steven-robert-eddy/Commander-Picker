@@ -229,12 +229,11 @@ def fetch_all_pages(
 ) -> tuple[list[FetchResult], list[FetchFailure]]:
     """Fetch (or reuse cached) pages for every color-identity and theme slug.
 
-    Color slugs are all verified real EDHREC pages, so a failure there
-    is unexpected and worth surfacing loudly. Theme slugs in
-    ``themes.py`` are still an unverified curated guess (see PLAN.md) —
-    an individual bad theme slug shouldn't abort the whole run, so
-    failures are collected and returned alongside the successes rather
-    than raised.
+    Color and theme slugs are both verified real EDHREC pages (see
+    ``themes.py``'s docstring for the theme-slug verification date).
+    Failures are still collected and returned alongside the successes
+    rather than raised, since EDHREC could rename/remove a slug later
+    and an individual bad slug shouldn't abort the whole run.
     """
     results = []
     failures = []
