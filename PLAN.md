@@ -406,6 +406,25 @@ this project, not a play-by-play changelog.
   the planned fix once this needs to support more than one person —
   no longer blocked on moving off local SQLite first, since
   `sessions.db` can already live on Turso.
+- **Shape system ("engraved plate")**: `style.css` defines shared
+  shadow/radius tokens (`--card-radius: 4px`, `--groove`, `--emboss`,
+  `--emboss-ghost`, `--deboss`, `--row-rule`) used everywhere instead
+  of the generic default look (8-16px rounded corners, pill-shaped
+  chips/tags, ambient drop-shadow "elevation" on every panel). Panels
+  use an inset four-side bevel (`--groove`) instead of a border or
+  floating shadow; buttons use a two-line inset highlight/shadow
+  (`--emboss`) to read as physically pressed rather than flat; inputs,
+  selects, chips, and tags use a single inset shadow (`--deboss`) to
+  read as a sunken slot; row separators between list items use
+  `--row-rule` instead of `border-bottom`. Real elevation shadows are
+  reserved for elements that are genuinely floating above content —
+  `.autocomplete-dropdown` and the lightbox image — everything else in
+  normal document flow uses the inset-bevel system instead. Rounded
+  corners stay meaningful rather than decorative: only actual Magic
+  card art (`.card-art`, `.rank-thumb`, lightbox images) and literal
+  circles (`.medallion`, `.lightbox-close`) keep any real rounding: the
+  new `--card-radius` on structural chrome is only 4px, just enough to
+  soften a corner without reading as the generic "rounded-lg" default.
 
 ## Roadmap
 

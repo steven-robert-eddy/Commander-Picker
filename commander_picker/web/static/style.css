@@ -35,6 +35,35 @@
   --serif: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
   --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   --mono: ui-monospace, "SF Mono", "Cascadia Code", "Roboto Mono", monospace;
+
+  /* "Engraved plate" shape system -- corners settle at a small,
+     consistent radius (matching a real Magic card's own corner, not
+     the soft "app" default), and surfaces read as pressed into the
+     page rather than floating above it. --card-radius is reused
+     wherever a corner is structural; art (which already renders real
+     card images) keeps its own separate, larger radius unchanged, so
+     rounding still means "this is a physical card" there. --groove is
+     the panel/container treatment (a highlight catching the top edge,
+     a shadow pooling at the bottom, like a line pressed into card
+     stock); --emboss is the same idea for solid-fill buttons;
+     --deboss is a sunken-slot look for inputs/tags. Fixed
+     white/black-based values regardless of theme -- same precedent
+     the old .panel shadow already used (a literal rgba(255,255,255,.04)
+     inset applied unchanged in both dark and light mode). */
+  --card-radius: 4px;
+  --groove:
+    inset 0 1px 0 0 oklch(1 0 0 / 0.05),
+    inset 0 -1px 0 0 oklch(0 0 0 / 0.35),
+    inset 1px 0 0 0 oklch(0 0 0 / 0.12),
+    inset -1px 0 0 0 oklch(1 0 0 / 0.03);
+  --emboss:
+    inset 0 1px 0 0 oklch(1 0 0 / 0.18),
+    inset 0 -2px 0 0 oklch(0 0 0 / 0.25);
+  --emboss-ghost:
+    inset 0 1px 0 0 oklch(1 0 0 / 0.04),
+    inset 0 -1px 0 0 oklch(0 0 0 / 0.3);
+  --deboss: inset 0 1px 2px 0 oklch(0 0 0 / 0.3);
+  --row-rule: inset 0 -1px 0 0 oklch(0 0 0 / 0.3), inset 0 -2px 0 0 oklch(1 0 0 / 0.03);
 }
 
 :root[data-theme="light"] {
@@ -140,10 +169,9 @@ header {
 
 .panel {
   background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 14px;
+  border-radius: var(--card-radius);
   padding: 16px;
-  box-shadow: 0 1px 0 0 rgba(255, 255, 255, 0.04) inset, 0 12px 32px -16px rgba(0, 0, 0, 0.4);
+  box-shadow: var(--groove);
 }
 
 .home-grid {
@@ -160,14 +188,14 @@ header {
   display: block;
   text-align: left;
   background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 14px;
+  border: none;
+  border-radius: var(--card-radius);
   padding: 16px;
-  box-shadow: 0 1px 0 0 rgba(255, 255, 255, 0.04) inset, 0 12px 32px -16px rgba(0, 0, 0, 0.4);
+  box-shadow: var(--groove);
   cursor: pointer;
-  transition: border-color 0.15s ease, transform 0.15s ease;
+  transition: box-shadow 0.15s ease, transform 0.15s ease;
 }
-.home-card:hover { border-color: var(--accent); transform: translateY(-1px); }
+.home-card:hover { box-shadow: var(--groove), inset 0 0 0 1px var(--accent); transform: translateY(-1px); }
 .home-card:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 .home-card-title {
@@ -203,9 +231,9 @@ header {
 .segmented {
   display: flex;
   margin-top: 10px;
-  border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: var(--card-radius);
   overflow: hidden;
+  box-shadow: var(--deboss), inset 0 0 0 1px var(--border);
 }
 .segmented-btn {
   flex: 1;
@@ -245,14 +273,15 @@ header {
   font-size: 0.82rem;
   color: var(--ink);
   background: var(--bg-alt);
-  border: 1px solid var(--border);
-  border-radius: 8px;
+  border: none;
+  border-radius: var(--card-radius);
+  box-shadow: var(--deboss);
   padding: 6px 6px 6px 8px;
   width: 11ch; /* room for up to 6 digits + the spin-button icon without clipping */
   text-align: right;
   font-variant-numeric: tabular-nums;
 }
-.num-input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; border-color: var(--accent); }
+.num-input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 /* Hide native spinner arrows -- cleaner next to the slider, typing/arrow-keys still work */
 .num-input::-webkit-inner-spin-button,
 .num-input::-webkit-outer-spin-button { opacity: 0.5; }
@@ -276,18 +305,19 @@ header {
   font-family: var(--mono);
   font-size: 0.82rem;
   padding: 6px 12px;
-  border-radius: 999px;
-  border: 1px solid var(--border);
-  background: transparent;
+  border-radius: var(--card-radius);
+  border: none;
+  background: var(--bg-alt);
+  box-shadow: var(--deboss), inset 0 0 0 1px var(--border);
   color: var(--ink-dim);
   cursor: pointer;
-  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+  transition: background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
 }
-.chip:hover { border-color: var(--accent); }
+.chip:hover { box-shadow: var(--deboss), inset 0 0 0 1px var(--accent); }
 .chip:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .chip[aria-pressed="true"] {
   background: var(--primary-soft);
-  border-color: var(--primary);
+  box-shadow: var(--emboss-ghost), inset 0 0 0 1px var(--primary);
   color: var(--primary);
 }
 /* Real Scryfall mana symbol, same source as the duel/results pips
@@ -301,9 +331,8 @@ header {
 .chip.chip-disabled {
   opacity: 0.35;
   cursor: not-allowed;
-  border-color: var(--border);
 }
-.chip:disabled:hover { border-color: var(--border); }
+.chip:disabled:hover { box-shadow: var(--deboss), inset 0 0 0 1px var(--border); }
 
 .pool-count {
   margin-top: 14px;
@@ -326,9 +355,10 @@ header {
   width: 100%;
   margin-top: 16px;
   padding: 13px;
-  border-radius: 10px;
+  border-radius: var(--card-radius);
   border: none;
   background: var(--accent-fill);
+  box-shadow: var(--emboss);
   color: var(--on-accent);
   font-family: var(--sans);
   font-weight: 700;
@@ -409,27 +439,26 @@ header {
 .card-btn {
   text-align: left;
   background: var(--surface);
-  border: 1.5px solid var(--border);
-  border-radius: 16px;
+  border: none;
+  border-radius: var(--card-radius);
   padding: 18px 18px 16px;
   cursor: pointer;
   color: var(--ink);
   display: flex;
   flex-direction: column;
   gap: 10px;
-  box-shadow: 0 14px 32px -18px rgba(0, 0, 0, 0.55);
-  transition: border-color 0.15s ease, transform 0.08s ease, box-shadow 0.2s ease;
+  box-shadow: var(--groove);
+  transition: box-shadow 0.15s ease, transform 0.08s ease;
   position: relative;
   overflow: hidden;
 }
-.card-btn:hover { border-color: var(--accent); }
+.card-btn:hover { box-shadow: var(--groove), inset 0 0 0 1px var(--accent); }
 .card-btn:active { transform: scale(0.985); }
 .card-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .card-btn:disabled { cursor: default; }
 
 .card-btn.winner {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 1px var(--accent), 0 8px 24px -8px var(--accent-glow);
+  box-shadow: var(--groove), inset 0 0 0 1.5px var(--accent), 0 8px 24px -8px var(--accent-glow);
 }
 /* A soft radial bloom from the card's center, not a diagonal metallic
    shine -- reads as an inked stamp of approval rather than foil glare. */
@@ -524,10 +553,11 @@ header {
   font-size: 0.66rem;
   letter-spacing: 0.03em;
   padding: 3px 8px;
-  border-radius: 999px;
+  border-radius: 3px;
   background: var(--bg-alt);
   color: var(--ink-faint);
-  border: 1px solid var(--border);
+  border: none;
+  box-shadow: var(--deboss);
 }
 /* EDHREC rank badge -- reuses .tag's pill styling, just its own class
    so it can sit apart from the theme-tags row (see cardInnerHTML). */
@@ -599,18 +629,18 @@ header {
   align-items: center;
   gap: 12px;
   padding: 11px 4px;
-  border-bottom: 1px solid var(--border);
+  box-shadow: var(--row-rule);
 }
-.rank-row:last-child { border-bottom: none; }
+.rank-row:last-child { box-shadow: none; }
 /* Rows for a commander with art open the full-size lightbox on click
    (see openLightbox() in app.js) -- rows with no art (no Scryfall
    match) aren't clickable, so no hover affordance for those. */
-.rank-row.has-art { cursor: pointer; border-radius: 8px; }
+.rank-row.has-art { cursor: pointer; border-radius: var(--card-radius); }
 .rank-row.has-art:hover { background: var(--bg-alt); }
 .rank-row.has-art:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 /* The session's actual winner gets a one-time podium tint -- a real
    moment worth a small highlight, not a pattern repeated down the list. */
-.rank-row.top1 { background: var(--accent-soft); border-radius: 8px; }
+.rank-row.top1 { background: var(--accent-soft); border-radius: var(--card-radius); }
 
 .rank-num {
   font-family: var(--serif);
@@ -669,9 +699,9 @@ header {
   align-items: center;
   gap: 12px;
   padding: 11px 4px;
-  border-bottom: 1px solid var(--border);
+  box-shadow: var(--row-rule);
 }
-.session-row:last-child { border-bottom: none; }
+.session-row:last-child { box-shadow: none; }
 .session-info { min-width: 0; }
 .session-desc {
   font-size: 0.92rem;
@@ -704,9 +734,12 @@ header {
   max-height: 260px;
   overflow-y: auto;
   background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  box-shadow: 0 12px 32px -16px rgba(0, 0, 0, 0.5);
+  border: none;
+  border-radius: var(--card-radius);
+  /* Genuinely floats above content (position: absolute) -- unlike
+     panels sitting in normal document flow, this keeps a real
+     elevation shadow instead of the groove treatment. */
+  box-shadow: inset 0 0 0 1px var(--border), 0 12px 32px -16px rgba(0, 0, 0, 0.5);
 }
 .autocomplete-item {
   display: flex;
@@ -739,9 +772,9 @@ header {
   align-items: center;
   gap: 12px;
   padding: 8px 4px;
-  border-bottom: 1px solid var(--border);
+  box-shadow: var(--row-rule);
 }
-.custom-list-row:last-child { border-bottom: none; }
+.custom-list-row:last-child { box-shadow: none; }
 .custom-list-name { font-size: 0.88rem; display: flex; align-items: center; gap: 6px; }
 .custom-list-remove { flex-shrink: 0; white-space: nowrap; }
 
@@ -750,15 +783,15 @@ header {
    status select), then its candidate-commander chips, then an add row. */
 .challenge-row {
   padding: 12px 4px;
-  border-bottom: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: var(--card-radius);
+  box-shadow: var(--row-rule);
   transition: background 0.4s ease;
 }
 /* Briefly pulses after the top search box adds a candidate here, so
    it's obvious which of the 32 rows it landed in -- see app.js
    highlightChallengeRow. */
 .challenge-row-highlight { background: var(--accent-soft); }
-.challenge-row:last-child { border-bottom: none; }
+.challenge-row:last-child { box-shadow: none; }
 .challenge-row-header {
   display: flex;
   justify-content: space-between;
@@ -771,8 +804,9 @@ header {
   font-size: 0.8rem;
   color: var(--ink);
   background: var(--bg-alt);
-  border: 1px solid var(--border);
-  border-radius: 8px;
+  border: none;
+  border-radius: var(--card-radius);
+  box-shadow: var(--deboss);
   padding: 5px 6px;
 }
 .challenge-commanders {
@@ -789,13 +823,14 @@ header {
   align-items: center;
   gap: 8px;
   padding: 6px 8px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
+  border: none;
+  border-radius: var(--card-radius);
   background: var(--bg-alt);
+  box-shadow: var(--deboss);
 }
 .challenge-candidate.chosen {
-  border-color: var(--primary);
   background: var(--primary-soft);
+  box-shadow: var(--emboss-ghost), inset 0 0 0 1px var(--primary);
 }
 .challenge-candidate-thumb-group { display: flex; gap: 2px; flex-shrink: 0; }
 .challenge-candidate-thumb {
@@ -841,9 +876,10 @@ header {
   gap: 12px;
   padding: 10px 12px;
   margin-bottom: 10px;
-  border-radius: 10px;
+  border-radius: var(--card-radius);
   background: var(--bg-alt);
-  border: 1px solid var(--border);
+  border: none;
+  box-shadow: var(--deboss);
   font-size: 0.85rem;
 }
 
@@ -876,9 +912,9 @@ header {
 
 .pod-game-row {
   padding: 10px 4px;
-  border-bottom: 1px solid var(--border);
+  box-shadow: var(--row-rule);
 }
-.pod-game-row:last-child { border-bottom: none; }
+.pod-game-row:last-child { box-shadow: none; }
 .pod-game-participants { margin-top: 4px; font-size: 0.88rem; }
 .pod-game-participant { padding: 2px 0; }
 .pod-game-participant.pod-winner { color: var(--accent); font-weight: 600; }
@@ -889,9 +925,10 @@ header {
   text-align: center;
   padding: 18px 12px;
   margin-bottom: 10px;
-  border-radius: 10px;
+  border-radius: var(--card-radius);
   background: var(--accent-soft);
-  border: 1px solid var(--accent);
+  border: none;
+  box-shadow: var(--emboss-ghost), inset 0 0 0 1px var(--accent);
 }
 .champion-label {
   font-family: var(--mono);
@@ -941,9 +978,9 @@ header {
 .bracket-match {
   display: flex;
   flex-direction: column;
-  border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: var(--card-radius);
   overflow: hidden;
+  box-shadow: inset 0 0 0 1px var(--border);
 }
 .bracket-slot {
   font-family: var(--mono);
@@ -965,9 +1002,10 @@ header {
   width: 100%;
   margin-top: 14px;
   padding: 12px;
-  border-radius: 10px;
-  border: 1px solid var(--accent);
+  border-radius: var(--card-radius);
+  border: none;
   background: transparent;
+  box-shadow: inset 0 0 0 1px var(--accent);
   color: var(--accent);
   font-family: var(--sans);
   font-weight: 600;
@@ -988,8 +1026,9 @@ footer code {
   font-family: var(--mono);
   background: var(--surface);
   padding: 1px 5px;
-  border-radius: 4px;
-  border: 1px solid var(--border);
+  border-radius: 3px;
+  border: none;
+  box-shadow: var(--deboss);
 }
 
 .hidden { display: none !important; }
@@ -1036,7 +1075,7 @@ footer code {
 .lightbox-images img {
   max-width: min(90vw, 480px);
   max-height: 80vh;
-  border-radius: 14px;
+  border-radius: 6px;
   box-shadow: 0 24px 60px -12px rgba(0, 0, 0, 0.6);
   object-fit: contain;
 }
@@ -1050,8 +1089,9 @@ footer code {
   font-family: var(--mono);
   font-size: 0.78rem;
   padding: 6px 12px;
-  border-radius: 999px;
-  border: 1px solid var(--lightbox-border);
+  border-radius: var(--card-radius);
+  border: none;
+  box-shadow: inset 0 0 0 1px var(--lightbox-border);
   color: var(--lightbox-ink);
   text-decoration: none;
 }
