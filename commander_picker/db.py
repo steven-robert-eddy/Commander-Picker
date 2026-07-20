@@ -46,6 +46,12 @@ class CommanderRecord:
     num_decks: int
     edhrec_url: str | None
     themes: set = field(default_factory=set)
+    # Deck count backing each theme in `themes` -- from the theme page's own
+    # cardview (decks matching commander+theme) or, if richer, the detail
+    # page's taglink count (see _apply_commander_detail). Lets pool.py rank a
+    # commander's own themes by strength and keep only its top few, since
+    # `themes` itself has no ordering.
+    theme_decks: dict = field(default_factory=dict)
     salt: float | None = None  # never populated -- not on EDHREC's color/theme list endpoints
     image_urls: list = field(default_factory=list)  # 2 entries for partner pairs / DFCs, else 0 or 1
     price: float | None = None  # populated from Scryfall's bulk data, see build_database's card_meta_lookup
@@ -110,7 +116,15 @@ def _apply_commander_detail(record: CommanderRecord, payload: dict) -> None:
 
     taglinks = payload.get("panels", {}).get("taglinks", [])
     top_tags = sorted(taglinks, key=lambda t: t.get("count", 0), reverse=True)[:TOP_TAGS_PER_COMMANDER]
-    record.themes.update(t["slug"] for t in top_tags if t.get("slug"))
+    for t in top_tags:
+        slug = t.get("slug")
+        if not slug:
+            continue
+        record.themes.add(slug)
+        # Overwrites any tag-page-derived count for the same slug -- a
+        # detail page's own taglink count is commander-specific and more
+        # precise than "decks on this theme's shared list page".
+        record.theme_decks[slug] = t.get("count", 0)
 
     # EDHREC's own distribution of which Commander Bracket (1 Exhibition
     # .. 5 cEDH) real decks running this commander fall into -- the
@@ -160,6 +174,7 @@ def load_commanders(
             name = cardview.get("name")
             if name in commanders:
                 commanders[name].themes.add(slug)
+                commanders[name].theme_decks[slug] = cardview.get("num_decks", 0)
 
     for record in commanders.values():
         if edhrec_client.page_exists("commander", record.sanitized):
@@ -231,6 +246,7 @@ def build_database(
             CREATE TABLE commander_themes (
                 commander_name TEXT NOT NULL REFERENCES commanders(name),
                 theme TEXT NOT NULL,
+                num_decks INTEGER NOT NULL DEFAULT 0,
                 PRIMARY KEY (commander_name, theme)
             );
             CREATE INDEX idx_commanders_color_identity ON commanders(color_identity);
@@ -262,8 +278,8 @@ def build_database(
                 ),
             )
             conn.executemany(
-                "INSERT INTO commander_themes (commander_name, theme) VALUES (?, ?)",
-                [(record.name, theme) for theme in sorted(record.themes)],
+                "INSERT INTO commander_themes (commander_name, theme, num_decks) VALUES (?, ?, ?)",
+                [(record.name, theme, record.theme_decks.get(theme, 0)) for theme in sorted(record.themes)],
             )
         conn.commit()
     finally:

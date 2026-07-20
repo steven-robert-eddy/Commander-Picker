@@ -17,6 +17,12 @@ DEFAULT_MIN_DECKS = 100
 DEFAULT_MIN_POOL_SIZE = 4
 DEFAULT_MAX_POOL_SIZE = 40
 
+# A widely-tagged commander can carry a dozen+ archetype tags, many of them
+# marginal (a handful of decks each). Filtering/display only look at each
+# commander's top few by deck count (see commander_themes.num_decks) so an
+# obscure long tail doesn't dilute what the commander is actually known for.
+TOP_THEMES_PER_COMMANDER = 3
+
 
 class PoolTooSmallError(RuntimeError):
     pass
@@ -71,8 +77,25 @@ def _color_identity_matches(color_identity: str, allowed: set[str], mode: str) -
 
 
 def _load_themes_by_commander(conn: sqlite3.Connection) -> dict[str, set[str]]:
+    """Each commander's theme tags, capped to its own top TOP_THEMES_PER_COMMANDER
+    by deck count -- both filtering (matching a selected theme) and display
+    (Commander.themes) only ever see a commander's strongest few archetypes.
+    """
     themes_by_commander: dict[str, set[str]] = {}
-    for row in conn.execute("SELECT commander_name, theme FROM commander_themes"):
+    rows = conn.execute(
+        """
+        SELECT commander_name, theme FROM (
+            SELECT commander_name, theme,
+                   ROW_NUMBER() OVER (
+                       PARTITION BY commander_name ORDER BY num_decks DESC
+                   ) AS rn
+            FROM commander_themes
+        )
+        WHERE rn <= ?
+        """,
+        (TOP_THEMES_PER_COMMANDER,),
+    )
+    for row in rows:
         themes_by_commander.setdefault(row["commander_name"], set()).add(row["theme"])
     return themes_by_commander
 

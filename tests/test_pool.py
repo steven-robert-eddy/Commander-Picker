@@ -28,6 +28,7 @@ def _make_conn():
         CREATE TABLE commander_themes (
             commander_name TEXT NOT NULL,
             theme TEXT NOT NULL,
+            num_decks INTEGER NOT NULL DEFAULT 0,
             PRIMARY KEY (commander_name, theme)
         );
         """
@@ -40,9 +41,13 @@ def _insert(conn, name, color_identity, num_decks, themes=(), price=None):
         "INSERT INTO commanders (name, sanitized, color_identity, num_decks, edhrec_url, price) VALUES (?, ?, ?, ?, ?, ?)",
         (name, name.lower(), color_identity, num_decks, f"https://edhrec.com/commanders/{name.lower()}", price),
     )
+    # `themes` is either a plain iterable of slugs (deck count 0, fine for
+    # tests that don't care about the top-N-per-commander cap) or a
+    # {slug: num_decks} dict for tests that do.
+    rows = themes.items() if isinstance(themes, dict) else [(t, 0) for t in themes]
     conn.executemany(
-        "INSERT INTO commander_themes (commander_name, theme) VALUES (?, ?)",
-        [(name, t) for t in themes],
+        "INSERT INTO commander_themes (commander_name, theme, num_decks) VALUES (?, ?, ?)",
+        [(name, t, count) for t, count in rows],
     )
 
 
@@ -122,6 +127,30 @@ def test_themes_any_vs_all_differ(conn):
         conn, pool.PoolFilters(themes=("tokens", "aristocrats"), themes_mode="all", max_decks=None), min_pool_size=1
     )
     assert len(any_candidates) > len(all_candidates)
+
+
+def test_themes_capped_to_top_n_per_commander(conn):
+    # 5 themes, only the top TOP_THEMES_PER_COMMANDER by num_decks should
+    # survive -- both for display (Commander.themes) and for matching a
+    # filter against one of the dropped, low-count themes.
+    _insert(
+        conn,
+        "Many Themes",
+        "BR",
+        1000,
+        themes={"weakest": 1, "weak": 2, "mid": 3, "strong": 4, "strongest": 5},
+    )
+    conn.commit()
+
+    candidates = pool.build_pool(conn, pool.PoolFilters(max_decks=None, colors="BR"), min_pool_size=1)
+    many = next(c for c in candidates if c.name == "Many Themes")
+    assert set(many.themes) == {"strongest", "strong", "mid"}
+    assert len(many.themes) == pool.TOP_THEMES_PER_COMMANDER
+
+    filtered = pool.build_pool(
+        conn, pool.PoolFilters(max_decks=None, themes=("weakest",)), min_pool_size=0
+    )
+    assert "Many Themes" not in {c.name for c in filtered}
 
 
 def test_pool_too_small_raises(conn):
