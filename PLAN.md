@@ -275,8 +275,7 @@ dropped, just intentionally after that.
   frontend growing past what one file can hold.
 - **Pod tracker**: extends the picker's Elo idea to real multiplayer
   EDH games actually played at the table. Two separate rated entities,
-  both in `sessions.db` (same "one growing schema" precedent the
-  challenge tracker set — no new `pods.py` module): **players**
+  both in `sessions.db`: **players**
   (`players` table, freeform names, a row created implicitly the first
   time a name is used in a logged game, same posture as
   `commander_ratings`) and **decks** (`decks` table, a pre-registered
@@ -302,6 +301,24 @@ dropped, just intentionally after that.
   the challenge tracker/custom-list already use), player and deck
   leaderboards, and a recent-games list with a delete button on the
   single most-recent entry only.
+- **Backend split into `store.py`/`sessions.py`/`challenge.py`/`pods.py`**:
+  proactive follow-up once the pod tracker landed — `sessions.py` had
+  grown to house three unrelated concerns (picker sessions, the
+  challenge tracker, the pod tracker) sharing one `sessions.db` file
+  and one schema function, mirroring the same "one big file, several
+  features" shape the Foundation pass already fixed on the frontend.
+  `store.py` now owns the genuinely shared infrastructure (`connect`,
+  `SessionError`, the schema/migrations, the Turso connection
+  wrappers) — kept as one flat schema function rather than
+  decentralized per-module hooks, since the latter would need circular
+  imports for marginal benefit on a project this size. `sessions.py`
+  re-exports `connect`/`SessionError`/etc. from `store.py`, so every
+  existing external call site (`cli.py`, `web/app.py`'s picker
+  endpoints) needed zero changes; `challenge.py`/`pods.py` are new,
+  self-contained modules for their own concerns. Verified zero
+  cross-concern coupling existed before the split (no challenge/pod
+  function ever called a picker-only helper or vice versa), so this
+  was a pure reorganization — same 250 tests, same behavior.
 
 See `README.md` for setup and usage. The sections below cover
 architecture notes and decisions worth knowing if you're extending

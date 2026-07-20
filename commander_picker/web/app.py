@@ -19,8 +19,9 @@ from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from commander_picker import colors, db, elo, sessions
+from commander_picker import challenge, colors, db, elo, pods, sessions, store
 from commander_picker import pool as pool_module
+from commander_picker.store import SessionError
 
 STATIC_DIR = Path(__file__).resolve().parent / "static"
 
@@ -86,7 +87,7 @@ def _catalog_conn():
 
 @contextmanager
 def _sessions_conn():
-    conn = sessions.connect()
+    conn = store.connect()
     try:
         yield conn
     finally:
@@ -230,7 +231,7 @@ def api_get_session(session_id: str):
     with _sessions_conn() as conn:
         try:
             info = sessions.get_session(conn, session_id)
-        except sessions.SessionError as exc:
+        except SessionError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
     return asdict(info)
 
@@ -241,7 +242,7 @@ def api_get_pairing(session_id: str):
         try:
             sessions.get_session(conn, session_id)
             return _pairing_payload(conn, session_id)
-        except sessions.SessionError as exc:
+        except SessionError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
@@ -260,7 +261,7 @@ def api_pick(session_id: str, body: PickBody):
             else:
                 sessions.record_pick(conn, session_id, body.winner, body.loser)
             return _pairing_payload(conn, session_id)
-        except sessions.SessionError as exc:
+        except SessionError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
@@ -270,7 +271,7 @@ def api_undo(session_id: str):
         try:
             sessions.undo_last_pick(conn, session_id)
             return _pairing_payload(conn, session_id)
-        except sessions.SessionError as exc:
+        except SessionError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
@@ -286,7 +287,7 @@ def _challenge_slug_for_name(rankings: list, name: str | None) -> str | None:
     if match is None:
         return None
     try:
-        return sessions.challenge_slug_for_commander(match.color_identity)
+        return challenge.challenge_slug_for_commander(match.color_identity)
     except colors.UnknownColorIdentityError:
         return None
 
@@ -308,7 +309,7 @@ def api_finish(session_id: str):
                 "rankings": [asdict(r) for r in rankings],
                 "winner_challenge_slug": _challenge_slug_for_name(rankings, winner_name),
             }
-        except sessions.SessionError as exc:
+        except SessionError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
@@ -323,7 +324,7 @@ def api_results(session_id: str):
                 "rankings": [asdict(r) for r in rankings],
                 "winner_challenge_slug": _challenge_slug_for_name(rankings, winner_name),
             }
-        except sessions.SessionError as exc:
+        except SessionError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
@@ -332,7 +333,7 @@ def api_bracket(session_id: str):
     with _sessions_conn() as conn:
         try:
             sessions.get_session(conn, session_id)
-        except sessions.SessionError as exc:
+        except SessionError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
         bracket = sessions.get_bracket(conn, session_id)
         rankings = sessions.get_rankings(conn, session_id)
@@ -394,7 +395,7 @@ def _enrich_challenge_entries(entries: list) -> list[dict]:
 @app.get("/api/challenge")
 def api_get_challenge():
     with _sessions_conn() as conn:
-        entries = sessions.get_challenge_tracker(conn)
+        entries = challenge.get_challenge_tracker(conn)
     return {"entries": _enrich_challenge_entries(entries)}
 
 
@@ -407,8 +408,8 @@ class ChallengeStatusBody(BaseModel):
 def api_set_challenge_status(slug: str, body: ChallengeStatusBody):
     with _sessions_conn() as conn:
         try:
-            entry = sessions.set_challenge_status(conn, slug, body.status, body.notes)
-        except sessions.SessionError as exc:
+            entry = challenge.set_challenge_status(conn, slug, body.status, body.notes)
+        except SessionError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
     return asdict(entry)
 
@@ -421,8 +422,8 @@ class ChallengeCommanderBody(BaseModel):
 def api_add_challenge_commander(slug: str, body: ChallengeCommanderBody):
     with _sessions_conn() as conn:
         try:
-            entry = sessions.add_challenge_commander(conn, slug, body.commander_name)
-        except sessions.SessionError as exc:
+            entry = challenge.add_challenge_commander(conn, slug, body.commander_name)
+        except SessionError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
     return asdict(entry)
 
@@ -431,8 +432,8 @@ def api_add_challenge_commander(slug: str, body: ChallengeCommanderBody):
 def api_remove_challenge_commander(slug: str, commander_name: str):
     with _sessions_conn() as conn:
         try:
-            entry = sessions.remove_challenge_commander(conn, slug, commander_name)
-        except sessions.SessionError as exc:
+            entry = challenge.remove_challenge_commander(conn, slug, commander_name)
+        except SessionError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
     return asdict(entry)
 
@@ -441,8 +442,8 @@ def api_remove_challenge_commander(slug: str, commander_name: str):
 def api_choose_challenge_commander(slug: str, commander_name: str):
     with _sessions_conn() as conn:
         try:
-            entry = sessions.choose_challenge_commander(conn, slug, commander_name)
-        except sessions.SessionError as exc:
+            entry = challenge.choose_challenge_commander(conn, slug, commander_name)
+        except SessionError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
     return asdict(entry)
 
@@ -468,8 +469,8 @@ def api_add_challenge_commander_auto(body: ChallengeAddByColorBody):
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     with _sessions_conn() as conn:
         try:
-            entry = sessions.add_challenge_commander(conn, slug, body.commander_name)
-        except sessions.SessionError as exc:
+            entry = challenge.add_challenge_commander(conn, slug, body.commander_name)
+        except SessionError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
     return {"slug": slug, **asdict(entry)}
 
@@ -504,13 +505,13 @@ def _enrich_decks(decks: list) -> list[dict]:
 @app.get("/api/pod/players")
 def api_list_players():
     with _sessions_conn() as conn:
-        return {"players": [asdict(p) for p in sessions.list_players(conn)]}
+        return {"players": [asdict(p) for p in pods.list_players(conn)]}
 
 
 @app.get("/api/pod/decks")
 def api_list_decks():
     with _sessions_conn() as conn:
-        decks = sessions.list_decks(conn)
+        decks = pods.list_decks(conn)
     return {"decks": _enrich_decks(decks)}
 
 
@@ -519,8 +520,8 @@ class RegisterDeckBody(BaseModel):
     commander_name: str | None = None
     # Taken as given from the frontend's own commander-search result --
     # same posture as ChallengeAddByColorBody above, no server-side
-    # catalog lookup needed at registration time (see sessions.
-    # register_deck's docstring for why sessions.py itself never
+    # catalog lookup needed at registration time (see pods.
+    # register_deck's docstring for why pods.py itself never
     # touches the catalog DB).
     color_identity: str | None = None
     owner_name: str | None = None
@@ -530,10 +531,10 @@ class RegisterDeckBody(BaseModel):
 def api_register_deck(body: RegisterDeckBody):
     with _sessions_conn() as conn:
         try:
-            deck = sessions.register_deck(
+            deck = pods.register_deck(
                 conn, body.name, commander_name=body.commander_name, color_identity=body.color_identity, owner_name=body.owner_name
             )
-        except sessions.SessionError as exc:
+        except SessionError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
     return _enrich_decks([deck])[0]
 
@@ -542,8 +543,8 @@ def api_register_deck(body: RegisterDeckBody):
 def api_archive_deck(deck_id: str):
     with _sessions_conn() as conn:
         try:
-            deck = sessions.archive_deck(conn, deck_id)
-        except sessions.SessionError as exc:
+            deck = pods.archive_deck(conn, deck_id)
+        except SessionError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
     return _enrich_decks([deck])[0]
 
@@ -552,8 +553,8 @@ def api_archive_deck(deck_id: str):
 def api_unarchive_deck(deck_id: str):
     with _sessions_conn() as conn:
         try:
-            deck = sessions.unarchive_deck(conn, deck_id)
-        except sessions.SessionError as exc:
+            deck = pods.unarchive_deck(conn, deck_id)
+        except SessionError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
     return _enrich_decks([deck])[0]
 
@@ -561,7 +562,7 @@ def api_unarchive_deck(deck_id: str):
 @app.get("/api/pod/games")
 def api_list_pod_games(limit: int | None = Query(default=None, ge=1, le=200)):
     with _sessions_conn() as conn:
-        games = sessions.list_pod_games(conn, limit=limit)
+        games = pods.list_pod_games(conn, limit=limit)
     return {"games": [asdict(g) for g in games]}
 
 
@@ -580,12 +581,12 @@ class LogPodGameBody(BaseModel):
 def api_log_pod_game(body: LogPodGameBody):
     with _sessions_conn() as conn:
         try:
-            game = sessions.log_pod_game(
+            game = pods.log_pod_game(
                 conn,
                 [(p.player_name, p.deck_id, p.is_winner) for p in body.participants],
                 notes=body.notes,
             )
-        except sessions.SessionError as exc:
+        except SessionError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
     return asdict(game)
 
@@ -594,8 +595,8 @@ def api_log_pod_game(body: LogPodGameBody):
 def api_delete_last_pod_game():
     with _sessions_conn() as conn:
         try:
-            sessions.delete_last_pod_game(conn)
-        except sessions.SessionError as exc:
+            pods.delete_last_pod_game(conn)
+        except SessionError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
     return {"ok": True}
 

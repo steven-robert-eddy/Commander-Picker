@@ -4,7 +4,7 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-from commander_picker import db, sessions
+from commander_picker import db, store
 from commander_picker.web.app import app
 
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -28,7 +28,7 @@ def client(tmp_path, monkeypatch):
     monkeypatch.setattr(db, "DB_PATH", db_path)
 
     sessions_path = tmp_path / "sessions.db"
-    monkeypatch.setattr(sessions, "SESSIONS_DB_PATH", sessions_path)
+    monkeypatch.setattr(store, "SESSIONS_DB_PATH", sessions_path)
 
     return TestClient(app)
 
@@ -149,7 +149,7 @@ def test_api_pool_max_price_none_is_permissive_on_missing_price(client):
 
 def test_api_pool_no_catalog_returns_503(tmp_path, monkeypatch):
     monkeypatch.setattr(db, "DB_PATH", tmp_path / "nope.db")
-    monkeypatch.setattr(sessions, "SESSIONS_DB_PATH", tmp_path / "sessions.db")
+    monkeypatch.setattr(store, "SESSIONS_DB_PATH", tmp_path / "sessions.db")
     client = TestClient(app)
     resp = client.post("/api/pool", json=_pool_body())
     assert resp.status_code == 503

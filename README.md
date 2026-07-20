@@ -422,7 +422,10 @@ commander_picker/
   db.py             # parse cached pages into data/commanders.db (SQLite)
   pool.py           # filter commanders.db into a bounded candidate pool
   elo.py            # Elo rating math + pairing selection (no DB dependency)
-  sessions.py       # persist picker sessions in data/sessions.db
+  store.py          # shared data/sessions.db connection, schema, SessionError
+  sessions.py       # picker/duel/bracket session persistence (on top of store.py)
+  challenge.py      # 32-deck challenge tracker persistence (on top of store.py)
+  pods.py           # pod tracker persistence: players/decks/games (on top of store.py)
   cli.py            # `commander-picker` command-line entry point
   web/
     app.py           # FastAPI app (JSON API + serves the static frontend)
@@ -436,6 +439,8 @@ tests/
   test_pool.py
   test_elo.py
   test_sessions.py
+  test_challenge.py
+  test_pods.py
   test_web.py
 PLAN.md              # phased project plan + progress notes
 ```
