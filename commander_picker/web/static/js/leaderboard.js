@@ -42,7 +42,6 @@
   }
 
   $("results-leaderboard-link").addEventListener("click", showLeaderboard);
-  $("leaderboard-back-btn").addEventListener("click", () => showScreen("screen-home"));
   $("leaderboard-reset-btn").addEventListener("click", () => {
     leaderboardActiveColors.clear();
     leaderboardColorMode = "subset";

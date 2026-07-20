@@ -435,6 +435,19 @@ this project, not a play-by-play changelog.
   same "generous default, always adjustable" treatment; `None` means
   no floor/ceiling on either side.
 
+- **One persistent Home control in the shared `<header>`, not
+  per-screen back buttons**: `#header-home-btn` sits next to the phase
+  label on every screen and is toggled by `core.js`'s `showScreen`
+  (hidden only while already on `screen-home`) instead of each screen
+  hand-rolling its own `← Home` ghost-button in an inconsistent
+  position. This replaced five separate per-screen buttons — it also
+  closed a real gap: `screen-duel` and `screen-results` previously had
+  no way back to Home at all. `.action-btn` (Undo/Finish-now on the
+  duel screen) reuses the same inset-ring technique as `.again-btn`/
+  `.tag` instead of `.ghost-btn`, so real controls read as clickable
+  buttons distinct from `.duel-hint`'s inert instructional text next
+  to them.
+
 ## Roadmap
 
 Reorganized 2026-07-19 around a real strategy conversation (previously

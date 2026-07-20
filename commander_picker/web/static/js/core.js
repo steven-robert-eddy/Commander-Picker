@@ -124,6 +124,7 @@
     SCREEN_IDS.forEach((s) => {
       $(s).classList.toggle("hidden", s !== id);
     });
+    $("header-home-btn").classList.toggle("hidden", id === "screen-home");
     $("phase-label").textContent =
       id === "screen-home" ? "Home"
       : id === "screen-intro" ? "Filter"
@@ -217,6 +218,8 @@
     $("lightbox-images").innerHTML = "";
     $("lightbox-links").innerHTML = "";
   }
+
+  $("header-home-btn").addEventListener("click", () => showScreen("screen-home"));
 
   $("lightbox-close").addEventListener("click", closeLightbox);
   $("lightbox").addEventListener("click", (e) => {

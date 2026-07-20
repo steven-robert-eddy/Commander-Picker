@@ -320,7 +320,6 @@
   $("pod-add-participant-btn").addEventListener("click", addParticipantRow);
   $("pod-log-game-btn").addEventListener("click", submitLogGame);
   $("pod-register-deck-btn").addEventListener("click", submitRegisterDeck);
-  $("pod-back-btn").addEventListener("click", () => showScreen("screen-home"));
   const commanderInput = $("pod-deck-commander-input");
   commanderInput.addEventListener("input", () => {
     clearTimeout(deckSearchDebounceTimer);

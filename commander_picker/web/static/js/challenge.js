@@ -197,7 +197,6 @@
     }
   }
 
-  $("challenge-back-btn").addEventListener("click", () => showScreen("screen-home"));
   const challengeSearchInput = $("challenge-search-input");
   challengeSearchInput.addEventListener("input", () => {
     clearTimeout(challengeSearchDebounceTimer);

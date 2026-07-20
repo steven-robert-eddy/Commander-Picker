@@ -609,7 +609,6 @@
     refreshPoolPreview();
   });
   $("start-btn").addEventListener("click", startSession);
-  $("filter-home-btn").addEventListener("click", () => showScreen("screen-home"));
   $("filter-reset-btn").addEventListener("click", () => {
     activeColors.clear();
     colorMode = "subset";

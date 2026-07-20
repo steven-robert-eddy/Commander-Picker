@@ -151,6 +151,25 @@ header {
 }
 .wordmark em { font-style: normal; color: var(--accent); }
 
+.header-right {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+}
+
+.header-home-btn {
+  background: none;
+  border: none;
+  color: var(--accent);
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+  padding: 4px 2px;
+}
+.header-home-btn:hover { text-decoration: underline; }
+.header-home-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
 .phase {
   font-family: var(--mono);
   font-size: 0.72rem;
@@ -601,13 +620,42 @@ header {
 .ghost-btn:disabled { opacity: 0.35; cursor: not-allowed; }
 .ghost-btn:disabled:hover { color: var(--ink-faint); }
 
+/* Undo/Finish-now on the duel screen -- a real bordered button (same
+   inset-ring technique as .again-btn/.tag) instead of .ghost-btn's
+   plain text, so they read as clickable rather than blending into
+   .duel-hint's inert caption sitting right next to them. */
+.action-btn {
+  background: none;
+  border: none;
+  border-radius: var(--card-radius);
+  box-shadow: inset 0 0 0 1px var(--border);
+  color: var(--ink);
+  font-family: var(--mono);
+  font-size: 0.75rem;
+  letter-spacing: 0.04em;
+  padding: 6px 10px;
+  cursor: pointer;
+  transition: box-shadow 0.15s ease, color 0.15s ease;
+}
+.action-btn:hover { box-shadow: inset 0 0 0 1px var(--accent); color: var(--accent); }
+.action-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.action-btn:disabled { opacity: 0.35; cursor: not-allowed; box-shadow: inset 0 0 0 1px var(--border); color: var(--ink); }
+.action-btn:disabled:hover { box-shadow: inset 0 0 0 1px var(--border); color: var(--ink); }
+
+.duel-hint {
+  color: var(--ink-faint);
+  font-family: var(--mono);
+  font-size: 0.75rem;
+  letter-spacing: 0.04em;
+  padding: 6px 4px;
+}
+
 /* Standalone nav/reset links around the all-time leaderboard --
    centered, full-width, with breathing room below whatever's above
    them, unlike .ghost-btn's default inline placement within
    .duel-actions. */
 #leaderboard-link,
 #results-leaderboard-link,
-#leaderboard-back-btn,
 #leaderboard-reset-btn,
 #leaderboard-reset-data-btn {
   display: block;

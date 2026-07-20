@@ -43,7 +43,5 @@
     });
   }
 
-  $("sessions-back-btn").addEventListener("click", () => showScreen("screen-home"));
-
   window.CP.showSessions = showSessions;
 })();

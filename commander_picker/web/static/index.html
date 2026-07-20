@@ -10,7 +10,10 @@
   <main>
     <header>
       <div class="wordmark">Commander <em>HQ</em></div>
-      <div class="phase" id="phase-label">Home</div>
+      <div class="header-right">
+        <button class="header-home-btn hidden" id="header-home-btn" type="button">← Home</button>
+        <div class="phase" id="phase-label">Home</div>
+      </div>
     </header>
 
     <!-- HOME SCREEN -->
@@ -146,7 +149,6 @@
         <button class="start-btn" id="start-btn" disabled>Start dueling</button>
         <button class="ghost-btn" id="filter-reset-btn" type="button">Reset filters</button>
       </div>
-      <button class="ghost-btn" id="filter-home-btn" type="button">← Home</button>
     </section>
 
     <!-- SESSIONS SCREEN -->
@@ -156,7 +158,6 @@
         resume it, or a finished one to see its results again.
       </p>
       <div class="panel" id="sessions-list"></div>
-      <button class="ghost-btn" id="sessions-back-btn" type="button">← Home</button>
     </section>
 
     <!-- 32-DECK CHALLENGE SCREEN -->
@@ -180,7 +181,6 @@
         -->
       </div>
       <div class="panel" id="challenge-list"></div>
-      <button class="ghost-btn" id="challenge-back-btn" type="button">← Home</button>
     </section>
 
     <!-- POD TRACKER SCREEN -->
@@ -220,8 +220,6 @@
 
       <div class="filter-label">Recent games</div>
       <div class="panel" id="pod-games-list"></div>
-
-      <button class="ghost-btn" id="pod-back-btn" type="button">← Home</button>
     </section>
 
     <!-- DUEL SCREEN -->
@@ -245,11 +243,11 @@
         <!-- Hidden in bracket mode -- undo isn't supported there yet (see
              picker.js startSession/undoLastPick). Starts disabled -- nothing
              to undo before the first pick of the session. -->
-        <button class="ghost-btn" id="undo-btn" disabled>← Undo</button>
-        <span class="ghost-btn" style="cursor:default;">tap a card to pick (or press 1/2)</span>
+        <button class="action-btn" id="undo-btn" disabled>← Undo</button>
+        <span class="duel-hint">tap a card to pick (or press 1/2)</span>
         <!-- Hidden in bracket mode -- no meaningful "finish early" when
              there's no partial champion, see picker.js startSession. -->
-        <button class="ghost-btn" id="finish-btn">Finish now →</button>
+        <button class="action-btn" id="finish-btn">Finish now →</button>
       </div>
     </section>
 
@@ -294,7 +292,6 @@
       </div>
 
       <div class="panel" id="leaderboard-list"></div>
-      <button class="ghost-btn" id="leaderboard-back-btn" type="button">← Home</button>
       <button class="ghost-btn danger-btn" id="leaderboard-reset-data-btn" type="button">Reset all-time leaderboard…</button>
     </section>
 
