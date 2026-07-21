@@ -115,6 +115,27 @@ operation — `--limit N` caps how many *new* fetches happen in one run
 (already-cached commanders are always skipped, so it's safe to run in
 batches over time); `--force` bypasses the freshness cache.
 
+### Resyncing the leaderboard/old results after a data fix
+
+The all-time leaderboard and any past session's own results screen
+don't read `commanders.db` live — each commander's color/deck-count/
+art there is a snapshot taken at session-creation time (see PLAN.md's
+architecture notes), so a correction to the catalog (a data-quality
+fix, a Scryfall image getting resolved differently, deck counts
+changing on EDHREC) never reaches them on its own, even after
+`update-data` rebuilds `commanders.db`. Run this afterward to push the
+fix into those existing snapshots:
+
+```bash
+commander-picker refresh-candidates
+```
+
+This updates every commander's color identity, deck count, EDHREC URL,
+and art across every session that's ever included it, from whatever
+`commanders.db` currently says — it never touches ratings or anything
+else session-historical. A commander no longer present in the current
+catalog is left untouched.
+
 ## Filtering a candidate pool
 
 Once `data/commanders.db` exists, preview a filtered pool before

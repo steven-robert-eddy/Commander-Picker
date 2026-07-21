@@ -392,6 +392,24 @@ this project, not a play-by-play changelog.
   client-side (CLI prompt, browser `confirm()`); the API endpoint
   itself has no confirmation step, consistent with this app having no
   auth to gate a "some day" separate confirmation UI behind anyway.
+- **`candidates.color_identity`/`num_decks`/`edhrec_url`/`image_urls`
+  are a display snapshot, not a live view**: written once at
+  `create_session` time from whatever `commanders.db` said then, and
+  `get_leaderboard`/`get_rankings` both read straight from that
+  snapshot with no live dependency on `commanders.db` (a separate file
+  entirely rebuilt by every `update-data` run). This surfaced as a
+  real bug report: a Scryfall data-quality fix landed in
+  `scryfall_client.py` (an Art Series card colliding with a real
+  commander's name and overwriting its image), but the all-time
+  leaderboard kept showing the old art even after `update-data`
+  re-ran, because nothing refreshes the existing `candidates` rows.
+  `sessions.refresh_candidate_metadata()` (CLI: `refresh-candidates`)
+  is the fix: resyncs those four columns for every session that's ever
+  included a given commander, from whatever `commanders.db` currently
+  says, leaving `rating`/`rank`/`mana_cost`/`type_line`/`power_level`
+  (genuine point-in-time history) untouched. Not run automatically —
+  a deliberate, explicit step after `update-data`, same shape as
+  `enrich-commanders`.
 - **Static assets served `Cache-Control: no-store, no-cache,
   must-revalidate`, plus a `?v=` cache-buster on every `/static/`
   reference in `index.html`** (`web/app.py`'s `NoCacheStaticFiles`
