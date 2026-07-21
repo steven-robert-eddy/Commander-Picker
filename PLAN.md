@@ -81,12 +81,14 @@ dropped, just intentionally after that.
   UI's price slider was briefly shown, then hidden again (no data-quality
   issue — just simplifying the UI for now) — `--max-price`/`max_price`
   stay fully working on the CLI and API.
-- **Archetype/theme filter**: briefly re-enabled in the web UI, then
-  re-hidden after live testing confirmed the same limitation that hid it
-  the first time (see "Known limitations" below) — EDHREC's tag pages
-  just don't carry enough signal yet. Still fully built and available via
-  the CLI/API (`pool --themes`, `play --themes`); see "Roadmap" for the
-  theme-filter UI decision this is waiting on.
+- **Archetype/theme filter**: live in the web UI as of the
+  "Harden before expanding" pass, once `THEME_SLUGS` went from an
+  18-entry unverified guess to a 43-slug list confirmed live against
+  EDHREC's own tag index. Collapsed behind a closed-by-default
+  disclosure (`Archetype / theme (43) ▾`, `.filter-disclosure`) rather
+  than always showing the full chip grid, since 43 chips was too much
+  vertical space by default — same treatment later reused for the
+  salt slider (below) once that existed too.
 - **Deckbuilder links**: the lightbox (opened from a results/leaderboard
   row) shows "View on EDHREC" (reliable, uses the stored `edhrec_url`)
   plus best-effort "Search Moxfield"/"Search Archidekt" links —
@@ -319,6 +321,55 @@ dropped, just intentionally after that.
   cross-concern coupling existed before the split (no challenge/pod
   function ever called a picker-only helper or vice versa), so this
   was a pure reorganization — same 250 tests, same behavior.
+- **Min-decks filter**: `PoolFilters.min_decks` (default 100, CLI
+  `--min-decks`, web slider paired with the existing max-decks one) —
+  the obscurity floor to max-decks's underbuilt ceiling, excluding
+  commanders with too little real deck-count signal to be a
+  meaningful pick. Same permissive-on-missing-data posture as the
+  other range filters.
+- **UI shape-language revamp ("engraved plate")**: replaced the
+  generic rounded-corner/pill-chip/ambient-drop-shadow look (the
+  industry-default "AI app" skeleton) with a token-based inset-bevel
+  system — `--groove`/`--emboss`/`--emboss-ghost`/`--deboss`/
+  `--row-rule` custom properties applied consistently across panels,
+  buttons, inputs, chips, and list rows, plus a restrained 4px
+  `--card-radius` reserved for structural chrome (real card art and
+  literal circles keep genuine rounding; nothing else does). Chosen
+  after iterating through five distinct visual-direction comps.
+- **Navigation clarity pass**: one persistent, accent-colored "← Home"
+  link in the shared header (hidden only on the home screen itself),
+  replacing five inconsistent per-screen "← Home" ghost-buttons and
+  closing a real gap where the duel and results screens previously had
+  no way back to Home at all. Undo/Finish-now on the duel screen moved
+  off the same plain-text class used for the inert "tap a card to
+  pick" hint next to them onto a distinct bordered `.action-btn`, so
+  they read as clickable.
+- **Scryfall Art Series bug fix + `refresh-candidates` command**: a
+  real user-reported bug (a commander's card art showing a Kaldheim
+  Art Series collectible instead of the real card) traced to
+  Scryfall's bulk data including non-game objects that share a display
+  name with the real card they depict — `scryfall_client.py` now
+  filters out `layout in {art_series, token, double_faced_token,
+  emblem, scheme, vanguard, planar}` before building either lookup.
+  Separately: the all-time leaderboard/past sessions' own results
+  don't read `commanders.db` live (a denormalized snapshot taken at
+  session-creation time), so a catalog fix like this one never reached
+  them on its own — `commander-picker refresh-candidates`
+  (`favorites`-adjacent, new `sessions.refresh_candidate_metadata`)
+  resyncs that existing snapshot from the current catalog on demand.
+- **Salt-score filter + favorites/collection tracking**: both fully
+  built — `PoolFilters.max_salt`/`min_salt` (CLI/API), and a new
+  `commander_favorites` table/`favorites.py` module (owned/wishlist
+  tracking per commander, independent of any session, with a `.fav-btn`
+  toggle shared between rank rows and the lightbox) — then both hidden
+  from the web UI shortly after shipping on direct user feedback, same
+  `hidden`/`display:none` treatment as the standing price-filter
+  precedent. Backend/CLI/API for both remain fully functional and
+  tested; trivially reversible.
+- **2026-07-21: paused here.** Harden-before-expanding and
+  Personalization are substantially shipped; the app is in a good,
+  stable place. See "Roadmap" below for what's left, all of it now
+  explicitly optional/future rather than active work.
 
 See `README.md` for setup and usage. The sections below cover
 architecture notes and decisions worth knowing if you're extending
