@@ -59,6 +59,9 @@ class FiltersBody(BaseModel):
     mode: str = "duel"
     # Opt-in (see pool.PoolFilters.max_price) -- None means no price filter.
     max_price: float | None = None
+    # Opt-in (see pool.PoolFilters.max_salt/min_salt) -- None means no salt filter.
+    max_salt: float | None = None
+    min_salt: float | None = None
 
 
 def _to_pool_filters(body: FiltersBody) -> pool_module.PoolFilters:
@@ -70,6 +73,8 @@ def _to_pool_filters(body: FiltersBody) -> pool_module.PoolFilters:
         themes=tuple(body.themes),
         themes_mode=body.themes_mode,
         max_price=body.max_price,
+        max_salt=body.max_salt,
+        min_salt=body.min_salt,
     )
 
 

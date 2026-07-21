@@ -153,6 +153,11 @@ commander-picker pool --colors BRG --color-mode subset --max-decks 10000 --theme
 - `--max-price` — USD price ceiling, from Scryfall's bulk data (default:
   no price filter). A commander with no price data (e.g. an unresolved
   Partner/Background half) is never excluded by this, even when it's set.
+- `--max-salt` / `--min-salt` — EDHREC salt-score range (default: no
+  salt filter). Salt score is only populated by `enrich-commanders`, so
+  a commander not yet enriched is never excluded by either, same
+  permissive posture as `--max-price`. The web UI's "Max salt" slider
+  drives `--max-salt`; `--min-salt` is CLI/API-only for now.
 - `--themes` — comma-separated theme slugs to filter by.
 - `--themes-mode` — `any` (OR, default) or `all` (AND) across
   `--themes`.
@@ -250,17 +255,16 @@ mono-R, and BR) vs. **exact colors only** (picking B+R shows only BR)
 — an exact-or-slider-adjusted deck-count ceiling, and an editable duel
 pool size (the live preview shows both the total commanders matching
 your filters and how many will actually be sampled into the duel — the
-two can differ once a filter matches more than the pool size). "Reset
+two can differ once a filter matches more than the pool size), a
+collapsible archetype/theme filter (data-driven from `commander_themes`,
+not a hand-curated list, so it reflects real tags as soon as
+`enrich-commanders` has run), and a Max salt slider (also backed by
+`enrich-commanders`, permissive on commanders not yet enriched). "Reset
 filters" clears all of this back to defaults (also switches back to
 duel mode if you'd picked bracket) without a page reload. Price
-and archetype/theme filtering exist server-side and on the CLI
-(`--max-price`, `--themes`) but aren't currently shown in the web UI —
-kept simple for now even though `commander-picker enrich-commanders`
-(see "Fetching data" above) can now back real per-commander salt/theme
-data, since re-enabling that filter UI is a separate decision from
-having the data. `GET /api/themes` already reflects whatever's actually
-in `commander_themes` (not a hand-curated list), so any client built
-against the API sees real tags as soon as they're enriched. Tap through
+filtering exists server-side and on the CLI (`--max-price`) but isn't
+currently shown in the web UI — kept simple for now, easy to bring back
+if that changes. Tap through
 duels — with card
 art, mana cost, an EDHREC rank badge, and a power-level badge (its
 dominant EDHREC Commander Bracket — Exhibition/Core/Upgraded/Optimized/

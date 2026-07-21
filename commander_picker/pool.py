@@ -59,6 +59,12 @@ class PoolFilters:
     # (see _filtered_candidates): "we don't know" is friendlier than
     # silently shrinking the pool over a data gap.
     max_price: float | None = None
+    # Same opt-in, permissive-on-missing-data posture as max_price --
+    # salt score is only populated by enrich-commanders' per-commander
+    # detail-page pass, so a commander not yet enriched (salt=None) is
+    # never excluded by either bound.
+    max_salt: float | None = None
+    min_salt: float | None = None
 
 
 def _color_identity_matches(color_identity: str, allowed: set[str], mode: str) -> bool:
@@ -130,6 +136,10 @@ def _filtered_candidates(conn: sqlite3.Connection, filters: PoolFilters) -> list
             continue
         # Permissive on missing data -- see PoolFilters.max_price's comment.
         if filters.max_price is not None and row["price"] is not None and row["price"] > filters.max_price:
+            continue
+        if filters.max_salt is not None and row["salt"] is not None and row["salt"] > filters.max_salt:
+            continue
+        if filters.min_salt is not None and row["salt"] is not None and row["salt"] < filters.min_salt:
             continue
 
         commander_themes = themes_by_commander.get(row["name"], set())
@@ -325,6 +335,10 @@ def describe_filters(filters: PoolFilters) -> str:
         parts.append(f"max_decks={filters.max_decks}")
     if filters.min_decks is not None:
         parts.append(f"min_decks={filters.min_decks}")
+    if filters.max_salt is not None:
+        parts.append(f"max_salt={filters.max_salt}")
+    if filters.min_salt is not None:
+        parts.append(f"min_salt={filters.min_salt}")
     if filters.themes:
         parts.append(f"themes={','.join(filters.themes)} ({filters.themes_mode})")
     return " ".join(parts) or "no filters"

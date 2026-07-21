@@ -536,11 +536,17 @@ Not new features — tightening what's already shipped, per the
 The agreed next big goal — builds on data/patterns already in place,
 no new infrastructure (auth, sharing links) required:
 
-- **Salt-score filter + theme-filter UI decision**: `PoolFilters` gains
-  `max_salt`/`min_salt` (mirrors `max_price` exactly, including the
-  permissive-on-missing-data posture). Separately, decide whether/how
-  to re-enable the web UI's theme filter now that `GET /api/themes`
-  reflects real per-commander tags instead of the old shallow list.
+- ~~Salt-score filter + theme-filter UI decision~~ — **done**. Theme
+  filter UI decision resolved earlier (re-enabled behind a collapsible
+  disclosure, see the shape-language/UI-polish notes above). Salt:
+  `PoolFilters` gained `max_salt`/`min_salt`, mirroring `max_price`
+  exactly (including permissive-on-missing-data). Scope call: both
+  are in the backend/CLI/API for parity with the min/max-decks
+  precedent, but only a single "Max salt" slider was added to the web
+  UI (`index.html`/`picker.js`) — a salt *floor* ("only show me spicy
+  commanders") is a much more niche ask than the ceiling every other
+  range filter in this app defaults to solving, so `min_salt` stays
+  CLI/API-only for now, same position `max_price` is already in.
 - **Saved filter presets**: small new `sessions.db` table (name ->
   serialized `PoolFilters`), a "Save this filter" action and a preset
   picker on the filter screen.

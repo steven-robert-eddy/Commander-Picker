@@ -24,6 +24,7 @@
   let colorMode = "subset"; // "subset" (any combo within --colors) or "exact"
   let maxDecks = 10000;
   let minDecks = 100;
+  let maxSalt = null; // null = no filter; set when the slider moves off its max (5)
   // Derived from the input's own HTML value (see index.html's
   // #pool-size-input) rather than a second hardcoded literal here -- a
   // duplicate default is exactly how this drifted before: the HTML's
@@ -56,6 +57,7 @@
         color_mode: colorMode,
         max_decks: maxDecks,
         min_decks: minDecks,
+        max_salt: maxSalt,
         themes: [...activeThemes],
         themes_mode: themeMode,
         pool_size: poolSize,
@@ -670,6 +672,7 @@
     themeMode = "any";
     maxDecks = 10000;
     minDecks = 100;
+    maxSalt = null;
     poolSize = DEFAULT_POOL_SIZE;
     customList.length = 0;
     $("commander-search-input").value = "";
@@ -690,6 +693,8 @@
     $("max-decks-input").value = maxDecks;
     $("min-decks-slider").value = minDecks;
     $("min-decks-input").value = minDecks;
+    $("max-salt-slider").value = 5;
+    $("max-salt-input").value = 5;
     $("pool-size-input").value = poolSize;
 
     // setFilterMode("duel") handles the pool-size-row/bracket-size-chips
@@ -738,6 +743,28 @@
     minDecks = value;
     minDecksInput.value = value;
     minDecksSlider.value = Math.min(Math.max(value, Number(minDecksSlider.min)), Number(minDecksSlider.max));
+    refreshPoolPreview();
+  });
+
+  // At its max value (5) the slider means "no filter" -- maxSalt stays
+  // null so an untouched slider behaves exactly like today, matching
+  // real-world EDHREC salt scores rarely if ever reaching that high.
+  const saltSlider = $("max-salt-slider");
+  const saltInput = $("max-salt-input");
+  function applySaltValue(value) {
+    maxSalt = value >= Number(saltSlider.max) ? null : value;
+  }
+  saltSlider.addEventListener("input", () => {
+    const value = Number(saltSlider.value);
+    saltInput.value = value;
+    applySaltValue(value);
+  });
+  saltSlider.addEventListener("change", refreshPoolPreview);
+  saltInput.addEventListener("change", () => {
+    const value = Math.max(0, Number(saltInput.value) || 0);
+    saltInput.value = value;
+    saltSlider.value = Math.min(Math.max(value, Number(saltSlider.min)), Number(saltSlider.max));
+    applySaltValue(value);
     refreshPoolPreview();
   });
 

@@ -185,6 +185,8 @@ def _filters_from_args(args: argparse.Namespace) -> pool.PoolFilters:
         themes=themes,
         themes_mode=args.themes_mode,
         max_price=args.max_price,
+        max_salt=args.max_salt,
+        min_salt=args.min_salt,
     )
 
 
@@ -500,6 +502,20 @@ def _add_pool_filter_args(parser: argparse.ArgumentParser) -> None:
         default=None,
         help="USD price ceiling, from Scryfall data (default: no price filter). "
         "Commanders with no price data are never excluded by this.",
+    )
+    parser.add_argument(
+        "--max-salt",
+        type=float,
+        default=None,
+        help="EDHREC salt-score ceiling (default: no salt filter). "
+        "Commanders with no salt data (not yet enrich-commanders'd) are never excluded by this.",
+    )
+    parser.add_argument(
+        "--min-salt",
+        type=float,
+        default=None,
+        help="EDHREC salt-score floor (default: no salt filter). "
+        "Commanders with no salt data are never excluded by this.",
     )
     parser.add_argument("--themes", help="comma-separated theme slugs to filter by (default: none)")
     parser.add_argument(
