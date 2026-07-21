@@ -89,7 +89,16 @@
             <input type="number" id="min-decks-input" class="num-input" min="0" max="1000000" step="1" value="100" inputmode="numeric" />
           </div>
 
-          <button class="filter-disclosure" id="salt-disclosure-btn" type="button" aria-expanded="false">
+          <!--
+            Salt filtering is hidden for now, not removed -- fully
+            built server-side and in the CLI (`pool --max-salt`,
+            `PoolFilters.max_salt`, the API's `max_salt`/`min_salt`
+            fields). Hidden from the web UI after user feedback that
+            it wasn't landing well -- easy to bring back here if/when
+            that changes; the `hidden` class below is the only thing
+            standing between this markup and being live again.
+          -->
+          <button class="filter-disclosure hidden" id="salt-disclosure-btn" type="button" aria-expanded="false">
             <span class="filter-label">Max salt (avoid meta-warping)</span>
             <span class="filter-disclosure-chevron">▾</span>
           </button>

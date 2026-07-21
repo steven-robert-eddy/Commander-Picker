@@ -547,6 +547,11 @@ no new infrastructure (auth, sharing links) required:
   commanders") is a much more niche ask than the ceiling every other
   range filter in this app defaults to solving, so `min_salt` stays
   CLI/API-only for now, same position `max_price` is already in.
+  **Update:** the "Max salt" slider itself was hidden from the web UI
+  shortly after shipping, on direct user feedback that it wasn't
+  landing well — same `hidden`-class treatment as `max_price`'s
+  standing precedent (`index.html`'s `#salt-disclosure-btn`). Backend/
+  CLI/API untouched and still fully functional; trivially reversible.
 - **Saved filter presets**: small new `sessions.db` table (name ->
   serialized `PoolFilters`), a "Save this filter" action and a preset
   picker on the filter screen.
@@ -568,6 +573,12 @@ no new infrastructure (auth, sharing links) required:
   fixed by moving it into the request body (`PUT`) / query string
   (`DELETE`) instead. No dedicated "My Collection" browse screen this
   pass — the roadmap note only called for the toggle itself.
+  **Update:** the toggle itself was hidden from the web UI shortly
+  after shipping, on direct user feedback that it wasn't landing
+  well — `.fav-btn { display: none; }` in `style.css` is the only
+  thing standing between this and being visible again; `core.js`
+  still builds and wires it on every row exactly as before, and the
+  full backend/API/tests are untouched.
 
 ### 3. Someday (recorded, not scheduled)
 

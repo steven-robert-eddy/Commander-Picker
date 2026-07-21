@@ -674,9 +674,15 @@ header {
    "wishlist" both reuse the emboss-ghost "pressed" treatment already
    established by .chip[aria-pressed="true"], distinguished by which
    token colors the ring (--primary vs --accent) rather than inventing
-   a third color. */
+   a third color.
+
+   Hidden for now, not removed, after user feedback -- core.js still
+   builds and wires one of these into every rank row and the lightbox
+   exactly as before, the backend (favorites.py, /api/favorites/...)
+   is fully intact and tested, this single `display: none` is the only
+   thing standing between this and being visible again. */
 .fav-btn {
-  display: inline-block;
+  display: none;
   margin-top: 6px;
   border: none;
   border-radius: var(--card-radius);

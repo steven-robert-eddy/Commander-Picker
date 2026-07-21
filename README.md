@@ -156,8 +156,9 @@ commander-picker pool --colors BRG --color-mode subset --max-decks 10000 --theme
 - `--max-salt` / `--min-salt` — EDHREC salt-score range (default: no
   salt filter). Salt score is only populated by `enrich-commanders`, so
   a commander not yet enriched is never excluded by either, same
-  permissive posture as `--max-price`. The web UI's "Max salt" slider
-  drives `--max-salt`; `--min-salt` is CLI/API-only for now.
+  permissive posture as `--max-price`. Both are CLI/API-only for now —
+  a "Max salt" web UI slider existed briefly but was hidden after user
+  feedback that it wasn't landing well, same treatment as `--max-price`.
 - `--themes` — comma-separated theme slugs to filter by.
 - `--themes-mode` — `any` (OR, default) or `all` (AND) across
   `--themes`.
@@ -255,26 +256,24 @@ mono-R, and BR) vs. **exact colors only** (picking B+R shows only BR)
 — an exact-or-slider-adjusted deck-count ceiling, and an editable duel
 pool size (the live preview shows both the total commanders matching
 your filters and how many will actually be sampled into the duel — the
-two can differ once a filter matches more than the pool size), a
+two can differ once a filter matches more than the pool size), and a
 collapsible archetype/theme filter (data-driven from `commander_themes`,
 not a hand-curated list, so it reflects real tags as soon as
-`enrich-commanders` has run), and a Max salt slider (also backed by
-`enrich-commanders`, permissive on commanders not yet enriched). "Reset
-filters" clears all of this back to defaults (also switches back to
-duel mode if you'd picked bracket) without a page reload. Price
-filtering exists server-side and on the CLI (`--max-price`) but isn't
+`enrich-commanders` has run). "Reset filters" clears all of this back
+to defaults (also switches back to duel mode if you'd picked bracket)
+without a page reload. Price and salt filtering both exist server-side
+and on the CLI (`--max-price`, `--max-salt`/`--min-salt`) but aren't
 currently shown in the web UI — kept simple for now, easy to bring back
-if that changes. Tap through
+if that changes. The favorites/collection toggle (owned/wishlist
+tracking per commander, see `favorites.py`) is similarly fully built
+and working but hidden from the UI after user feedback — same
+treatment. Tap through
 duels — with card
 art, mana cost, an EDHREC rank badge, and a power-level badge (its
 dominant EDHREC Commander Bracket — Exhibition/Core/Upgraded/Optimized/
 cEDH — once `commander-picker enrich-commanders` has fetched that
 commander's detail page) when that data is available — and see final
-standings, which show the same power-level badge. Every commander row
-on results/the all-time leaderboard/the card lightbox also carries a
-collection toggle ("+ Fav" → "Owned" → "Wishlist" → back to none on
-each click) — a personal note, not tied to any session, so marking a
-commander persists everywhere it shows up from then on. Press `1`/`2` or the
+standings, which show the same power-level badge. Press `1`/`2` or the
 arrow keys to pick a
 duel card instead of tapping, `u` (or the "← Undo" button) to revert
 your last pick exactly, if you'd rather use the keyboard. Same Elo
