@@ -17,7 +17,7 @@ Stack: Python, SQLite (local cache + queryable DB), Turso (managed
 libSQL) for session storage, EDHREC's JSON data as the source, Scryfall
 for card art. Standalone project — no dependency on the sibling
 `commander-synergy` repo's package; that project isn't in a state worth
-linking to right now, so cross-linking is on hold (see "Someday" below).
+linking to right now, so cross-linking is on hold (see "Optional/future" below).
 
 Direction, as of 2026-07-19: staying a personal, single-user tool for
 now — the goal is a genuinely solid product before expanding who it's
@@ -489,6 +489,14 @@ agreed next big goal, and an explicit someday backlog. Pull items from
 here one at a time the same way every feature in this project has been
 built so far — this is a backlog, not a schedule.
 
+**2026-07-21: paused here.** The "harden" and "personalization" tiers
+are substantially shipped and the app is in a good place. Everything
+still open below — the Elo revisit, saved filter presets, and the
+entire "Optional/future" tier — is explicitly **optional/future work,
+not an active commitment**. Nothing here is next-up by default; treat this
+section as ideas to pull from later if/when there's a reason to, not
+a queue to keep working through.
+
 ### 1. Harden before expanding
 
 Not new features — tightening what's already shipped, per the
@@ -504,11 +512,12 @@ Not new features — tightening what's already shipped, per the
   excluding tribal/creature-type and narrow single-keyword mechanic
   tags to keep the list focused on deck-building strategies. 43 slugs
   total now, all confirmed live.
-- Revisit Elo K-factor/round-count constants (`elo.py`) once there's
-  been enough real usage to observe — currently hand-picked priors.
-  **Still blocked**: no `sessions.db` with real accumulated games
-  exists in this checkout (production data lives on Turso), so there's
-  nothing to tune against yet. Revisit once real play volume exists.
+- **(Optional/future)** Revisit Elo K-factor/round-count constants
+  (`elo.py`) once there's been enough real usage to observe —
+  currently hand-picked priors. **Still blocked**: no `sessions.db`
+  with real accumulated games exists in this checkout (production data
+  lives on Turso), so there's nothing to tune against yet. Revisit
+  once real play volume exists.
 - ~~A due-diligence pass confirming the fast-growing recent surface
   area (custom lists, the 32-deck challenge tracker, undo, bracket
   mode) all still behave correctly together~~ — **done**. Findings:
@@ -552,9 +561,9 @@ no new infrastructure (auth, sharing links) required:
   landing well — same `hidden`-class treatment as `max_price`'s
   standing precedent (`index.html`'s `#salt-disclosure-btn`). Backend/
   CLI/API untouched and still fully functional; trivially reversible.
-- **Saved filter presets**: small new `sessions.db` table (name ->
-  serialized `PoolFilters`), a "Save this filter" action and a preset
-  picker on the filter screen.
+- **(Optional/future)** Saved filter presets: small new `sessions.db`
+  table (name -> serialized `PoolFilters`), a "Save this filter"
+  action and a preset picker on the filter screen.
 - ~~Favorites/collection tracking~~ — **done**. `commander_favorites`
   (name -> "owned"/"wishlist", no row at all means neither) is a new,
   fully independent table (`favorites.py`, mirroring `challenge.py`'s
@@ -580,7 +589,7 @@ no new infrastructure (auth, sharing links) required:
   still builds and wires it on every row exactly as before, and the
   full backend/API/tests are untouched.
 
-### 3. Someday (recorded, not scheduled)
+### 3. Optional/future (recorded, not scheduled)
 
 - **Real multi-user accounts** — the genuine long-term direction per
   this conversation, not a maybe, just deliberately after "harden" and
