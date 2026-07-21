@@ -270,7 +270,11 @@ art, mana cost, an EDHREC rank badge, and a power-level badge (its
 dominant EDHREC Commander Bracket — Exhibition/Core/Upgraded/Optimized/
 cEDH — once `commander-picker enrich-commanders` has fetched that
 commander's detail page) when that data is available — and see final
-standings, which show the same power-level badge. Press `1`/`2` or the
+standings, which show the same power-level badge. Every commander row
+on results/the all-time leaderboard/the card lightbox also carries a
+collection toggle ("+ Fav" → "Owned" → "Wishlist" → back to none on
+each click) — a personal note, not tied to any session, so marking a
+commander persists everywhere it shows up from then on. Press `1`/`2` or the
 arrow keys to pick a
 duel card instead of tapping, `u` (or the "← Undo" button) to revert
 your last pick exactly, if you'd rather use the keyboard. Same Elo

@@ -550,12 +550,24 @@ no new infrastructure (auth, sharing links) required:
 - **Saved filter presets**: small new `sessions.db` table (name ->
   serialized `PoolFilters`), a "Save this filter" action and a preset
   picker on the filter screen.
-- **Favorites/collection tracking**: new table (commander name ->
-  owned/wishlist flag), surfaced as a toggle on results/leaderboard
-  rows and the lightbox. Pairs naturally with the 32-deck challenge
-  tracker (mark a combo's chosen commander "owned" once the physical
-  deck exists) without either feature needing to know about the
-  other's schema.
+- ~~Favorites/collection tracking~~ — **done**. `commander_favorites`
+  (name -> "owned"/"wishlist", no row at all means neither) is a new,
+  fully independent table (`favorites.py`, mirroring `challenge.py`'s
+  shape) — `sessions.py`'s `RankedCommander`/`GlobalRanking` were never
+  touched; `web/app.py`'s `_enrich_favorites` merges `favorite_status`
+  into `results`/`finish`/`leaderboard` responses at the same app.py
+  boundary `_enrich_challenge_entries` already uses, so the two
+  features stay decoupled per this note's own original requirement. A
+  single toggle (`.fav-btn`, `core.js`) cycles none → owned → wishlist
+  → none, shared verbatim between rank rows and the lightbox. One real
+  bug caught during this pass: `commander_name` must never be a URL
+  *path* segment (`PUT /api/favorites/{commander_name}`) — several
+  real commanders have "/" in their name (double-faced/Partner pairs
+  like "Krark, the Thumbless // Vial Smasher the Fierce"), and
+  Starlette's default path converter 404s on that even percent-encoded;
+  fixed by moving it into the request body (`PUT`) / query string
+  (`DELETE`) instead. No dedicated "My Collection" browse screen this
+  pass — the roadmap note only called for the toggle itself.
 
 ### 3. Someday (recorded, not scheduled)
 

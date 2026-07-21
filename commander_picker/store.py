@@ -182,6 +182,11 @@ def _ensure_schema(conn: sqlite3.Connection) -> None:
             added_at REAL,
             PRIMARY KEY (slug, commander_name)
         );
+        CREATE TABLE IF NOT EXISTS commander_favorites (
+            commander_name TEXT PRIMARY KEY,
+            status TEXT NOT NULL,
+            updated_at REAL NOT NULL
+        );
         CREATE TABLE IF NOT EXISTS players (
             name TEXT PRIMARY KEY,
             rating REAL NOT NULL,

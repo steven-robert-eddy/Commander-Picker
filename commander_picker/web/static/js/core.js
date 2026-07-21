@@ -136,6 +136,52 @@
       : "Leaderboard";
   }
 
+  // Owned/wishlist collection toggle, shared by rank-row rendering and
+  // the lightbox -- cycles none -> owned -> wishlist -> none on click.
+  // Text labels, not icon glyphs, to match this app's established
+  // mono-label restraint elsewhere.
+  const FAV_CYCLE = { none: "owned", owned: "wishlist", wishlist: "none" };
+  const FAV_LABELS = { none: "+ Fav", owned: "Owned", wishlist: "Wishlist" };
+
+  function favBtnHTML(status) {
+    const s = status || "none";
+    return `<button class="fav-btn" type="button" data-status="${s}" aria-pressed="${s !== "none"}">${FAV_LABELS[s]}</button>`;
+  }
+
+  // `setStatus` lets the caller keep its own copy of the commander's
+  // favorite_status in sync (a rank-row's own data, or the lightbox's
+  // currently-open commander) without this helper needing to know
+  // where that state actually lives -- same reasoning as statFor below.
+  function wireFavBtn(btn, name, setStatus) {
+    if (!btn) return;
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation(); // rank rows with art also open the lightbox on click
+      const current = btn.dataset.status;
+      const next = FAV_CYCLE[current];
+      btn.dataset.status = next;
+      btn.textContent = FAV_LABELS[next];
+      btn.setAttribute("aria-pressed", String(next !== "none"));
+      setStatus(next === "none" ? null : next);
+      // commander_name travels in the body/query, never a {name} path
+      // segment -- several real commander names contain "/" (double-
+      // faced/Partner pairs), which a path segment can't reliably
+      // round-trip even percent-encoded.
+      const request =
+        next === "none"
+          ? api("DELETE", `/api/favorites?commander_name=${encodeURIComponent(name)}`)
+          : api("PUT", "/api/favorites", { commander_name: name, status: next });
+      request.catch(() => {
+        // Revert on failure -- the button already shows the optimistic
+        // new state, so a failed request needs to visibly undo it
+        // rather than silently drift out of sync with the server.
+        btn.dataset.status = current;
+        btn.textContent = FAV_LABELS[current];
+        btn.setAttribute("aria-pressed", String(current !== "none"));
+        setStatus(current === "none" ? null : current);
+      });
+    });
+  }
+
   // Shared between the per-session results screen and the all-time
   // leaderboard -- same row shape (rank, art, pips, name), the only
   // real difference is what goes in the right-hand stat column, which
@@ -168,6 +214,7 @@
               <div class="pips">${pipsHTML(c.color_identity)}</div>
               <div class="rank-name">${c.name}</div>
               ${powerBadge}
+              ${favBtnHTML(c.favorite_status)}
             </div>
             <div class="rank-rating ${cls}">${html}</div>
           </div>
@@ -181,17 +228,25 @@
     // image URLs or names.
     list.querySelectorAll(".rank-row.has-art").forEach((row) => {
       const c = rankings[Number(row.dataset.idx)];
-      row.addEventListener("click", () => openLightbox(c.image_urls, c.name, c.edhrec_url));
+      row.addEventListener("click", () => openLightbox(c.image_urls, c.name, c.edhrec_url, c.favorite_status, (s) => (c.favorite_status = s)));
       row.addEventListener("keydown", (e) => {
         if (e.key === "Enter" || e.key === " ") {
           e.preventDefault(); // stop the page from scrolling on Space
-          openLightbox(c.image_urls, c.name, c.edhrec_url);
+          openLightbox(c.image_urls, c.name, c.edhrec_url, c.favorite_status, (s) => (c.favorite_status = s));
         }
       });
     });
+    // Every row gets a favorite toggle, not just ones with art -- keep
+    // this a separate pass from the has-art loop above rather than
+    // merging them, since the two conditions (has art / has a fav-btn)
+    // are independent.
+    list.querySelectorAll(".rank-row").forEach((row) => {
+      const c = rankings[Number(row.dataset.idx)];
+      wireFavBtn(row.querySelector(".fav-btn"), c.name, (s) => (c.favorite_status = s));
+    });
   }
 
-  function openLightbox(imageUrls, name, edhrecUrl) {
+  function openLightbox(imageUrls, name, edhrecUrl, favoriteStatus, onFavoriteChange) {
     if (!imageUrls || !imageUrls.length) return;
     $("lightbox-name").textContent = name || "";
     $("lightbox-images").innerHTML = imageUrls
@@ -209,7 +264,12 @@
     ]
       .filter(Boolean)
       .join("");
-    $("lightbox-links").innerHTML = links;
+    $("lightbox-links").innerHTML = links + (name ? favBtnHTML(favoriteStatus) : "");
+    if (name) {
+      wireFavBtn($("lightbox-links").querySelector(".fav-btn"), name, (s) => {
+        if (onFavoriteChange) onFavoriteChange(s);
+      });
+    }
     $("lightbox").classList.remove("hidden");
   }
 

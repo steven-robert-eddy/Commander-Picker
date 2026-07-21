@@ -669,6 +669,42 @@ header {
 .action-btn:disabled { opacity: 0.35; cursor: not-allowed; box-shadow: inset 0 0 0 1px var(--border); color: var(--ink); }
 .action-btn:disabled:hover { box-shadow: inset 0 0 0 1px var(--border); color: var(--ink); }
 
+/* Owned/wishlist collection toggle -- cycles none -> owned -> wishlist
+   -> none. "none" reuses .chip's unpressed deboss look; "owned"/
+   "wishlist" both reuse the emboss-ghost "pressed" treatment already
+   established by .chip[aria-pressed="true"], distinguished by which
+   token colors the ring (--primary vs --accent) rather than inventing
+   a third color. */
+.fav-btn {
+  display: inline-block;
+  margin-top: 6px;
+  border: none;
+  border-radius: var(--card-radius);
+  background: var(--bg-alt);
+  box-shadow: var(--deboss), inset 0 0 0 1px var(--border);
+  color: var(--ink-dim);
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.03em;
+  padding: 4px 9px;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
+}
+.fav-btn:hover { box-shadow: var(--deboss), inset 0 0 0 1px var(--accent); }
+.fav-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.fav-btn[data-status="owned"] {
+  background: var(--primary-soft);
+  box-shadow: var(--emboss-ghost), inset 0 0 0 2px var(--primary);
+  color: var(--primary);
+  font-weight: 600;
+}
+.fav-btn[data-status="wishlist"] {
+  background: var(--accent-soft);
+  box-shadow: var(--emboss-ghost), inset 0 0 0 2px var(--accent);
+  color: var(--accent);
+  font-weight: 600;
+}
+
 .duel-hint {
   color: var(--ink-faint);
   font-family: var(--mono);
