@@ -174,6 +174,7 @@
   }
 
   function renderThemeChips(slugs) {
+    $("theme-disclosure-label").textContent = `Archetype / theme (${slugs.length})`;
     const wrap = $("theme-chips");
     wrap.innerHTML = "";
     slugs.forEach((slug) => {
@@ -683,6 +684,8 @@
     document.querySelectorAll("#theme-mode-toggle .segmented-btn").forEach((b) => {
       b.setAttribute("aria-pressed", String(b.dataset.mode === "any"));
     });
+    $("theme-disclosure-btn").setAttribute("aria-expanded", "false");
+    $("theme-disclosure-body").classList.add("hidden");
     $("max-decks-slider").value = maxDecks;
     $("max-decks-input").value = maxDecks;
     $("min-decks-slider").value = minDecks;
@@ -749,6 +752,12 @@
   wireColorModeToggle("color-mode-toggle", (m) => { colorMode = m; }, refreshPoolPreview);
   wireColorModeToggle("theme-mode-toggle", (m) => { themeMode = m; }, refreshPoolPreview);
   wireColorModeToggle("mode-toggle", setFilterMode, () => {});
+
+  $("theme-disclosure-btn").addEventListener("click", () => {
+    const expanded = $("theme-disclosure-btn").getAttribute("aria-expanded") === "true";
+    $("theme-disclosure-btn").setAttribute("aria-expanded", String(!expanded));
+    $("theme-disclosure-body").classList.toggle("hidden", expanded);
+  });
 
   document.querySelectorAll("#pool-source-toggle .segmented-btn").forEach((btn) => {
     btn.addEventListener("click", () => {

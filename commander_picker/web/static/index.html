@@ -105,13 +105,18 @@
             so combining a theme with a narrow color filter can still turn up
             few/no matches unless `enrich-commanders` has also run.
           -->
-          <div class="filter-label">Archetype / theme</div>
-          <div class="filter-row" id="theme-chips"></div>
+          <button class="filter-disclosure" id="theme-disclosure-btn" type="button" aria-expanded="false">
+            <span class="filter-label" id="theme-disclosure-label">Archetype / theme</span>
+            <span class="filter-disclosure-chevron">▾</span>
+          </button>
+          <div class="filter-disclosure-body hidden" id="theme-disclosure-body">
+            <div class="filter-row" id="theme-chips"></div>
 
-          <div class="filter-label">Theme match</div>
-          <div class="segmented" id="theme-mode-toggle">
-            <button type="button" class="segmented-btn" data-mode="any" aria-pressed="true">Any selected theme</button>
-            <button type="button" class="segmented-btn" data-mode="all" aria-pressed="false">All selected themes</button>
+            <div class="filter-label">Theme match</div>
+            <div class="segmented" id="theme-mode-toggle">
+              <button type="button" class="segmented-btn" data-mode="any" aria-pressed="true">Any selected theme</button>
+              <button type="button" class="segmented-btn" data-mode="all" aria-pressed="false">All selected themes</button>
+            </div>
           </div>
 
           <div class="filter-label" id="pool-size-label-row">Duel pool size</div>

@@ -247,6 +247,31 @@ header {
 }
 .filter-label:first-child { margin-top: 0; }
 
+.filter-disclosure {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  background: none;
+  border: none;
+  padding: 0;
+  margin-top: 14px;
+  cursor: pointer;
+  text-align: left;
+}
+.filter-disclosure .filter-label { margin-top: 0; }
+.filter-disclosure:hover .filter-label,
+.filter-disclosure:hover .filter-disclosure-chevron { color: var(--accent); }
+.filter-disclosure:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.filter-disclosure-chevron {
+  font-family: var(--mono);
+  font-size: 0.68rem;
+  color: var(--ink-faint);
+  transition: transform 0.15s ease, color 0.15s ease;
+}
+.filter-disclosure[aria-expanded="true"] .filter-disclosure-chevron { transform: rotate(180deg); }
+
 .segmented {
   display: flex;
   margin-top: 10px;
