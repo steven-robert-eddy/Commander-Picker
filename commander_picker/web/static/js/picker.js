@@ -689,6 +689,8 @@
     });
     $("theme-disclosure-btn").setAttribute("aria-expanded", "false");
     $("theme-disclosure-body").classList.add("hidden");
+    $("salt-disclosure-btn").setAttribute("aria-expanded", "false");
+    $("salt-disclosure-body").classList.add("hidden");
     $("max-decks-slider").value = maxDecks;
     $("max-decks-input").value = maxDecks;
     $("min-decks-slider").value = minDecks;
@@ -784,6 +786,12 @@
     const expanded = $("theme-disclosure-btn").getAttribute("aria-expanded") === "true";
     $("theme-disclosure-btn").setAttribute("aria-expanded", String(!expanded));
     $("theme-disclosure-body").classList.toggle("hidden", expanded);
+  });
+
+  $("salt-disclosure-btn").addEventListener("click", () => {
+    const expanded = $("salt-disclosure-btn").getAttribute("aria-expanded") === "true";
+    $("salt-disclosure-btn").setAttribute("aria-expanded", String(!expanded));
+    $("salt-disclosure-body").classList.toggle("hidden", expanded);
   });
 
   document.querySelectorAll("#pool-source-toggle .segmented-btn").forEach((btn) => {

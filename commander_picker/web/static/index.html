@@ -89,10 +89,15 @@
             <input type="number" id="min-decks-input" class="num-input" min="0" max="1000000" step="1" value="100" inputmode="numeric" />
           </div>
 
-          <div class="filter-label">Max salt (avoid meta-warping)</div>
-          <div class="deck-range">
-            <input type="range" id="max-salt-slider" min="0" max="5" step="0.1" value="5" />
-            <input type="number" id="max-salt-input" class="num-input" min="0" max="10" step="0.1" value="5" inputmode="decimal" />
+          <button class="filter-disclosure" id="salt-disclosure-btn" type="button" aria-expanded="false">
+            <span class="filter-label">Max salt (avoid meta-warping)</span>
+            <span class="filter-disclosure-chevron">▾</span>
+          </button>
+          <div class="filter-disclosure-body hidden" id="salt-disclosure-body">
+            <div class="deck-range">
+              <input type="range" id="max-salt-slider" min="0" max="5" step="0.1" value="5" />
+              <input type="number" id="max-salt-input" class="num-input" min="0" max="10" step="0.1" value="5" inputmode="decimal" />
+            </div>
           </div>
 
           <!--
