@@ -665,3 +665,50 @@ def reset_leaderboard(conn: sqlite3.Connection) -> None:
     conn.commit()
 
 
+@dataclass
+class RefreshResult:
+    updated: int
+    not_found: int
+
+
+def refresh_candidate_metadata(sessions_conn: sqlite3.Connection, commanders_conn: sqlite3.Connection) -> RefreshResult:
+    """Resync candidates' denormalized display metadata from the current catalog.
+
+    `candidates.color_identity`/`num_decks`/`edhrec_url`/`image_urls`
+    are written once, at session-creation time, from whatever
+    `commanders.db` said back then (see create_session) -- unlike
+    `rating`/`rank`, which are meaningful point-in-time history, these
+    four are just a display cache and go stale the moment the catalog
+    changes (a data-quality fix, EDHREC's deck counts moving, etc.),
+    with nothing to refresh them again on its own. get_leaderboard and
+    get_rankings both read straight from this cache with no live
+    dependency on `commanders.db`, so a fix to the catalog alone never
+    reaches either of them -- this is the explicit resync step for
+    that gap.
+
+    Updates every row for a commander name, not just the most recent
+    one, so old sessions' own results screens benefit the same as the
+    leaderboard. A commander no longer present in the current catalog
+    is left untouched (nothing to refresh from) and counted separately.
+    """
+    names = [r["commander_name"] for r in sessions_conn.execute("SELECT DISTINCT commander_name FROM candidates")]
+    updated = 0
+    not_found = 0
+    for name in names:
+        row = commanders_conn.execute(
+            "SELECT color_identity, num_decks, edhrec_url, image_urls FROM commanders WHERE name = ?",
+            (name,),
+        ).fetchone()
+        if row is None:
+            not_found += 1
+            continue
+        sessions_conn.execute(
+            "UPDATE candidates SET color_identity = ?, num_decks = ?, edhrec_url = ?, image_urls = ? "
+            "WHERE commander_name = ?",
+            (row["color_identity"], row["num_decks"], row["edhrec_url"], row["image_urls"], name),
+        )
+        updated += 1
+    sessions_conn.commit()
+    return RefreshResult(updated=updated, not_found=not_found)
+
+

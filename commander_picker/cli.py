@@ -116,6 +116,34 @@ def _cmd_enrich_commanders(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_refresh_candidates(_args: argparse.Namespace) -> int:
+    """Resync candidates' denormalized color/deck-count/art from the current catalog.
+
+    See sessions.refresh_candidate_metadata's docstring -- the
+    leaderboard and old sessions' own results screens read a snapshot
+    of this data taken at session-creation time, not commanders.db
+    live, so a catalog fix (e.g. update-data pulling corrected
+    Scryfall art) needs this to actually reach them.
+    """
+    try:
+        commanders_conn = db.connect()
+    except db.DbError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+
+    try:
+        sessions_conn = sessions.connect()
+        try:
+            result = sessions.refresh_candidate_metadata(sessions_conn, commanders_conn)
+        finally:
+            sessions_conn.close()
+    finally:
+        commanders_conn.close()
+
+    print(f"Done: {result.updated} commander(s) refreshed, {result.not_found} not found in the current catalog.")
+    return 0
+
+
 def _cmd_pool(args: argparse.Namespace) -> int:
     filters = _filters_from_args(args)
 
@@ -157,6 +185,8 @@ def _filters_from_args(args: argparse.Namespace) -> pool.PoolFilters:
         themes=themes,
         themes_mode=args.themes_mode,
         max_price=args.max_price,
+        max_salt=args.max_salt,
+        min_salt=args.min_salt,
     )
 
 
@@ -473,6 +503,20 @@ def _add_pool_filter_args(parser: argparse.ArgumentParser) -> None:
         help="USD price ceiling, from Scryfall data (default: no price filter). "
         "Commanders with no price data are never excluded by this.",
     )
+    parser.add_argument(
+        "--max-salt",
+        type=float,
+        default=None,
+        help="EDHREC salt-score ceiling (default: no salt filter). "
+        "Commanders with no salt data (not yet enrich-commanders'd) are never excluded by this.",
+    )
+    parser.add_argument(
+        "--min-salt",
+        type=float,
+        default=None,
+        help="EDHREC salt-score floor (default: no salt filter). "
+        "Commanders with no salt data are never excluded by this.",
+    )
     parser.add_argument("--themes", help="comma-separated theme slugs to filter by (default: none)")
     parser.add_argument(
         "--themes-mode",
@@ -508,6 +552,12 @@ def build_parser() -> argparse.ArgumentParser:
     )
     enrich.add_argument("--force", action="store_true", help="bypass the freshness cache")
     enrich.set_defaults(func=_cmd_enrich_commanders)
+
+    refresh_candidates = subparsers.add_parser(
+        "refresh-candidates",
+        help="resync candidates' cached color/deck-count/art from the current commanders.db",
+    )
+    refresh_candidates.set_defaults(func=_cmd_refresh_candidates)
 
     pool_cmd = subparsers.add_parser("pool", help="preview a filtered candidate pool")
     _add_pool_filter_args(pool_cmd)

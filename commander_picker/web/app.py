@@ -19,7 +19,7 @@ from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from commander_picker import challenge, colors, db, elo, pods, sessions, store
+from commander_picker import challenge, colors, db, elo, favorites, pods, sessions, store
 from commander_picker import pool as pool_module
 from commander_picker.store import SessionError
 
@@ -59,6 +59,9 @@ class FiltersBody(BaseModel):
     mode: str = "duel"
     # Opt-in (see pool.PoolFilters.max_price) -- None means no price filter.
     max_price: float | None = None
+    # Opt-in (see pool.PoolFilters.max_salt/min_salt) -- None means no salt filter.
+    max_salt: float | None = None
+    min_salt: float | None = None
 
 
 def _to_pool_filters(body: FiltersBody) -> pool_module.PoolFilters:
@@ -70,6 +73,8 @@ def _to_pool_filters(body: FiltersBody) -> pool_module.PoolFilters:
         themes=tuple(body.themes),
         themes_mode=body.themes_mode,
         max_price=body.max_price,
+        max_salt=body.max_salt,
+        min_salt=body.min_salt,
     )
 
 
@@ -306,7 +311,7 @@ def api_finish(session_id: str):
             rankings = sessions.get_rankings(conn, session_id)
             winner_name = rankings[0].name if rankings else None
             return {
-                "rankings": [asdict(r) for r in rankings],
+                "rankings": _enrich_favorites(conn, [asdict(r) for r in rankings]),
                 "winner_challenge_slug": _challenge_slug_for_name(rankings, winner_name),
             }
         except SessionError as exc:
@@ -321,7 +326,7 @@ def api_results(session_id: str):
             rankings = sessions.get_rankings(conn, session_id)
             winner_name = rankings[0].name if rankings else None
             return {
-                "rankings": [asdict(r) for r in rankings],
+                "rankings": _enrich_favorites(conn, [asdict(r) for r in rankings]),
                 "winner_challenge_slug": _challenge_slug_for_name(rankings, winner_name),
             }
         except SessionError as exc:
@@ -352,7 +357,7 @@ def api_leaderboard(
 ):
     with _sessions_conn() as conn:
         ranked = sessions.get_leaderboard(conn, limit=limit, colors=colors, color_mode=color_mode)
-        return {"leaderboard": [asdict(r) for r in ranked]}
+        return {"leaderboard": _enrich_favorites(conn, [asdict(r) for r in ranked])}
 
 
 @app.delete("/api/leaderboard")
@@ -390,6 +395,21 @@ def _enrich_challenge_entries(entries: list) -> list[dict]:
             c["color_identity"] = info.get("color_identity")
         result.append(d)
     return result
+
+
+def _enrich_favorites(conn, rows: list[dict]) -> list[dict]:
+    """Attach favorite_status to each already-asdict()'d row (results/
+    leaderboard rankings) -- favorites lives in its own table with no
+    live dependency on sessions.py's dataclasses, same decoupled-
+    enrichment posture as _enrich_challenge_entries above, except
+    favorites data lives in the same sessions.db connection already
+    open at each call site, so no separate connection is opened here.
+    """
+    names = [row["name"] for row in rows]
+    status_by_name = favorites.favorites_by_name(conn, names)
+    for row in rows:
+        row["favorite_status"] = status_by_name.get(row["name"])
+    return rows
 
 
 @app.get("/api/challenge")
@@ -473,6 +493,40 @@ def api_add_challenge_commander_auto(body: ChallengeAddByColorBody):
         except SessionError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
     return {"slug": slug, **asdict(entry)}
+
+
+# ---- favorites: per-commander owned/wishlist tracking ----
+
+
+class FavoriteStatusBody(BaseModel):
+    commander_name: str
+    status: str
+
+
+@app.put("/api/favorites")
+def api_set_favorite(body: FavoriteStatusBody):
+    # commander_name is a body field, not a {commander_name} path
+    # segment -- several real commanders in this catalog have "/" in
+    # their name (double-faced/Partner pairs like "Krark, the Thumbless
+    # // Vial Smasher the Fierce"), which a path segment can't reliably
+    # round-trip even percent-encoded (confirmed: Starlette's default
+    # path converter 404s on an encoded slash rather than treating it
+    # as a literal character within one segment).
+    with _sessions_conn() as conn:
+        try:
+            entry = favorites.set_favorite_status(conn, body.commander_name, body.status)
+        except SessionError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return asdict(entry)
+
+
+@app.delete("/api/favorites")
+def api_clear_favorite(commander_name: str):
+    # Query parameter, same "/" reasoning as api_set_favorite above --
+    # query values don't have the path-segment slash problem.
+    with _sessions_conn() as conn:
+        favorites.clear_favorite(conn, commander_name)
+    return {"ok": True}
 
 
 # ---- pod tracker: real multiplayer games, players, decks ----

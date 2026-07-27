@@ -247,6 +247,31 @@ header {
 }
 .filter-label:first-child { margin-top: 0; }
 
+.filter-disclosure {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  background: none;
+  border: none;
+  padding: 0;
+  margin-top: 14px;
+  cursor: pointer;
+  text-align: left;
+}
+.filter-disclosure .filter-label { margin-top: 0; }
+.filter-disclosure:hover .filter-label,
+.filter-disclosure:hover .filter-disclosure-chevron { color: var(--accent); }
+.filter-disclosure:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.filter-disclosure-chevron {
+  font-family: var(--mono);
+  font-size: 0.68rem;
+  color: var(--ink-faint);
+  transition: transform 0.15s ease, color 0.15s ease;
+}
+.filter-disclosure[aria-expanded="true"] .filter-disclosure-chevron { transform: rotate(180deg); }
+
 .segmented {
   display: flex;
   margin-top: 10px;
@@ -643,6 +668,48 @@ header {
 .action-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .action-btn:disabled { opacity: 0.35; cursor: not-allowed; box-shadow: inset 0 0 0 1px var(--border); color: var(--ink); }
 .action-btn:disabled:hover { box-shadow: inset 0 0 0 1px var(--border); color: var(--ink); }
+
+/* Owned/wishlist collection toggle -- cycles none -> owned -> wishlist
+   -> none. "none" reuses .chip's unpressed deboss look; "owned"/
+   "wishlist" both reuse the emboss-ghost "pressed" treatment already
+   established by .chip[aria-pressed="true"], distinguished by which
+   token colors the ring (--primary vs --accent) rather than inventing
+   a third color.
+
+   Hidden for now, not removed, after user feedback -- core.js still
+   builds and wires one of these into every rank row and the lightbox
+   exactly as before, the backend (favorites.py, /api/favorites/...)
+   is fully intact and tested, this single `display: none` is the only
+   thing standing between this and being visible again. */
+.fav-btn {
+  display: none;
+  margin-top: 6px;
+  border: none;
+  border-radius: var(--card-radius);
+  background: var(--bg-alt);
+  box-shadow: var(--deboss), inset 0 0 0 1px var(--border);
+  color: var(--ink-dim);
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.03em;
+  padding: 4px 9px;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
+}
+.fav-btn:hover { box-shadow: var(--deboss), inset 0 0 0 1px var(--accent); }
+.fav-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.fav-btn[data-status="owned"] {
+  background: var(--primary-soft);
+  box-shadow: var(--emboss-ghost), inset 0 0 0 2px var(--primary);
+  color: var(--primary);
+  font-weight: 600;
+}
+.fav-btn[data-status="wishlist"] {
+  background: var(--accent-soft);
+  box-shadow: var(--emboss-ghost), inset 0 0 0 2px var(--accent);
+  color: var(--accent);
+  font-weight: 600;
+}
 
 .duel-hint {
   color: var(--ink-faint);

@@ -90,6 +90,26 @@
           </div>
 
           <!--
+            Salt filtering is hidden for now, not removed -- fully
+            built server-side and in the CLI (`pool --max-salt`,
+            `PoolFilters.max_salt`, the API's `max_salt`/`min_salt`
+            fields). Hidden from the web UI after user feedback that
+            it wasn't landing well -- easy to bring back here if/when
+            that changes; the `hidden` class below is the only thing
+            standing between this markup and being live again.
+          -->
+          <button class="filter-disclosure hidden" id="salt-disclosure-btn" type="button" aria-expanded="false">
+            <span class="filter-label">Max salt (avoid meta-warping)</span>
+            <span class="filter-disclosure-chevron">▾</span>
+          </button>
+          <div class="filter-disclosure-body hidden" id="salt-disclosure-body">
+            <div class="deck-range">
+              <input type="range" id="max-salt-slider" min="0" max="5" step="0.1" value="5" />
+              <input type="number" id="max-salt-input" class="num-input" min="0" max="10" step="0.1" value="5" inputmode="decimal" />
+            </div>
+          </div>
+
+          <!--
             Price filtering is hidden for now, not removed -- fully built
             server-side and in the CLI (`pool --max-price`, `PoolFilters.max_price`,
             the API's `max_price` field). Re-shown briefly, then pulled back
@@ -105,13 +125,18 @@
             so combining a theme with a narrow color filter can still turn up
             few/no matches unless `enrich-commanders` has also run.
           -->
-          <div class="filter-label">Archetype / theme</div>
-          <div class="filter-row" id="theme-chips"></div>
+          <button class="filter-disclosure" id="theme-disclosure-btn" type="button" aria-expanded="false">
+            <span class="filter-label" id="theme-disclosure-label">Archetype / theme</span>
+            <span class="filter-disclosure-chevron">▾</span>
+          </button>
+          <div class="filter-disclosure-body hidden" id="theme-disclosure-body">
+            <div class="filter-row" id="theme-chips"></div>
 
-          <div class="filter-label">Theme match</div>
-          <div class="segmented" id="theme-mode-toggle">
-            <button type="button" class="segmented-btn" data-mode="any" aria-pressed="true">Any selected theme</button>
-            <button type="button" class="segmented-btn" data-mode="all" aria-pressed="false">All selected themes</button>
+            <div class="filter-label">Theme match</div>
+            <div class="segmented" id="theme-mode-toggle">
+              <button type="button" class="segmented-btn" data-mode="any" aria-pressed="true">Any selected theme</button>
+              <button type="button" class="segmented-btn" data-mode="all" aria-pressed="false">All selected themes</button>
+            </div>
           </div>
 
           <div class="filter-label" id="pool-size-label-row">Duel pool size</div>

@@ -24,6 +24,7 @@
   let colorMode = "subset"; // "subset" (any combo within --colors) or "exact"
   let maxDecks = 10000;
   let minDecks = 100;
+  let maxSalt = null; // null = no filter; set when the slider moves off its max (5)
   // Derived from the input's own HTML value (see index.html's
   // #pool-size-input) rather than a second hardcoded literal here -- a
   // duplicate default is exactly how this drifted before: the HTML's
@@ -57,6 +58,7 @@
         color_mode: colorMode,
         max_decks: maxDecks,
         min_decks: minDecks,
+        max_salt: maxSalt,
         themes: [...activeThemes],
         themes_mode: themeMode,
         pool_size: poolSize,
@@ -175,6 +177,7 @@
   }
 
   function renderThemeChips(slugs) {
+    $("theme-disclosure-label").textContent = `Archetype / theme (${slugs.length})`;
     const wrap = $("theme-chips");
     wrap.innerHTML = "";
     slugs.forEach((slug) => {
@@ -683,6 +686,7 @@
     themeMode = "any";
     maxDecks = 10000;
     minDecks = 100;
+    maxSalt = null;
     poolSize = DEFAULT_POOL_SIZE;
     customList.length = 0;
     $("commander-search-input").value = "";
@@ -697,10 +701,16 @@
     document.querySelectorAll("#theme-mode-toggle .segmented-btn").forEach((b) => {
       b.setAttribute("aria-pressed", String(b.dataset.mode === "any"));
     });
+    $("theme-disclosure-btn").setAttribute("aria-expanded", "false");
+    $("theme-disclosure-body").classList.add("hidden");
+    $("salt-disclosure-btn").setAttribute("aria-expanded", "false");
+    $("salt-disclosure-body").classList.add("hidden");
     $("max-decks-slider").value = maxDecks;
     $("max-decks-input").value = maxDecks;
     $("min-decks-slider").value = minDecks;
     $("min-decks-input").value = minDecks;
+    $("max-salt-slider").value = 5;
+    $("max-salt-input").value = 5;
     $("pool-size-input").value = poolSize;
 
     // setFilterMode("duel") handles the pool-size-row/bracket-size-chips
@@ -752,6 +762,28 @@
     refreshPoolPreview();
   });
 
+  // At its max value (5) the slider means "no filter" -- maxSalt stays
+  // null so an untouched slider behaves exactly like today, matching
+  // real-world EDHREC salt scores rarely if ever reaching that high.
+  const saltSlider = $("max-salt-slider");
+  const saltInput = $("max-salt-input");
+  function applySaltValue(value) {
+    maxSalt = value >= Number(saltSlider.max) ? null : value;
+  }
+  saltSlider.addEventListener("input", () => {
+    const value = Number(saltSlider.value);
+    saltInput.value = value;
+    applySaltValue(value);
+  });
+  saltSlider.addEventListener("change", refreshPoolPreview);
+  saltInput.addEventListener("change", () => {
+    const value = Math.max(0, Number(saltInput.value) || 0);
+    saltInput.value = value;
+    saltSlider.value = Math.min(Math.max(value, Number(saltSlider.min)), Number(saltSlider.max));
+    applySaltValue(value);
+    refreshPoolPreview();
+  });
+
   const poolSizeInput = $("pool-size-input");
   poolSizeInput.addEventListener("change", () => {
     const value = Math.min(200, Math.max(4, Math.floor(Number(poolSizeInput.value) || 40)));
@@ -763,6 +795,18 @@
   wireColorModeToggle("color-mode-toggle", (m) => { colorMode = m; }, refreshPoolPreview);
   wireColorModeToggle("theme-mode-toggle", (m) => { themeMode = m; }, refreshPoolPreview);
   wireColorModeToggle("mode-toggle", setFilterMode, () => {});
+
+  $("theme-disclosure-btn").addEventListener("click", () => {
+    const expanded = $("theme-disclosure-btn").getAttribute("aria-expanded") === "true";
+    $("theme-disclosure-btn").setAttribute("aria-expanded", String(!expanded));
+    $("theme-disclosure-body").classList.toggle("hidden", expanded);
+  });
+
+  $("salt-disclosure-btn").addEventListener("click", () => {
+    const expanded = $("salt-disclosure-btn").getAttribute("aria-expanded") === "true";
+    $("salt-disclosure-btn").setAttribute("aria-expanded", String(!expanded));
+    $("salt-disclosure-body").classList.toggle("hidden", expanded);
+  });
 
   document.querySelectorAll("#pool-source-toggle .segmented-btn").forEach((btn) => {
     btn.addEventListener("click", () => {

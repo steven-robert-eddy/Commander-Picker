@@ -36,10 +36,11 @@ def _make_conn():
     return conn
 
 
-def _insert(conn, name, color_identity, num_decks, themes=(), price=None):
+def _insert(conn, name, color_identity, num_decks, themes=(), price=None, salt=None):
     conn.execute(
-        "INSERT INTO commanders (name, sanitized, color_identity, num_decks, edhrec_url, price) VALUES (?, ?, ?, ?, ?, ?)",
-        (name, name.lower(), color_identity, num_decks, f"https://edhrec.com/commanders/{name.lower()}", price),
+        "INSERT INTO commanders (name, sanitized, color_identity, num_decks, edhrec_url, price, salt) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?)",
+        (name, name.lower(), color_identity, num_decks, f"https://edhrec.com/commanders/{name.lower()}", price, salt),
     )
     # `themes` is either a plain iterable of slugs (deck count 0, fine for
     # tests that don't care about the top-N-per-commander cap) or a
@@ -260,6 +261,41 @@ def test_max_price_is_permissive_on_missing_price_data():
     filters = pool.PoolFilters(max_decks=None, max_price=10.0)
     candidates = pool.build_pool(conn, filters, min_pool_size=1)
     assert {c.name for c in candidates} == {"No Price Data"}
+
+
+def test_max_salt_excludes_commanders_above_it():
+    conn = _make_conn()
+    _insert(conn, "Mild Rakdos", "BR", 1000, salt=1.0)
+    _insert(conn, "Salty Rakdos", "BR", 1000, salt=3.5)
+    conn.commit()
+
+    filters = pool.PoolFilters(max_decks=None, max_salt=2.0)
+    candidates = pool.build_pool(conn, filters, min_pool_size=1)
+    assert {c.name for c in candidates} == {"Mild Rakdos"}
+
+
+def test_min_salt_excludes_commanders_below_it():
+    conn = _make_conn()
+    _insert(conn, "Mild Rakdos", "BR", 1000, salt=1.0)
+    _insert(conn, "Salty Rakdos", "BR", 1000, salt=3.5)
+    conn.commit()
+
+    filters = pool.PoolFilters(max_decks=None, min_salt=2.0)
+    candidates = pool.build_pool(conn, filters, min_pool_size=1)
+    assert {c.name for c in candidates} == {"Salty Rakdos"}
+
+
+def test_max_salt_is_permissive_on_missing_salt_data():
+    # A commander not yet enrich-commanders'd (salt=None) should never
+    # be excluded by an active salt filter -- same posture as max_price.
+    conn = _make_conn()
+    _insert(conn, "No Salt Data", "BR", 1000, salt=None)
+    _insert(conn, "Salty Rakdos", "BR", 1000, salt=3.5)
+    conn.commit()
+
+    filters = pool.PoolFilters(max_decks=None, max_salt=2.0)
+    candidates = pool.build_pool(conn, filters, min_pool_size=1)
+    assert {c.name for c in candidates} == {"No Salt Data"}
 
 
 def test_commander_carries_rank_mana_cost_type_line():

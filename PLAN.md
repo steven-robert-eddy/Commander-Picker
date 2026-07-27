@@ -17,7 +17,7 @@ Stack: Python, SQLite (local cache + queryable DB), Turso (managed
 libSQL) for session storage, EDHREC's JSON data as the source, Scryfall
 for card art. Standalone project — no dependency on the sibling
 `commander-synergy` repo's package; that project isn't in a state worth
-linking to right now, so cross-linking is on hold (see "Someday" below).
+linking to right now, so cross-linking is on hold (see "Optional/future" below).
 
 Direction, as of 2026-07-19: staying a personal, single-user tool for
 now — the goal is a genuinely solid product before expanding who it's
@@ -81,12 +81,14 @@ dropped, just intentionally after that.
   UI's price slider was briefly shown, then hidden again (no data-quality
   issue — just simplifying the UI for now) — `--max-price`/`max_price`
   stay fully working on the CLI and API.
-- **Archetype/theme filter**: briefly re-enabled in the web UI, then
-  re-hidden after live testing confirmed the same limitation that hid it
-  the first time (see "Known limitations" below) — EDHREC's tag pages
-  just don't carry enough signal yet. Still fully built and available via
-  the CLI/API (`pool --themes`, `play --themes`); see "Roadmap" for the
-  theme-filter UI decision this is waiting on.
+- **Archetype/theme filter**: live in the web UI as of the
+  "Harden before expanding" pass, once `THEME_SLUGS` went from an
+  18-entry unverified guess to a 43-slug list confirmed live against
+  EDHREC's own tag index. Collapsed behind a closed-by-default
+  disclosure (`Archetype / theme (43) ▾`, `.filter-disclosure`) rather
+  than always showing the full chip grid, since 43 chips was too much
+  vertical space by default — same treatment later reused for the
+  salt slider (below) once that existed too.
 - **Deckbuilder links**: the lightbox (opened from a results/leaderboard
   row) shows "View on EDHREC" (reliable, uses the stored `edhrec_url`)
   plus best-effort "Search Moxfield"/"Search Archidekt" links —
@@ -319,6 +321,55 @@ dropped, just intentionally after that.
   cross-concern coupling existed before the split (no challenge/pod
   function ever called a picker-only helper or vice versa), so this
   was a pure reorganization — same 250 tests, same behavior.
+- **Min-decks filter**: `PoolFilters.min_decks` (default 100, CLI
+  `--min-decks`, web slider paired with the existing max-decks one) —
+  the obscurity floor to max-decks's underbuilt ceiling, excluding
+  commanders with too little real deck-count signal to be a
+  meaningful pick. Same permissive-on-missing-data posture as the
+  other range filters.
+- **UI shape-language revamp ("engraved plate")**: replaced the
+  generic rounded-corner/pill-chip/ambient-drop-shadow look (the
+  industry-default "AI app" skeleton) with a token-based inset-bevel
+  system — `--groove`/`--emboss`/`--emboss-ghost`/`--deboss`/
+  `--row-rule` custom properties applied consistently across panels,
+  buttons, inputs, chips, and list rows, plus a restrained 4px
+  `--card-radius` reserved for structural chrome (real card art and
+  literal circles keep genuine rounding; nothing else does). Chosen
+  after iterating through five distinct visual-direction comps.
+- **Navigation clarity pass**: one persistent, accent-colored "← Home"
+  link in the shared header (hidden only on the home screen itself),
+  replacing five inconsistent per-screen "← Home" ghost-buttons and
+  closing a real gap where the duel and results screens previously had
+  no way back to Home at all. Undo/Finish-now on the duel screen moved
+  off the same plain-text class used for the inert "tap a card to
+  pick" hint next to them onto a distinct bordered `.action-btn`, so
+  they read as clickable.
+- **Scryfall Art Series bug fix + `refresh-candidates` command**: a
+  real user-reported bug (a commander's card art showing a Kaldheim
+  Art Series collectible instead of the real card) traced to
+  Scryfall's bulk data including non-game objects that share a display
+  name with the real card they depict — `scryfall_client.py` now
+  filters out `layout in {art_series, token, double_faced_token,
+  emblem, scheme, vanguard, planar}` before building either lookup.
+  Separately: the all-time leaderboard/past sessions' own results
+  don't read `commanders.db` live (a denormalized snapshot taken at
+  session-creation time), so a catalog fix like this one never reached
+  them on its own — `commander-picker refresh-candidates`
+  (`favorites`-adjacent, new `sessions.refresh_candidate_metadata`)
+  resyncs that existing snapshot from the current catalog on demand.
+- **Salt-score filter + favorites/collection tracking**: both fully
+  built — `PoolFilters.max_salt`/`min_salt` (CLI/API), and a new
+  `commander_favorites` table/`favorites.py` module (owned/wishlist
+  tracking per commander, independent of any session, with a `.fav-btn`
+  toggle shared between rank rows and the lightbox) — then both hidden
+  from the web UI shortly after shipping on direct user feedback, same
+  `hidden`/`display:none` treatment as the standing price-filter
+  precedent. Backend/CLI/API for both remain fully functional and
+  tested; trivially reversible.
+- **2026-07-21: paused here.** Harden-before-expanding and
+  Personalization are substantially shipped; the app is in a good,
+  stable place. See "Roadmap" below for what's left, all of it now
+  explicitly optional/future rather than active work.
 
 See `README.md` for setup and usage. The sections below cover
 architecture notes and decisions worth knowing if you're extending
@@ -359,6 +410,20 @@ this project, not a play-by-play changelog.
   leaderboard screens all size these consistently regardless of
   count (a 1-image commander doesn't balloon just because its
   opponent has fewer images to show).
+- **Scryfall's bulk `oracle_cards` file isn't only real cards**: it
+  also includes non-game collectible objects (Art Series cards, tokens,
+  emblems, etc.) that Scryfall names identically to the real card they
+  depict/reference. `scryfall_client.py`'s `build_image_lookup`/
+  `build_card_meta_lookup` key their lookups by plain card name, so
+  without filtering, a same-named non-game entry can silently overwrite
+  a real commander's image/mana-cost/type-line data depending purely on
+  file order (found via a real bug report: "Cosima, God of the Voyage"
+  was showing a Kaldheim Art Series card back instead of her real
+  second face). `_is_game_card`/`_NON_GAME_LAYOUTS` filters out
+  `layout in {"art_series", "token", "double_faced_token", "emblem",
+  "scheme", "vanguard", "planar"}` before either lookup is built —
+  none of these are ever legal commanders, so excluding them can't
+  remove a real card's real data.
 - **Round count is a hard cutoff, not a suggestion**: a session
   auto-finishes once `rounds_completed` reaches `target_round_count`,
   both proactively (`next_pairing`) and reactively (`record_pick`),
@@ -378,6 +443,24 @@ this project, not a play-by-play changelog.
   client-side (CLI prompt, browser `confirm()`); the API endpoint
   itself has no confirmation step, consistent with this app having no
   auth to gate a "some day" separate confirmation UI behind anyway.
+- **`candidates.color_identity`/`num_decks`/`edhrec_url`/`image_urls`
+  are a display snapshot, not a live view**: written once at
+  `create_session` time from whatever `commanders.db` said then, and
+  `get_leaderboard`/`get_rankings` both read straight from that
+  snapshot with no live dependency on `commanders.db` (a separate file
+  entirely rebuilt by every `update-data` run). This surfaced as a
+  real bug report: a Scryfall data-quality fix landed in
+  `scryfall_client.py` (an Art Series card colliding with a real
+  commander's name and overwriting its image), but the all-time
+  leaderboard kept showing the old art even after `update-data`
+  re-ran, because nothing refreshes the existing `candidates` rows.
+  `sessions.refresh_candidate_metadata()` (CLI: `refresh-candidates`)
+  is the fix: resyncs those four columns for every session that's ever
+  included a given commander, from whatever `commanders.db` currently
+  says, leaving `rating`/`rank`/`mana_cost`/`type_line`/`power_level`
+  (genuine point-in-time history) untouched. Not run automatically —
+  a deliberate, explicit step after `update-data`, same shape as
+  `enrich-commanders`.
 - **Static assets served `Cache-Control: no-store, no-cache,
   must-revalidate`, plus a `?v=` cache-buster on every `/static/`
   reference in `index.html`** (`web/app.py`'s `NoCacheStaticFiles`
@@ -457,6 +540,14 @@ agreed next big goal, and an explicit someday backlog. Pull items from
 here one at a time the same way every feature in this project has been
 built so far — this is a backlog, not a schedule.
 
+**2026-07-21: paused here.** The "harden" and "personalization" tiers
+are substantially shipped and the app is in a good place. Everything
+still open below — the Elo revisit, saved filter presets, and the
+entire "Optional/future" tier — is explicitly **optional/future work,
+not an active commitment**. Nothing here is next-up by default; treat this
+section as ideas to pull from later if/when there's a reason to, not
+a queue to keep working through.
+
 ### 1. Harden before expanding
 
 Not new features — tightening what's already shipped, per the
@@ -472,11 +563,12 @@ Not new features — tightening what's already shipped, per the
   excluding tribal/creature-type and narrow single-keyword mechanic
   tags to keep the list focused on deck-building strategies. 43 slugs
   total now, all confirmed live.
-- Revisit Elo K-factor/round-count constants (`elo.py`) once there's
-  been enough real usage to observe — currently hand-picked priors.
-  **Still blocked**: no `sessions.db` with real accumulated games
-  exists in this checkout (production data lives on Turso), so there's
-  nothing to tune against yet. Revisit once real play volume exists.
+- **(Optional/future)** Revisit Elo K-factor/round-count constants
+  (`elo.py`) once there's been enough real usage to observe —
+  currently hand-picked priors. **Still blocked**: no `sessions.db`
+  with real accumulated games exists in this checkout (production data
+  lives on Turso), so there's nothing to tune against yet. Revisit
+  once real play volume exists.
 - ~~A due-diligence pass confirming the fast-growing recent surface
   area (custom lists, the 32-deck challenge tracker, undo, bracket
   mode) all still behave correctly together~~ — **done**. Findings:
@@ -504,22 +596,51 @@ Not new features — tightening what's already shipped, per the
 The agreed next big goal — builds on data/patterns already in place,
 no new infrastructure (auth, sharing links) required:
 
-- **Salt-score filter + theme-filter UI decision**: `PoolFilters` gains
-  `max_salt`/`min_salt` (mirrors `max_price` exactly, including the
-  permissive-on-missing-data posture). Separately, decide whether/how
-  to re-enable the web UI's theme filter now that `GET /api/themes`
-  reflects real per-commander tags instead of the old shallow list.
-- **Saved filter presets**: small new `sessions.db` table (name ->
-  serialized `PoolFilters`), a "Save this filter" action and a preset
-  picker on the filter screen.
-- **Favorites/collection tracking**: new table (commander name ->
-  owned/wishlist flag), surfaced as a toggle on results/leaderboard
-  rows and the lightbox. Pairs naturally with the 32-deck challenge
-  tracker (mark a combo's chosen commander "owned" once the physical
-  deck exists) without either feature needing to know about the
-  other's schema.
+- ~~Salt-score filter + theme-filter UI decision~~ — **done**. Theme
+  filter UI decision resolved earlier (re-enabled behind a collapsible
+  disclosure, see the shape-language/UI-polish notes above). Salt:
+  `PoolFilters` gained `max_salt`/`min_salt`, mirroring `max_price`
+  exactly (including permissive-on-missing-data). Scope call: both
+  are in the backend/CLI/API for parity with the min/max-decks
+  precedent, but only a single "Max salt" slider was added to the web
+  UI (`index.html`/`picker.js`) — a salt *floor* ("only show me spicy
+  commanders") is a much more niche ask than the ceiling every other
+  range filter in this app defaults to solving, so `min_salt` stays
+  CLI/API-only for now, same position `max_price` is already in.
+  **Update:** the "Max salt" slider itself was hidden from the web UI
+  shortly after shipping, on direct user feedback that it wasn't
+  landing well — same `hidden`-class treatment as `max_price`'s
+  standing precedent (`index.html`'s `#salt-disclosure-btn`). Backend/
+  CLI/API untouched and still fully functional; trivially reversible.
+- **(Optional/future)** Saved filter presets: small new `sessions.db`
+  table (name -> serialized `PoolFilters`), a "Save this filter"
+  action and a preset picker on the filter screen.
+- ~~Favorites/collection tracking~~ — **done**. `commander_favorites`
+  (name -> "owned"/"wishlist", no row at all means neither) is a new,
+  fully independent table (`favorites.py`, mirroring `challenge.py`'s
+  shape) — `sessions.py`'s `RankedCommander`/`GlobalRanking` were never
+  touched; `web/app.py`'s `_enrich_favorites` merges `favorite_status`
+  into `results`/`finish`/`leaderboard` responses at the same app.py
+  boundary `_enrich_challenge_entries` already uses, so the two
+  features stay decoupled per this note's own original requirement. A
+  single toggle (`.fav-btn`, `core.js`) cycles none → owned → wishlist
+  → none, shared verbatim between rank rows and the lightbox. One real
+  bug caught during this pass: `commander_name` must never be a URL
+  *path* segment (`PUT /api/favorites/{commander_name}`) — several
+  real commanders have "/" in their name (double-faced/Partner pairs
+  like "Krark, the Thumbless // Vial Smasher the Fierce"), and
+  Starlette's default path converter 404s on that even percent-encoded;
+  fixed by moving it into the request body (`PUT`) / query string
+  (`DELETE`) instead. No dedicated "My Collection" browse screen this
+  pass — the roadmap note only called for the toggle itself.
+  **Update:** the toggle itself was hidden from the web UI shortly
+  after shipping, on direct user feedback that it wasn't landing
+  well — `.fav-btn { display: none; }` in `style.css` is the only
+  thing standing between this and being visible again; `core.js`
+  still builds and wires it on every row exactly as before, and the
+  full backend/API/tests are untouched.
 
-### 3. Someday (recorded, not scheduled)
+### 3. Optional/future (recorded, not scheduled)
 
 - **Real multi-user accounts** — the genuine long-term direction per
   this conversation, not a maybe, just deliberately after "harden" and

@@ -1,4 +1,5 @@
 import random
+import sqlite3
 
 import pytest
 
@@ -724,3 +725,74 @@ def test_bracket_pick_feeds_all_time_leaderboard(conn):
     assert leaderboard["A"] > 1000.0
     assert leaderboard["D"] < 1000.0
 
+
+
+def _fake_commanders_conn(rows):
+    """An in-memory connection with a `commanders` table, mirroring
+    db.py's real schema -- refresh_candidate_metadata only reads
+    name/color_identity/num_decks/edhrec_url/image_urls from it.
+    """
+    conn = sqlite3.connect(":memory:")
+    conn.row_factory = sqlite3.Row
+    conn.execute(
+        "CREATE TABLE commanders (name TEXT PRIMARY KEY, color_identity TEXT, num_decks INTEGER, "
+        "edhrec_url TEXT, image_urls TEXT)"
+    )
+    conn.executemany(
+        "INSERT INTO commanders (name, color_identity, num_decks, edhrec_url, image_urls) VALUES (?, ?, ?, ?, ?)",
+        rows,
+    )
+    conn.commit()
+    return conn
+
+
+def test_refresh_candidate_metadata_updates_stale_rows_across_sessions(conn):
+    stale = _commander("Cosima", decks=500, image_urls=["https://img/art-series-back.jpg"])
+    session_a = sessions.create_session(conn, [stale, _commander("Other A")])
+    session_b = sessions.create_session(conn, [stale, _commander("Other B")])
+    # get_leaderboard only surfaces commanders with a commander_ratings
+    # row, which only exists once a pick has been recorded.
+    sessions.record_pick(conn, session_a, winner="Cosima", loser="Other A")
+
+    commanders_conn = _fake_commanders_conn(
+        [("Cosima", "U", 1234, "https://edhrec.com/commanders/cosima", '["https://img/cosima-real.jpg"]')]
+    )
+
+    result = sessions.refresh_candidate_metadata(conn, commanders_conn)
+    assert result.updated >= 1
+
+    for session_id in (session_a, session_b):
+        ranked = {r.name: r for r in sessions.get_rankings(conn, session_id)}
+        assert ranked["Cosima"].num_decks == 1234
+        assert ranked["Cosima"].color_identity == "U"
+        assert ranked["Cosima"].image_urls == ("https://img/cosima-real.jpg",)
+
+    leaderboard = {r.name: r for r in sessions.get_leaderboard(conn)}
+    assert leaderboard["Cosima"].image_urls == ("https://img/cosima-real.jpg",)
+
+
+def test_refresh_candidate_metadata_leaves_unknown_commanders_alone(conn):
+    session_id = sessions.create_session(conn, [_commander("Vanished Commander"), _commander("Other")])
+    commanders_conn = _fake_commanders_conn([])  # empty catalog -- nothing matches
+
+    result = sessions.refresh_candidate_metadata(conn, commanders_conn)
+    assert result.not_found >= 1
+
+    ranked = {r.name: r for r in sessions.get_rankings(conn, session_id)}
+    assert ranked["Vanished Commander"].num_decks == 1000  # unchanged from _commander's default
+
+
+def test_refresh_candidate_metadata_does_not_touch_rating_or_rank(conn):
+    stale = _commander("Cosima", decks=500, rank=7, mana_cost="{2}{U}", type_line="Legendary Creature — God")
+    session_id = sessions.create_session(conn, [stale, _commander("Other")])
+    sessions.record_pick(conn, session_id, winner="Cosima", loser="Other")
+    before = {r.name: r for r in sessions.get_rankings(conn, session_id)}
+
+    commanders_conn = _fake_commanders_conn(
+        [("Cosima", "U", 1234, "https://edhrec.com/commanders/cosima", '["https://img/cosima-real.jpg"]')]
+    )
+    sessions.refresh_candidate_metadata(conn, commanders_conn)
+
+    after = {r.name: r for r in sessions.get_rankings(conn, session_id)}
+    assert after["Cosima"].rating == before["Cosima"].rating
+    assert after["Cosima"].num_decks == 1234  # the field that *did* get refreshed, for contrast

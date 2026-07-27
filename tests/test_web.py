@@ -147,6 +147,29 @@ def test_api_pool_max_price_none_is_permissive_on_missing_price(client):
     assert len(resp.json()["candidates"]) == 2
 
 
+def test_api_pool_max_salt_filters(client):
+    import sqlite3
+
+    conn = sqlite3.connect(db.DB_PATH)
+    conn.execute("UPDATE commanders SET salt = 1.0 WHERE name = 'Rakdos, Lord of Riots'")
+    conn.execute("UPDATE commanders SET salt = 3.5 WHERE name LIKE 'Krark%'")
+    conn.commit()
+    conn.close()
+
+    resp = client.post("/api/pool", json=_pool_body(max_decks=10000, max_salt=2.0, min_pool_size=1))
+    assert resp.status_code == 200
+    names = {c["name"] for c in resp.json()["candidates"]}
+    assert names == {"Rakdos, Lord of Riots"}
+
+
+def test_api_pool_max_salt_none_is_permissive_on_missing_salt(client):
+    # Fixture commanders have no salt data at all by default -- an
+    # active salt filter must not exclude everything.
+    resp = client.post("/api/pool", json=_pool_body(max_decks=10000, max_salt=0.5))
+    assert resp.status_code == 200
+    assert len(resp.json()["candidates"]) == 2
+
+
 def test_api_pool_no_catalog_returns_503(tmp_path, monkeypatch):
     monkeypatch.setattr(db, "DB_PATH", tmp_path / "nope.db")
     monkeypatch.setattr(store, "SESSIONS_DB_PATH", tmp_path / "sessions.db")
@@ -841,3 +864,79 @@ def test_pod_delete_last_game_reverts_and_errors_when_empty(client):
 
     resp = client.delete("/api/pod/games/last")
     assert resp.status_code == 422
+
+
+def test_put_favorite_round_trips(client):
+    resp = client.put("/api/favorites", json={"commander_name": "Rakdos, Lord of Riots", "status": "owned"})
+    assert resp.status_code == 200
+    assert resp.json()["status"] == "owned"
+
+
+def test_put_favorite_accepts_name_with_slashes(client):
+    # Several real commanders (double-faced/Partner pairs) have "/" in
+    # their name -- must round-trip through the body, not a URL path
+    # segment (which can't reliably carry a literal or percent-encoded
+    # slash through Starlette's default route matching).
+    name = "Krark, the Thumbless // Vial Smasher the Fierce"
+    resp = client.put("/api/favorites", json={"commander_name": name, "status": "owned"})
+    assert resp.status_code == 200
+    assert resp.json()["commander_name"] == name
+
+
+def test_put_favorite_rejects_bad_status(client):
+    resp = client.put("/api/favorites", json={"commander_name": "Rakdos, Lord of Riots", "status": "loved"})
+    assert resp.status_code == 422
+
+
+def test_delete_favorite_clears_it(client):
+    client.put("/api/favorites", json={"commander_name": "Rakdos, Lord of Riots", "status": "owned"})
+    resp = client.delete("/api/favorites", params={"commander_name": "Rakdos, Lord of Riots"})
+    assert resp.status_code == 200
+
+    created = client.post("/api/sessions", json=_pool_body()).json()
+    session_id = created["session_id"]
+    a, b = created["pairing"]["candidates"]
+    client.post(f"/api/sessions/{session_id}/pick", json={"winner": a["name"], "loser": b["name"]})
+    results = client.get(f"/api/sessions/{session_id}/results").json()
+    by_name = {r["name"]: r for r in results["rankings"]}
+    if "Rakdos, Lord of Riots" in by_name:
+        assert by_name["Rakdos, Lord of Riots"]["favorite_status"] is None
+
+
+def test_results_includes_favorite_status(client):
+    client.put("/api/favorites", json={"commander_name": "Rakdos, Lord of Riots", "status": "wishlist"})
+
+    created = client.post("/api/sessions", json=_pool_body()).json()
+    session_id = created["session_id"]
+    a, b = created["pairing"]["candidates"]
+    client.post(f"/api/sessions/{session_id}/pick", json={"winner": a["name"], "loser": b["name"]})
+    results = client.get(f"/api/sessions/{session_id}/results").json()
+
+    by_name = {r["name"]: r for r in results["rankings"]}
+    assert by_name["Rakdos, Lord of Riots"]["favorite_status"] == "wishlist"
+    other = next(name for name in by_name if name != "Rakdos, Lord of Riots")
+    assert by_name[other]["favorite_status"] is None
+
+
+def test_finish_includes_favorite_status(client):
+    client.put("/api/favorites", json={"commander_name": "Rakdos, Lord of Riots", "status": "owned"})
+
+    created = client.post("/api/sessions", json=_pool_body()).json()
+    session_id = created["session_id"]
+    finish_resp = client.post(f"/api/sessions/{session_id}/finish")
+    by_name = {r["name"]: r for r in finish_resp.json()["rankings"]}
+    assert by_name["Rakdos, Lord of Riots"]["favorite_status"] == "owned"
+
+
+def test_leaderboard_includes_favorite_status(client):
+    # Favorite whichever candidate actually shows up in round 1 --
+    # pairing is randomized, so the favorited name must be one of the
+    # two the pick below actually touches, not a hardcoded guess.
+    created = client.post("/api/sessions", json=_pool_body()).json()
+    session_id = created["session_id"]
+    a, b = created["pairing"]["candidates"]
+    client.put("/api/favorites", json={"commander_name": a["name"], "status": "owned"})
+    client.post(f"/api/sessions/{session_id}/pick", json={"winner": a["name"], "loser": b["name"]})
+
+    board = {row["name"]: row for row in client.get("/api/leaderboard").json()["leaderboard"]}
+    assert board[a["name"]]["favorite_status"] == "owned"

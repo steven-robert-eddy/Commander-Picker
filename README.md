@@ -115,6 +115,27 @@ operation — `--limit N` caps how many *new* fetches happen in one run
 (already-cached commanders are always skipped, so it's safe to run in
 batches over time); `--force` bypasses the freshness cache.
 
+### Resyncing the leaderboard/old results after a data fix
+
+The all-time leaderboard and any past session's own results screen
+don't read `commanders.db` live — each commander's color/deck-count/
+art there is a snapshot taken at session-creation time (see PLAN.md's
+architecture notes), so a correction to the catalog (a data-quality
+fix, a Scryfall image getting resolved differently, deck counts
+changing on EDHREC) never reaches them on its own, even after
+`update-data` rebuilds `commanders.db`. Run this afterward to push the
+fix into those existing snapshots:
+
+```bash
+commander-picker refresh-candidates
+```
+
+This updates every commander's color identity, deck count, EDHREC URL,
+and art across every session that's ever included it, from whatever
+`commanders.db` currently says — it never touches ratings or anything
+else session-historical. A commander no longer present in the current
+catalog is left untouched.
+
 ## Filtering a candidate pool
 
 Once `data/commanders.db` exists, preview a filtered pool before
@@ -132,6 +153,12 @@ commander-picker pool --colors BRG --color-mode subset --max-decks 10000 --theme
 - `--max-price` — USD price ceiling, from Scryfall's bulk data (default:
   no price filter). A commander with no price data (e.g. an unresolved
   Partner/Background half) is never excluded by this, even when it's set.
+- `--max-salt` / `--min-salt` — EDHREC salt-score range (default: no
+  salt filter). Salt score is only populated by `enrich-commanders`, so
+  a commander not yet enriched is never excluded by either, same
+  permissive posture as `--max-price`. Both are CLI/API-only for now —
+  a "Max salt" web UI slider existed briefly but was hidden after user
+  feedback that it wasn't landing well, same treatment as `--max-price`.
 - `--themes` — comma-separated theme slugs to filter by.
 - `--themes-mode` — `any` (OR, default) or `all` (AND) across
   `--themes`.
@@ -229,17 +256,18 @@ mono-R, and BR) vs. **exact colors only** (picking B+R shows only BR)
 — an exact-or-slider-adjusted deck-count ceiling, and an editable duel
 pool size (the live preview shows both the total commanders matching
 your filters and how many will actually be sampled into the duel — the
-two can differ once a filter matches more than the pool size). "Reset
-filters" clears all of this back to defaults (also switches back to
-duel mode if you'd picked bracket) without a page reload. Price
-and archetype/theme filtering exist server-side and on the CLI
-(`--max-price`, `--themes`) but aren't currently shown in the web UI —
-kept simple for now even though `commander-picker enrich-commanders`
-(see "Fetching data" above) can now back real per-commander salt/theme
-data, since re-enabling that filter UI is a separate decision from
-having the data. `GET /api/themes` already reflects whatever's actually
-in `commander_themes` (not a hand-curated list), so any client built
-against the API sees real tags as soon as they're enriched. Tap through
+two can differ once a filter matches more than the pool size), and a
+collapsible archetype/theme filter (data-driven from `commander_themes`,
+not a hand-curated list, so it reflects real tags as soon as
+`enrich-commanders` has run). "Reset filters" clears all of this back
+to defaults (also switches back to duel mode if you'd picked bracket)
+without a page reload. Price and salt filtering both exist server-side
+and on the CLI (`--max-price`, `--max-salt`/`--min-salt`) but aren't
+currently shown in the web UI — kept simple for now, easy to bring back
+if that changes. The favorites/collection toggle (owned/wishlist
+tracking per commander, see `favorites.py`) is similarly fully built
+and working but hidden from the UI after user feedback — same
+treatment. Tap through
 duels — with card
 art, mana cost, an EDHREC rank badge, and a power-level badge (its
 dominant EDHREC Commander Bracket — Exhibition/Core/Upgraded/Optimized/

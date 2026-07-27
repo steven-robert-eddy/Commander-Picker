@@ -28,6 +28,17 @@ META_PATH = SCRYFALL_DIR / "meta.json"
 # Scryfall's own bulk data updates roughly daily.
 DEFAULT_MAX_AGE_SECONDS = 24 * 60 * 60
 
+# Non-game objects Scryfall includes in the same oracle_cards bulk
+# file, sharing display names with real cards they depict/reference
+# (e.g. an Art Series card named identically to the real card's art) --
+# excluded so a same-named collectible can't silently overwrite the
+# real card's image/meta lookup entry.
+_NON_GAME_LAYOUTS = {"art_series", "token", "double_faced_token", "emblem", "scheme", "vanguard", "planar"}
+
+
+def _is_game_card(card: dict) -> bool:
+    return card.get("layout") not in _NON_GAME_LAYOUTS
+
 USER_AGENT = "commander-picker/0.1 (+https://github.com/steven-robert-eddy/commander-picker)"
 REQUEST_HEADERS = {"User-Agent": USER_AGENT, "Accept": "application/json;q=0.9,*/*;q=0.8"}
 
@@ -141,6 +152,8 @@ def build_image_lookup(oracle_cards_path: Path = ORACLE_CARDS_PATH) -> dict[str,
 
     lookup: dict[str, list[str]] = {}
     for card in cards:
+        if not _is_game_card(card):
+            continue
         urls = _card_face_image_urls(card)
         if urls and card.get("name"):
             lookup[card["name"]] = urls
@@ -151,6 +164,8 @@ def build_image_lookup(oracle_cards_path: Path = ORACLE_CARDS_PATH) -> dict[str,
     # alias for those so resolve_image_urls's exact-match path still finds
     # them. `setdefault` so this never overrides a real card's own full name.
     for card in cards:
+        if not _is_game_card(card):
+            continue
         faces = card.get("card_faces") or []
         if len(faces) >= 2 and card.get("name") in lookup:
             front_name = faces[0].get("name")
@@ -217,12 +232,16 @@ def build_card_meta_lookup(oracle_cards_path: Path = ORACLE_CARDS_PATH) -> dict[
 
     lookup: dict[str, CardMeta] = {}
     for card in cards:
+        if not _is_game_card(card):
+            continue
         if card.get("name"):
             lookup[card["name"]] = _card_meta(card)
 
     # Same front-face alias as build_image_lookup, for the same reason:
     # EDHREC names transform commanders after their front face only.
     for card in cards:
+        if not _is_game_card(card):
+            continue
         faces = card.get("card_faces") or []
         if len(faces) >= 2 and card.get("name") in lookup:
             front_name = faces[0].get("name")
