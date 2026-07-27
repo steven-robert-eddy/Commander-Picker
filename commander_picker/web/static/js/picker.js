@@ -37,7 +37,6 @@
   let sessionId = null;
   let sessionMode = "duel"; // the active session's mode, set once it's created (see startSession)
   let currentPairing = null; // { round, target_rounds, candidates: [a, b], round_label? }
-  let bracketTreeExpanded = false; // live bracket-tree strip starts collapsed each time screen-duel is (re)entered
 
   // ---- filter-screen mode selection, before a session exists ----
   let selectedMode = "duel"; // "duel" or "bracket" -- which engine "Start" will create
@@ -430,10 +429,8 @@
     $("bracket-tree-toggle").classList.toggle("hidden", sessionMode !== "bracket");
     // Collapsed by default -- a bigger bracket's tree can get tall, so
     // don't force it open every time this screen is (re)entered (fresh
-    // session or resume); the toggle button reveals it on demand.
-    bracketTreeExpanded = false;
+    // session or resume); the disclosure toggle reveals it on demand.
     $("bracket-tree-toggle").setAttribute("aria-expanded", "false");
-    $("bracket-tree-toggle").textContent = "Show bracket ▾";
     $("bracket-tree-live").classList.add("hidden");
     showScreen("screen-duel");
     renderPairing(pairing); // also sets undo-btn.disabled correctly (round 1 vs. resumed mid-session)
@@ -648,10 +645,9 @@
   $("finish-btn").addEventListener("click", finishSession);
   $("undo-btn").addEventListener("click", undoLastPick);
   $("bracket-tree-toggle").addEventListener("click", () => {
-    bracketTreeExpanded = !bracketTreeExpanded;
-    $("bracket-tree-live").classList.toggle("hidden", !bracketTreeExpanded);
-    $("bracket-tree-toggle").setAttribute("aria-expanded", String(bracketTreeExpanded));
-    $("bracket-tree-toggle").textContent = bracketTreeExpanded ? "Hide bracket ▴" : "Show bracket ▾";
+    const expanded = $("bracket-tree-toggle").getAttribute("aria-expanded") === "true";
+    $("bracket-tree-toggle").setAttribute("aria-expanded", String(!expanded));
+    $("bracket-tree-live").classList.toggle("hidden", expanded);
   });
   document.addEventListener("keydown", (e) => {
     // 1/2 or the arrow keys pick a duel card, mirroring the CLI's 1/2
