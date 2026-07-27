@@ -211,29 +211,36 @@
     }
   }
 
-  function setFilterMode(mode) {
+  // silent: true skips the trailing refreshPoolPreview()/renderCustomList()
+  // call -- used by the filter-reset handler, which changes several of
+  // these in one go and must only kick off ONE preview refresh at the
+  // end (see its own comment for why: firing one per setter here raced
+  // multiple overlapping /api/pool calls against a mid-flight DOM
+  // rebuild and could leave the pool count stuck on stale text).
+  function setFilterMode(mode, { silent } = {}) {
     selectedMode = mode;
     $("pool-size-label-row").textContent = mode === "bracket" ? "Bracket size" : "Duel pool size";
     $("pool-size-row").classList.toggle("hidden", mode === "bracket");
     $("bracket-size-chips").classList.toggle("hidden", mode !== "bracket");
     $("start-btn").textContent = mode === "bracket" ? "Start bracket" : "Start dueling";
     if (mode === "bracket") renderBracketSizeChips();
+    if (silent) return;
     if (poolSource === "custom") renderCustomList();
     else refreshPoolPreview();
   }
 
-  function setPoolSource(source) {
+  function setPoolSource(source, { silent } = {}) {
     poolSource = source;
     $("filter-controls").classList.toggle("hidden", source === "custom");
     $("custom-list-controls").classList.toggle("hidden", source !== "custom");
     if (source === "custom") {
-      renderCustomList();
+      if (!silent) renderCustomList();
     } else {
       // renderCustomList() overwrites #pool-count-line1's markup (including
       // the #total-matches element refreshPoolPreview depends on) -- restore
       // it before handing back to the filtered-mode preview.
       $("pool-count-line1").innerHTML = '<b id="total-matches">–</b> commanders match your filters';
-      refreshPoolPreview();
+      if (!silent) refreshPoolPreview();
     }
   }
 
@@ -684,6 +691,7 @@
     minDecks = 100;
     maxSalt = null;
     poolSize = DEFAULT_POOL_SIZE;
+    bracketPoolSize = null;
     customList.length = 0;
     $("commander-search-input").value = "";
     $("commander-search-results").classList.add("hidden");
@@ -710,18 +718,27 @@
     $("pool-size-input").value = poolSize;
 
     // setFilterMode("duel") handles the pool-size-row/bracket-size-chips
-    // visibility toggle, the start-btn label, and rebuilding the bracket
-    // chips fresh (which resets bracketPoolSize to null as a side effect) --
-    // same reason wireColorModeToggle's own click handler doesn't reset
-    // aria-pressed on its own, just wires clicks.
-    setFilterMode("duel");
+    // visibility toggle and the start-btn label -- same reason
+    // wireColorModeToggle's own click handler doesn't reset aria-pressed
+    // on its own, just wires clicks.
+    //
+    // Both setters run silent here so this handler fires exactly ONE
+    // refreshPoolPreview() call at the end, instead of each setter kicking
+    // off its own: three overlapping /api/pool requests per reset click
+    // (six on an accidental double-click) used to race a mid-flight DOM
+    // rebuild -- switching out of bracket mode collapses bracket-size-chips
+    // and shifts this very button up the panel while its own click is
+    // still being handled, so a double-click could land the second click
+    // oddly and leave the pool count stuck on stale text with no further
+    // request ever firing.
+    setFilterMode("duel", { silent: true });
     document.querySelectorAll("#mode-toggle .segmented-btn").forEach((b) => {
       b.setAttribute("aria-pressed", String(b.dataset.mode === "duel"));
     });
     document.querySelectorAll("#pool-source-toggle .segmented-btn").forEach((b) => {
       b.setAttribute("aria-pressed", String(b.dataset.source === "filtered"));
     });
-    setPoolSource("filtered");
+    setPoolSource("filtered", { silent: true });
 
     refreshPoolPreview();
   });
