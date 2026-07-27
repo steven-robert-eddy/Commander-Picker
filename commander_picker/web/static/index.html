@@ -234,7 +234,10 @@
       </div>
       <div class="progress-track"><div class="progress-fill" id="progress-fill"></div></div>
 
-      <!-- Bracket mode only -- live compact tree so far, see picker.js renderBracketTree -->
+      <!-- Bracket mode only -- collapsed by default (the tree can get tall
+           for bigger brackets), expand/collapse via this toggle, see
+           picker.js enterDuelScreen / the bracket-tree-toggle click handler. -->
+      <button type="button" class="action-btn bracket-tree-toggle hidden" id="bracket-tree-toggle" aria-expanded="false" aria-controls="bracket-tree-live">Show bracket ▾</button>
       <div class="bracket-tree bracket-tree-compact hidden" id="bracket-tree-live"></div>
 
       <div class="duel">
