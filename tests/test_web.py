@@ -33,6 +33,29 @@ def client(tmp_path, monkeypatch):
     return TestClient(app)
 
 
+@pytest.fixture
+def client_with_set(tmp_path, monkeypatch):
+    edhrec_dir = tmp_path / "edhrec"
+    edhrec_dir.mkdir()
+    shutil.copy(FIXTURES / "sample_color_page.json", edhrec_dir / "color__rakdos.json")
+    shutil.copy(FIXTURES / "sample_set_page.json", edhrec_dir / "set__sos.json")
+
+    from commander_picker import edhrec_client
+
+    monkeypatch.setattr(edhrec_client, "DATA_DIR", tmp_path)
+    monkeypatch.setattr(edhrec_client, "EDHREC_DIR", edhrec_dir)
+    monkeypatch.setattr(edhrec_client, "META_PATH", tmp_path / "edhrec_meta.json")
+
+    db_path = tmp_path / "commanders.db"
+    db.build_database(color_slugs=["rakdos"], theme_slugs=[], set_slugs=["sos"], db_path=db_path)
+    monkeypatch.setattr(db, "DB_PATH", db_path)
+
+    sessions_path = tmp_path / "sessions.db"
+    monkeypatch.setattr(store, "SESSIONS_DB_PATH", sessions_path)
+
+    return TestClient(app)
+
+
 def _pool_body(**overrides):
     body = {
         "colors": None,
@@ -68,6 +91,28 @@ def test_api_themes(client):
     # only "tokens" was actually fetched/tagged by the fixture, so a
     # curated-but-untagged slug like "aggro" must not show up.
     assert resp.json()["slugs"] == ["tokens"]
+
+
+def test_api_sets(client_with_set):
+    resp = client_with_set.get("/api/sets")
+    assert resp.status_code == 200
+    assert resp.json()["sets"] == [{"slug": "sos", "name": "Secrets of Strixhaven"}]
+
+
+def test_api_sets_empty_when_no_sets(client):
+    resp = client.get("/api/sets")
+    assert resp.status_code == 200
+    assert resp.json()["sets"] == []
+
+
+def test_api_pool_filters_by_set(client_with_set):
+    resp = client_with_set.post("/api/pool", json=_pool_body(max_decks=30000, sets=["sos"]))
+    assert resp.status_code == 200
+    names = {c["name"] for c in resp.json()["candidates"]}
+    # The "sos" set page bundles both the main-set (commanders(sos)) and
+    # precon (commanders(soc)) commander lists under one slug -- only the
+    # commanders(reprints) list (Valgavoth) is excluded, see db.py.
+    assert names == {"Rakdos, Lord of Riots", "Prosper, Tome-Bound"}
 
 
 def test_api_pool_returns_filtered_candidates(client):

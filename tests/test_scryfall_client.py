@@ -27,6 +27,8 @@ def isolated_data_dir(tmp_path, monkeypatch):
     monkeypatch.setattr(scryfall_client, "SCRYFALL_DIR", tmp_path / "scryfall")
     monkeypatch.setattr(scryfall_client, "ORACLE_CARDS_PATH", tmp_path / "scryfall" / "oracle_cards.json")
     monkeypatch.setattr(scryfall_client, "META_PATH", tmp_path / "scryfall" / "meta.json")
+    monkeypatch.setattr(scryfall_client, "SETS_PATH", tmp_path / "scryfall" / "sets.json")
+    monkeypatch.setattr(scryfall_client, "SETS_META_PATH", tmp_path / "scryfall" / "sets_meta.json")
     yield
 
 
@@ -82,6 +84,45 @@ def test_fetch_oracle_cards_cache_reused_within_freshness_window(monkeypatch):
     scryfall_client.fetch_oracle_cards()
 
     assert call_count == first_call_count  # second call served from cache, no new requests
+
+
+def test_fetch_set_index_filters_to_relevant_set_types(monkeypatch):
+    payload = {
+        "data": [
+            {"code": "sos", "name": "Secrets of Strixhaven", "set_type": "expansion", "released_at": "2026-01-01"},
+            {"code": "sos1", "name": "Strixhaven Art Series", "set_type": "art_series", "released_at": "2026-01-01"},
+            {"code": "psos", "name": "Strixhaven Promos", "set_type": "promo", "released_at": "2026-01-01"},
+        ]
+    }
+    calls = []
+
+    def fake_get(url, headers, timeout):
+        calls.append(url)
+        return _FakeResponse(payload)
+
+    monkeypatch.setattr(scryfall_client.requests, "get", fake_get)
+
+    entries = scryfall_client.fetch_set_index()
+
+    assert calls == [scryfall_client.SETS_INDEX_URL]
+    assert entries == [{"code": "sos", "name": "Secrets of Strixhaven", "set_type": "expansion", "released_at": "2026-01-01"}]
+
+
+def test_fetch_set_index_cache_reused_within_freshness_window(monkeypatch):
+    call_count = 0
+
+    def fake_get(url, headers, timeout):
+        nonlocal call_count
+        call_count += 1
+        return _FakeResponse({"data": []})
+
+    monkeypatch.setattr(scryfall_client.requests, "get", fake_get)
+
+    scryfall_client.fetch_set_index()
+    first_call_count = call_count
+    scryfall_client.fetch_set_index()
+
+    assert call_count == first_call_count
 
 
 def test_build_image_lookup_prefers_full_card_over_art_crop(tmp_path):

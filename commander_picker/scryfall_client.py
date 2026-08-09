@@ -19,14 +19,30 @@ from pathlib import Path
 import requests
 
 BULK_DATA_INDEX_URL = "https://api.scryfall.com/bulk-data"
+SETS_INDEX_URL = "https://api.scryfall.com/sets"
 
 DATA_DIR = Path(__file__).resolve().parent.parent / "data"
 SCRYFALL_DIR = DATA_DIR / "scryfall"
 ORACLE_CARDS_PATH = SCRYFALL_DIR / "oracle_cards.json"
+SETS_PATH = SCRYFALL_DIR / "sets.json"
 META_PATH = SCRYFALL_DIR / "meta.json"
+SETS_META_PATH = SCRYFALL_DIR / "sets_meta.json"
 
 # Scryfall's own bulk data updates roughly daily.
 DEFAULT_MAX_AGE_SECONDS = 24 * 60 * 60
+
+# set_type values that can plausibly print Commander-legal cards --
+# excludes things like token, art_series, memorabilia, minigame, etc.
+# Used to trim the EDHREC set-page discovery crawl (see edhrec_client.py's
+# discover_set_slugs) down from every Scryfall set ever printed to a
+# reasonable candidate list.
+RELEVANT_SET_TYPES = {
+    "expansion",
+    "core",
+    "commander",
+    "masters",
+    "draft_innovation",
+}
 
 # Non-game objects Scryfall includes in the same oracle_cards bulk
 # file, sharing display names with real cards they depict/reference
@@ -105,6 +121,57 @@ def fetch_oracle_cards(force: bool = False, max_age_seconds: int = DEFAULT_MAX_A
     ORACLE_CARDS_PATH.write_bytes(cards_resp.content)
     _write_meta({"fetched_at": time.time(), "download_uri": download_uri})
     return ORACLE_CARDS_PATH
+
+
+def _sets_cache_is_fresh(max_age_seconds: int) -> bool:
+    if not SETS_PATH.exists():
+        return False
+    if not SETS_META_PATH.exists():
+        return False
+    try:
+        meta = json.loads(SETS_META_PATH.read_text())
+    except (json.JSONDecodeError, OSError):
+        return False
+    fetched_at = meta.get("fetched_at")
+    if fetched_at is None:
+        return False
+    return (time.time() - fetched_at) < max_age_seconds
+
+
+def fetch_set_index(force: bool = False, max_age_seconds: int = DEFAULT_MAX_AGE_SECONDS) -> list[dict]:
+    """Fetch (or reuse cached) Scryfall's set index and return the relevant subset.
+
+    Unlike `fetch_oracle_cards`, this is a single small (~1MB) request --
+    Scryfall's `/sets` endpoint, not the giant per-card bulk-data file --
+    so it's cheap enough to call before any EDHREC set-page discovery
+    crawl. Returns only entries whose `set_type` is in
+    `RELEVANT_SET_TYPES`, each a `{code, name, set_type, released_at}`
+    dict.
+    """
+    SCRYFALL_DIR.mkdir(parents=True, exist_ok=True)
+
+    if not force and _sets_cache_is_fresh(max_age_seconds):
+        payload = json.loads(SETS_PATH.read_text())
+    else:
+        try:
+            resp = requests.get(SETS_INDEX_URL, headers=REQUEST_HEADERS, timeout=30)
+            resp.raise_for_status()
+            payload = resp.json()
+        except requests.RequestException as exc:
+            raise ScryfallFetchError(f"Failed to fetch Scryfall set index: {exc}") from exc
+        SETS_PATH.write_text(json.dumps(payload))
+        SETS_META_PATH.write_text(json.dumps({"fetched_at": time.time()}))
+
+    return [
+        {
+            "code": entry["code"],
+            "name": entry.get("name"),
+            "set_type": entry.get("set_type"),
+            "released_at": entry.get("released_at"),
+        }
+        for entry in payload.get("data", [])
+        if entry.get("set_type") in RELEVANT_SET_TYPES and entry.get("code")
+    ]
 
 
 def _one_face_image_url(image_uris: dict | None) -> str | None:

@@ -370,6 +370,34 @@ dropped, just intentionally after that.
   Personalization are substantially shipped; the app is in a good,
   stable place. See "Roadmap" below for what's left, all of it now
   explicitly optional/future rather than active work.
+- **Set filter** (2026-08-09): restricts the pool to commanders newly
+  from a specific EDHREC set/Commander-precon release, for building
+  brackets/duels around one release. EDHREC's set pages
+  (`/pages/sets/<slug>.json`, verified live against a real
+  `sos`/Secrets-of-Strixhaven response) share the exact same
+  `container.json_dict.cardlists` shape as the color/theme pages
+  already ingested, so `edhrec_client.py` reuses all of its existing
+  fetch/cache/pagination machinery for a new `"set"` page kind — no new
+  parsing logic needed there. A set page bundles the main set's
+  commanders, its precon product's commanders, and reprints (older
+  commanders reprinted into that precon) under one slug;
+  `db._set_commander_cardviews` deliberately excludes the
+  `commanders(reprints)` cardlist (per the user) when building the new
+  `commander_sets` junction table (mirrors `commander_themes`, but is
+  filter-only — no `Commander.sets` display field, same posture as
+  `max_price`/`max_salt`). Unlike color/theme, there's no known EDHREC
+  endpoint enumerating every set, so set-slug discovery
+  (`edhrec_client.discover_set_slugs`, `update-data --discover-sets`)
+  works by taking Scryfall's own set-code index
+  (`scryfall_client.fetch_set_index`, a small ~1MB request distinct
+  from the giant `oracle_cards` bulk file) and trying an EDHREC
+  set-page fetch for each candidate, keeping whichever resolve —
+  per-slug failures are expected and silently skipped, same posture
+  `fetch_all_pages` already takes for bad theme slugs.
+  `PoolFilters.sets`/`--sets`/`FiltersBody.sets`/the web UI's Set
+  chip-disclosure all mirror the existing theme filter end-to-end,
+  except OR-only semantics (no any/all mode toggle — the expected use
+  is picking one or a couple of specific releases).
 
 See `README.md` for setup and usage. The sections below cover
 architecture notes and decisions worth knowing if you're extending

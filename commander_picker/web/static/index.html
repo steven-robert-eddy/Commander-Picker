@@ -139,6 +139,22 @@
             </div>
           </div>
 
+          <!--
+            Set filter -- restricts the pool to commanders newly from a
+            specific EDHREC set/precon release (reprints excluded, see
+            db.py's _set_commander_cardviews). Only ever a few sets are
+            cached at a time (see `update-data --sets`/`--discover-sets`),
+            so this stays a simple any-of-selected chip row, no
+            any/all mode toggle like themes has.
+          -->
+          <button class="filter-disclosure" id="set-disclosure-btn" type="button" aria-expanded="false">
+            <span class="filter-label" id="set-disclosure-label">Set</span>
+            <span class="filter-disclosure-chevron">▾</span>
+          </button>
+          <div class="filter-disclosure-body hidden" id="set-disclosure-body">
+            <div class="filter-row" id="set-chips"></div>
+          </div>
+
           <div class="filter-label" id="pool-size-label-row">Duel pool size</div>
           <div class="pool-size-row" id="pool-size-row">
             <input type="number" id="pool-size-input" class="num-input" min="4" max="200" step="1" value="10" inputmode="numeric" />

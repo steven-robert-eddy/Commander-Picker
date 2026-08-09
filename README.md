@@ -70,6 +70,14 @@ Useful flags:
 - `--force` — bypass the freshness cache and re-fetch everything.
 - `--colors azorius,rakdos` — only fetch/rebuild specific color slugs.
 - `--themes tokens,aristocrats` — only fetch/rebuild specific theme slugs.
+- `--sets sos` — only fetch/rebuild specific EDHREC set slugs (see
+  "Filtering by set" below). Unlike `--colors`/`--themes`, omitting
+  this doesn't mean "all known sets" — there's no fixed list — it
+  means "whatever set pages are already cached".
+- `--discover-sets` — crawl Scryfall's set-code index and try an
+  EDHREC set-page fetch for each candidate, keeping whichever ones
+  actually resolve. A few hundred speculative requests; run this
+  occasionally to pick up new sets, not on every normal `update-data`.
 - `--skip-images` — skip the Scryfall fetch entirely (faster, no images,
   mana cost, type line, or price in the web UI). A failed Scryfall fetch
   (e.g. unreachable) doesn't abort the run either way — you just end up
@@ -80,7 +88,34 @@ To see the full list of recognized slugs:
 ```bash
 commander-picker list-colors
 commander-picker list-themes
+commander-picker list-sets
 ```
+
+### Filtering by set
+
+Beyond color/theme, the pool can also be restricted to commanders from
+a specific Magic set or Commander-precon release (e.g. only commanders
+from Secrets of Strixhaven), for building brackets/duels around one
+release. Data comes from EDHREC's own set pages
+(`https://edhrec.com/sets/<slug>`, e.g. `sos`), which share the exact
+same `cardlists` shape as the color/theme pages above, so they reuse
+the same fetch/cache/pagination machinery.
+
+A set page bundles the main set's commanders, its Commander-precon
+product's commanders, and reprints (older commanders reprinted into
+that precon) under one slug — reprints are deliberately excluded from
+`commander_sets`, since a reprint already exists elsewhere in the
+catalog and isn't really "from" that release:
+
+```bash
+commander-picker update-data --sets sos
+commander-picker pool --sets sos
+```
+
+`--sets` on `pool`/`play` accepts comma-separated slugs with OR
+semantics (a commander matches if it's newly-from *any* selected set)
+— unlike `--themes-mode`, there's no any/all toggle, since the
+expected use is picking one or a couple of specific releases.
 
 Both `data/edhrec/*.json` and `data/commanders.db` are gitignored —
 regenerated locally rather than committed.
@@ -162,6 +197,9 @@ commander-picker pool --colors BRG --color-mode subset --max-decks 10000 --theme
 - `--themes` — comma-separated theme slugs to filter by.
 - `--themes-mode` — `any` (OR, default) or `all` (AND) across
   `--themes`.
+- `--sets` — comma-separated EDHREC set slugs to filter by, e.g. `sos`
+  (default: no set filter). See "Filtering by set" above — OR
+  semantics only, no any/all mode.
 - `--pool-size` / `--min-pool-size` — bounds on the returned pool
   (default: up to 40, error below 4). When more than `--pool-size`
   commanders match, a random sample is taken rather than always the
@@ -202,7 +240,7 @@ commander-picker leaderboard --reset      # permanently erase all-time ratings (
 
 `play` accepts the same filter flags as `pool` (`--colors`,
 `--color-mode`, `--max-decks`, `--min-decks`, `--themes`,
-`--themes-mode`, `--pool-size`, `--min-pool-size`).
+`--themes-mode`, `--sets`, `--pool-size`, `--min-pool-size`).
 
 ### Bracket mode
 
@@ -259,7 +297,9 @@ your filters and how many will actually be sampled into the duel — the
 two can differ once a filter matches more than the pool size), and a
 collapsible archetype/theme filter (data-driven from `commander_themes`,
 not a hand-curated list, so it reflects real tags as soon as
-`enrich-commanders` has run). "Reset filters" clears all of this back
+`enrich-commanders` has run), and a collapsible set filter (data-driven
+from `commander_sets`, so it only shows sets you've actually fetched
+via `update-data --sets`/`--discover-sets`). "Reset filters" clears all of this back
 to defaults (also switches back to duel mode if you'd picked bracket)
 without a page reload. Price and salt filtering both exist server-side
 and on the CLI (`--max-price`, `--max-salt`/`--min-salt`) but aren't
@@ -347,7 +387,7 @@ Local-only, no auth, no rate limiting — fine for a single-user local
 tool, would need attention before exposing beyond localhost.
 
 API endpoints, if you want to hit them directly or build another
-client: `GET /api/themes`, `GET /api/commanders/search?q=...` (name
+client: `GET /api/themes`, `GET /api/sets`, `GET /api/commanders/search?q=...` (name
 search for the custom-list autocomplete), `POST /api/pool`, `POST
 /api/sessions` (`mode: "duel"` or `"bracket"` in the body), `POST
 /api/sessions/custom` (`{"names": [...], "mode": "duel"|"bracket"}` --
@@ -445,8 +485,8 @@ only `sessions.db` did.
 commander_picker/
   colors.py         # color-identity <-> EDHREC URL slug mapping (32 combos)
   themes.py         # known EDHREC archetype/theme page slugs
-  edhrec_client.py  # fetch + cache EDHREC color/theme pages, with pagination
-  scryfall_client.py # fetch Scryfall bulk data, build name -> full card image lookup
+  edhrec_client.py  # fetch + cache EDHREC color/theme/set pages, with pagination
+  scryfall_client.py # fetch Scryfall bulk data + set index, build name -> full card image lookup
   db.py             # parse cached pages into data/commanders.db (SQLite)
   pool.py           # filter commanders.db into a bounded candidate pool
   elo.py            # Elo rating math + pairing selection (no DB dependency)

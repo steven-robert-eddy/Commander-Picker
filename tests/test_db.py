@@ -23,6 +23,12 @@ def populated_cache(tmp_path, monkeypatch):
     return tmp_path
 
 
+@pytest.fixture
+def populated_cache_with_set(populated_cache):
+    shutil.copy(FIXTURES / "sample_set_page.json", populated_cache / "edhrec" / "set__sos.json")
+    return populated_cache
+
+
 def test_load_commanders_merges_color_and_theme_data(populated_cache):
     commanders = db.load_commanders(color_slugs=["rakdos"], theme_slugs=["aristocrats"])
 
@@ -74,6 +80,50 @@ def test_build_database_writes_queryable_sqlite(populated_cache):
             "Rakdos, Lord of Riots",
             "Krark, the Thumbless // Vial Smasher the Fierce",
         }
+    finally:
+        conn.close()
+
+
+def test_build_database_populates_commander_sets_excluding_reprints(populated_cache_with_set):
+    db_path = populated_cache_with_set / "commanders.db"
+
+    db.build_database(color_slugs=["rakdos"], theme_slugs=["aristocrats"], set_slugs=["sos"], db_path=db_path)
+
+    conn = db.connect(db_path=db_path)
+    try:
+        rows = conn.execute("SELECT commander_name, set_slug, set_name FROM commander_sets").fetchall()
+        by_name = {r["commander_name"]: r for r in rows}
+        assert set(by_name) == {"Rakdos, Lord of Riots", "Prosper, Tome-Bound"}
+        assert "Valgavoth, Harrower of Souls" not in by_name  # commanders(reprints) -- excluded
+        assert by_name["Rakdos, Lord of Riots"]["set_slug"] == "sos"
+        assert by_name["Rakdos, Lord of Riots"]["set_name"] == "Secrets of Strixhaven"
+    finally:
+        conn.close()
+
+
+def test_build_database_default_set_slugs_loads_whatever_is_cached(populated_cache_with_set):
+    db_path = populated_cache_with_set / "commanders.db"
+
+    # No explicit set_slugs -- should still pick up the cached "sos" page.
+    db.build_database(color_slugs=["rakdos"], theme_slugs=["aristocrats"], db_path=db_path)
+
+    conn = db.connect(db_path=db_path)
+    try:
+        rows = conn.execute("SELECT commander_name FROM commander_sets").fetchall()
+        assert {r["commander_name"] for r in rows} == {"Rakdos, Lord of Riots", "Prosper, Tome-Bound"}
+    finally:
+        conn.close()
+
+
+def test_build_database_without_set_pages_leaves_commander_sets_empty(populated_cache):
+    db_path = populated_cache / "commanders.db"
+
+    db.build_database(color_slugs=["rakdos"], theme_slugs=["aristocrats"], db_path=db_path)
+
+    conn = db.connect(db_path=db_path)
+    try:
+        rows = conn.execute("SELECT * FROM commander_sets").fetchall()
+        assert rows == []
     finally:
         conn.close()
 

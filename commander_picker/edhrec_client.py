@@ -22,6 +22,13 @@ is followed until either a page's lowest ``num_decks`` drops below
 ``MIN_DECKS_FLOOR`` or ``MAX_CONTINUATION_PAGES`` is hit, whichever
 comes first — a deliberate choice (confirmed with the user) not to
 chase single-digit-deck commanders into dozens of requests per color.
+
+Set pages (``/pages/sets/<slug>.json``, e.g. ``sos`` for Secrets of
+Strixhaven) share this same ``container.json_dict.cardlists`` shape —
+verified 2026-08-09 against a real captured response — so they reuse
+all of the fetch/cache/pagination machinery above with no changes.
+Unlike color/theme, there's no known slug list or index endpoint for
+sets; see ``discover_set_slugs``.
 """
 
 from __future__ import annotations
@@ -33,11 +40,16 @@ from pathlib import Path
 
 import requests
 
+from commander_picker import scryfall_client
 from commander_picker.colors import all_slugs
 from commander_picker.themes import THEME_SLUGS
 
 COLOR_PAGE_URL_TEMPLATE = "https://json.edhrec.com/pages/commanders/{slug}.json"
 THEME_PAGE_URL_TEMPLATE = "https://json.edhrec.com/pages/tags/{slug}.json"
+# Verified 2026-08-09 against a live `.../pages/sets/sos.json` response
+# (Secrets of Strixhaven) -- same `container.json_dict.cardlists` shape
+# as color/theme pages, so no new pagination logic is needed for it.
+SET_PAGE_URL_TEMPLATE = "https://json.edhrec.com/pages/sets/{slug}.json"
 CONTINUATION_BASE_URL = "https://json.edhrec.com/pages/"
 
 # Pagination stopping rules (see module docstring): whichever hits first.
@@ -53,8 +65,14 @@ META_PATH = DATA_DIR / "edhrec_meta.json"
 _COLOR_PREFIX = "color__"
 _THEME_PREFIX = "theme__"
 _COMMANDER_PREFIX = "commander__"
+_SET_PREFIX = "set__"
 
-_CACHE_PREFIXES = {"color": _COLOR_PREFIX, "theme": _THEME_PREFIX, "commander": _COMMANDER_PREFIX}
+_CACHE_PREFIXES = {
+    "color": _COLOR_PREFIX,
+    "theme": _THEME_PREFIX,
+    "commander": _COMMANDER_PREFIX,
+    "set": _SET_PREFIX,
+}
 
 # EDHREC's own data updates roughly daily; matches the cadence
 # commander-synergy uses for Scryfall bulk data.
@@ -95,7 +113,12 @@ def _url_for(kind: str, slug: str) -> str:
     # /pages/commanders/<slug>.json, for both a color-combo slug (e.g.
     # "rakdos") and a specific commander's own slug (e.g.
     # "rakdos-lord-of-riots"). Verified live 2026-07-19.
-    template = THEME_PAGE_URL_TEMPLATE if kind == "theme" else COLOR_PAGE_URL_TEMPLATE
+    if kind == "theme":
+        template = THEME_PAGE_URL_TEMPLATE
+    elif kind == "set":
+        template = SET_PAGE_URL_TEMPLATE
+    else:
+        template = COLOR_PAGE_URL_TEMPLATE
     return template.format(slug=slug)
 
 
@@ -201,6 +224,11 @@ def fetch_theme_page(slug: str, force: bool = False, max_age_seconds: int = DEFA
     return _fetch_page("theme", slug, force, max_age_seconds)
 
 
+def fetch_set_page(slug: str, force: bool = False, max_age_seconds: int = DEFAULT_MAX_AGE_SECONDS) -> FetchResult:
+    """Ensure the cached JSON page for a set slug exists and is fresh."""
+    return _fetch_page("set", slug, force, max_age_seconds)
+
+
 def fetch_commander_detail_page(
     slug: str, force: bool = False, max_age_seconds: int = DEFAULT_MAX_AGE_SECONDS
 ) -> FetchResult:
@@ -226,14 +254,20 @@ def fetch_all_pages(
     max_age_seconds: int = DEFAULT_MAX_AGE_SECONDS,
     color_slugs: list[str] | None = None,
     theme_slugs: list[str] | None = None,
+    set_slugs: list[str] | None = None,
 ) -> tuple[list[FetchResult], list[FetchFailure]]:
-    """Fetch (or reuse cached) pages for every color-identity and theme slug.
+    """Fetch (or reuse cached) pages for every color-identity, theme, and set slug.
 
     Color and theme slugs are both verified real EDHREC pages (see
     ``themes.py``'s docstring for the theme-slug verification date).
     Failures are still collected and returned alongside the successes
     rather than raised, since EDHREC could rename/remove a slug later
     and an individual bad slug shouldn't abort the whole run.
+
+    Unlike color/theme, ``set_slugs`` has no built-in default list --
+    there's no known EDHREC endpoint enumerating every set (see
+    ``discover_set_slugs``), so an empty/``None`` value here just means
+    "no set pages requested", not "fetch everything".
     """
     results = []
     failures = []
@@ -255,12 +289,69 @@ def fetch_all_pages(
         results.append(result)
         if not result.from_cache:
             time.sleep(REQUEST_DELAY_SECONDS)
+    for slug in (set_slugs or []):
+        try:
+            result = fetch_set_page(slug, force=force, max_age_seconds=max_age_seconds)
+        except EdhrecFetchError as exc:
+            failures.append(FetchFailure(slug=slug, kind="set", error=str(exc)))
+            continue
+        results.append(result)
+        if not result.from_cache:
+            time.sleep(REQUEST_DELAY_SECONDS)
     return results, failures
+
+
+def discover_set_slugs(force: bool = False) -> list[str]:
+    """Find which Scryfall set codes actually have an EDHREC set page.
+
+    There's no EDHREC endpoint enumerating every set (the natural guess,
+    ``/pages/sets.json``, came back access-denied when checked live), so
+    this takes Scryfall's own set-code index (a small, cheap request --
+    see ``scryfall_client.fetch_set_index``, already filtered to
+    Commander-plausible ``set_type``s) and tries an EDHREC set-page fetch
+    for each candidate code, keeping only the ones that actually resolve.
+    Not every Scryfall set has an EDHREC set page (art series, small
+    supplemental products, etc. often won't), so per-slug failures here
+    are expected and silently skipped, not raised -- same posture
+    ``fetch_all_pages`` already takes for theme slugs that don't pan out.
+
+    This is a few hundred speculative requests, so it's meant to be run
+    explicitly and occasionally (``update-data --discover-sets``), not on
+    every normal data refresh.
+    """
+    candidates = scryfall_client.fetch_set_index(force=force)
+    found = []
+    for entry in candidates:
+        code = entry["code"]
+        try:
+            fetch_set_page(code, force=force)
+        except EdhrecFetchError:
+            continue
+        found.append(code)
+        time.sleep(REQUEST_DELAY_SECONDS)
+    return found
 
 
 def page_exists(kind: str, slug: str) -> bool:
     """Whether a cached page exists on disk for this slug, regardless of freshness."""
     return _page_path(kind, slug).exists()
+
+
+def cached_slugs(kind: str) -> list[str]:
+    """Every slug of this kind with a cached page on disk, regardless of freshness.
+
+    Unlike color (``all_slugs()``) and theme (``THEME_SLUGS``), sets have
+    no fixed known-slug list -- this is how ``db.py`` discovers which set
+    pages to load by default: "whatever's already been fetched", the same
+    "load what's cached" contract ``load_commanders`` already documents.
+    """
+    prefix = _CACHE_PREFIXES[kind]
+    if not EDHREC_DIR.exists():
+        return []
+    return sorted(
+        p.stem[len(prefix):]
+        for p in EDHREC_DIR.glob(f"{prefix}*.json")
+    )
 
 
 def load_page(kind: str, slug: str) -> dict:

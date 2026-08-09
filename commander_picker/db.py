@@ -1,9 +1,11 @@
 """Load cached EDHREC pages into a queryable SQLite database.
 
-Reads whatever color-identity and theme pages are present in
+Reads whatever color-identity, theme, and set pages are present in
 ``data/edhrec/`` (via ``edhrec_client.load_page``) and builds
-``data/commanders.db``: one row per commander, plus a junction table
-recording which theme pages each commander appeared on.
+``data/commanders.db``: one row per commander, plus junction tables
+recording which theme pages each commander appeared on and which sets
+each commander is newly from (reprints excluded -- see
+``_set_commander_cardviews``).
 
 The EDHREC JSON parsing (``_cardviews_from_page``,
 ``_cardview_to_record``) is isolated in small functions here
@@ -65,6 +67,28 @@ def _cardviews_from_page(page_json: dict) -> list[dict]:
     cardlists = page_json.get("container", {}).get("json_dict", {}).get("cardlists", [])
     views = []
     for cardlist in cardlists:
+        views.extend(cardlist.get("cardviews", []))
+    return views
+
+
+def _set_commander_cardviews(page_json: dict) -> list[dict]:
+    """Commander cardviews on a set page, excluding reprints.
+
+    A set page's cardlists are tagged e.g. ``commanders(sos)`` (the main
+    set), ``commanders(soc)`` (its Commander-precon product), and
+    ``commanders(reprints)`` (older commanders reprinted into those
+    precons) -- plus parallel ``cards(...)`` lists this app has no use
+    for (it only ever pools commanders). Reprints are deliberately
+    excluded here (per the user): a reprint already exists elsewhere in
+    the catalog and isn't really "from" this set/release. Verified
+    2026-08-09 against a live ``.../pages/sets/sos.json`` response.
+    """
+    cardlists = page_json.get("container", {}).get("json_dict", {}).get("cardlists", [])
+    views = []
+    for cardlist in cardlists:
+        tag = cardlist.get("tag", "")
+        if not tag.startswith("commanders(") or tag == "commanders(reprints)":
+            continue
         views.extend(cardlist.get("cardviews", []))
     return views
 
@@ -184,9 +208,31 @@ def load_commanders(
     return commanders
 
 
+def _commander_sets(set_slugs: list[str], commanders: dict[str, "CommanderRecord"]) -> list[tuple[str, str, str, int]]:
+    """(commander_name, set_slug, set_name, num_decks) rows for the commander_sets table.
+
+    Matched against the already-loaded ``commanders`` dict (from color
+    pages) by name -- a commander on a set page's cardlist that doesn't
+    also appear on a color page is skipped, same "color pages are
+    authoritative" contract ``load_commanders`` already documents for
+    theme pages.
+    """
+    rows = []
+    for slug in set_slugs:
+        page = edhrec_client.load_page("set", slug)
+        set_name = page.get("header") or slug
+        for cardview in _set_commander_cardviews(page):
+            name = cardview.get("name")
+            if name not in commanders:
+                continue
+            rows.append((name, slug, set_name, cardview.get("num_decks", 0)))
+    return rows
+
+
 def build_database(
     color_slugs: list[str] | None = None,
     theme_slugs: list[str] | None = None,
+    set_slugs: list[str] | None = None,
     db_path: Path = DB_PATH,
     image_lookup: dict[str, list[str]] | None = None,
     card_meta_lookup: dict[str, "scryfall_client.CardMeta"] | None = None,
@@ -207,8 +253,19 @@ def build_database(
     it the same way, via ``scryfall_client.resolve_card_meta``. Kept as a
     separate optional param from ``image_lookup`` (not folded into one
     lookup) so a caller can supply either independently.
+
+    ``set_slugs`` defaults (``None``) to every set page already cached
+    on disk (``edhrec_client.cached_slugs("set")``) -- unlike
+    color/theme there's no fixed known-slug list for sets (see
+    ``edhrec_client.discover_set_slugs``), so "load what's cached" is
+    the only sensible default. Set membership is a pool-filter-only
+    signal (see ``pool.PoolFilters.sets``), not a ``CommanderRecord``
+    field, so it's computed separately via ``_commander_sets`` rather
+    than threaded through ``load_commanders``.
     """
     commanders = load_commanders(color_slugs=color_slugs, theme_slugs=theme_slugs)
+    set_slugs = _available_slugs("set", edhrec_client.cached_slugs("set") if set_slugs is None else set_slugs)
+    commander_sets = _commander_sets(set_slugs, commanders)
 
     if image_lookup is not None:
         for record in commanders.values():
@@ -249,10 +306,23 @@ def build_database(
                 num_decks INTEGER NOT NULL DEFAULT 0,
                 PRIMARY KEY (commander_name, theme)
             );
+            CREATE TABLE commander_sets (
+                commander_name TEXT NOT NULL REFERENCES commanders(name),
+                set_slug TEXT NOT NULL,
+                set_name TEXT NOT NULL,
+                num_decks INTEGER NOT NULL DEFAULT 0,
+                PRIMARY KEY (commander_name, set_slug)
+            );
             CREATE INDEX idx_commanders_color_identity ON commanders(color_identity);
             CREATE INDEX idx_commanders_num_decks ON commanders(num_decks);
             CREATE INDEX idx_commander_themes_theme ON commander_themes(theme);
+            CREATE INDEX idx_commander_sets_slug ON commander_sets(set_slug);
             """
+        )
+
+        conn.executemany(
+            "INSERT INTO commander_sets (commander_name, set_slug, set_name, num_decks) VALUES (?, ?, ?, ?)",
+            commander_sets,
         )
 
         for record in commanders.values():

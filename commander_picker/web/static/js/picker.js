@@ -21,6 +21,8 @@
   const activeThemes = new Set();
   let themeMode = "any"; // "any" or "all", mirrors colorMode's subset/exact split
   let themeSlugsCache = null; // fetched once from /api/themes, reused on filter-reset re-render
+  const activeSets = new Set(); // set slugs -- OR semantics only, no any/all mode (see PoolFilters.sets)
+  let setsCache = null; // fetched once from /api/sets, reused on filter-reset re-render
   let colorMode = "subset"; // "subset" (any combo within --colors) or "exact"
   let maxDecks = 10000;
   let minDecks = 100;
@@ -60,6 +62,7 @@
         max_salt: maxSalt,
         themes: [...activeThemes],
         themes_mode: themeMode,
+        sets: [...activeSets],
         pool_size: poolSize,
         min_pool_size: 4,
         mode: "duel",
@@ -208,6 +211,41 @@
     } catch (e) {
       // Non-critical -- the rest of the filter screen still works with
       // no theme chips shown (e.g. `update-data` hasn't run yet).
+    }
+  }
+
+  function renderSetChips(sets) {
+    $("set-disclosure-label").textContent = `Set (${sets.length})`;
+    const wrap = $("set-chips");
+    wrap.innerHTML = "";
+    sets.forEach(({ slug, name }) => {
+      const b = document.createElement("button");
+      b.className = "chip";
+      b.type = "button";
+      b.textContent = name;
+      b.setAttribute("aria-pressed", String(activeSets.has(slug)));
+      b.addEventListener("click", () => {
+        if (activeSets.has(slug)) activeSets.delete(slug);
+        else activeSets.add(slug);
+        b.setAttribute("aria-pressed", String(activeSets.has(slug)));
+        refreshPoolPreview();
+      });
+      wrap.appendChild(b);
+    });
+  }
+
+  // Fetched once from the live commander_sets vocabulary (see
+  // pool.list_known_sets) -- only sets that have actually been fetched
+  // via `update-data --sets`/`--discover-sets` show up here, same
+  // data-driven posture as loadThemeChips.
+  async function loadSetChips() {
+    try {
+      const { sets } = await api("GET", "/api/sets");
+      setsCache = sets;
+      renderSetChips(sets);
+    } catch (e) {
+      // Non-critical -- the rest of the filter screen still works with
+      // no set chips shown.
     }
   }
 
@@ -670,6 +708,7 @@
     colorMode = "subset";
     activeThemes.clear();
     themeMode = "any";
+    activeSets.clear();
     maxDecks = 10000;
     minDecks = 100;
     maxSalt = null;
@@ -689,6 +728,9 @@
     });
     $("theme-disclosure-btn").setAttribute("aria-expanded", "false");
     $("theme-disclosure-body").classList.add("hidden");
+    if (setsCache) renderSetChips(setsCache);
+    $("set-disclosure-btn").setAttribute("aria-expanded", "false");
+    $("set-disclosure-body").classList.add("hidden");
     $("salt-disclosure-btn").setAttribute("aria-expanded", "false");
     $("salt-disclosure-body").classList.add("hidden");
     $("max-decks-slider").value = maxDecks;
@@ -788,6 +830,12 @@
     $("theme-disclosure-body").classList.toggle("hidden", expanded);
   });
 
+  $("set-disclosure-btn").addEventListener("click", () => {
+    const expanded = $("set-disclosure-btn").getAttribute("aria-expanded") === "true";
+    $("set-disclosure-btn").setAttribute("aria-expanded", String(!expanded));
+    $("set-disclosure-body").classList.toggle("hidden", expanded);
+  });
+
   $("salt-disclosure-btn").addEventListener("click", () => {
     const expanded = $("salt-disclosure-btn").getAttribute("aria-expanded") === "true";
     $("salt-disclosure-btn").setAttribute("aria-expanded", String(!expanded));
@@ -811,6 +859,7 @@
 
   renderColorChips("color-chips", activeColors, refreshPoolPreview);
   loadThemeChips();
+  loadSetChips();
 
   Object.assign(window.CP, {
     showFilterScreen: () => {

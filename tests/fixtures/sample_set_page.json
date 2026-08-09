@@ -1,0 +1,74 @@
+{
+  "_comment": "Hand-assembled from the real captured shape of https://json.edhrec.com/pages/sets/sos.json (Secrets of Strixhaven), verified live 2026-08-09. Trimmed to a few cardlists and reuses commander names already present in sample_color_page.json ('Rakdos, Lord of Riots', 'Valgavoth, Harrower of Souls') so test_db.py can exercise the color+set merge -- one new-to-set commander (commanders(sos)), one commander-precon commander (commanders(soc)), and one reprint (commanders(reprints)) that must be excluded from commander_sets despite existing in commanders.db via the color page.",
+  "header": "Secrets of Strixhaven",
+  "panels": {"articles": []},
+  "description": "",
+  "container": {
+    "breadcrumb": [{"/sets": "Sets"}, {"/sets/sos": "Secrets of Strixhaven"}],
+    "description": "Top EDH / Commander cards from Secrets of Strixhaven",
+    "json_dict": {
+      "cardlists": [
+        {
+          "header": "Commanders (SOS)",
+          "tag": "commanders(sos)",
+          "cardviews": [
+            {
+              "id": "3d0d5a41-8251-437c-a4a0-3b712281ebb0",
+              "name": "Rakdos, Lord of Riots",
+              "sanitized": "rakdos-lord-of-riots",
+              "slug": "rakdos-lord-of-riots",
+              "url": "/commanders/rakdos-lord-of-riots",
+              "label": "9957 decks",
+              "num_decks": 9957
+            }
+          ]
+        },
+        {
+          "header": "Commanders (SOC)",
+          "tag": "commanders(soc)",
+          "cardviews": [
+            {
+              "id": "d743336e-d5c7-4053-a23d-92ec7581f74e",
+              "name": "Prosper, Tome-Bound",
+              "sanitized": "prosper-tome-bound",
+              "slug": "prosper-tome-bound",
+              "url": "/commanders/prosper-tome-bound",
+              "label": "13741 decks",
+              "num_decks": 13741
+            }
+          ]
+        },
+        {
+          "header": "Commanders (Reprints)",
+          "tag": "commanders(reprints)",
+          "cardviews": [
+            {
+              "id": "8d7c1f6c-af45-4449-8cf8-e13830b3df8a",
+              "name": "Valgavoth, Harrower of Souls",
+              "sanitized": "valgavoth-harrower-of-souls",
+              "slug": "valgavoth-harrower-of-souls",
+              "url": "/commanders/valgavoth-harrower-of-souls",
+              "label": "28969 decks",
+              "num_decks": 28969
+            }
+          ]
+        },
+        {
+          "header": "Cards (SOS)",
+          "tag": "cards(sos)",
+          "cardviews": [
+            {
+              "id": "1b832fda-d7c4-4566-884c-2a8b6da15488",
+              "name": "Flashback",
+              "sanitized": "flashback",
+              "slug": "flashback",
+              "url": "/cards/flashback",
+              "num_decks": 63746,
+              "potential_decks": 1382107
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

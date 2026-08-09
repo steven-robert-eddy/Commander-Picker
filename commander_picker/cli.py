@@ -12,12 +12,23 @@ from commander_picker.themes import THEME_SLUGS
 def _cmd_update_data(args: argparse.Namespace) -> int:
     color_slugs = args.colors.split(",") if args.colors else None
     theme_slugs = args.themes.split(",") if args.themes else None
+    set_slugs = args.sets.split(",") if args.sets else None
+
+    if args.discover_sets:
+        # A few hundred speculative requests against candidate Scryfall
+        # set codes -- explicit opt-in, not part of a normal update-data
+        # run. See edhrec_client.discover_set_slugs.
+        print("Discovering EDHREC set pages (this can take a while)...")
+        discovered = edhrec_client.discover_set_slugs(force=args.force)
+        print(f"  found {len(discovered)} set page(s) on EDHREC")
+        set_slugs = sorted(set(set_slugs or []) | set(discovered))
 
     print("Fetching EDHREC pages...")
     results, failures = edhrec_client.fetch_all_pages(
         force=args.force,
         color_slugs=color_slugs,
         theme_slugs=theme_slugs,
+        set_slugs=set_slugs,
     )
     fetched = sum(1 for r in results if not r.from_cache)
     cached = len(results) - fetched
@@ -25,6 +36,7 @@ def _cmd_update_data(args: argparse.Namespace) -> int:
     if failures:
         color_failures = [f for f in failures if f.kind == "color"]
         theme_failures = [f for f in failures if f.kind == "theme"]
+        set_failures = [f for f in failures if f.kind == "set"]
         if color_failures:
             print(f"  warning: {len(color_failures)} color page(s) failed:", file=sys.stderr)
             for f in color_failures:
@@ -36,6 +48,11 @@ def _cmd_update_data(args: argparse.Namespace) -> int:
             print(
                 f"  note: {len(theme_failures)} theme slug(s) skipped (not found on EDHREC): "
                 + ", ".join(f.slug for f in theme_failures)
+            )
+        if set_failures:
+            print(
+                f"  note: {len(set_failures)} set slug(s) skipped (not found on EDHREC): "
+                + ", ".join(f.slug for f in set_failures)
             )
 
     image_lookup = None
@@ -55,6 +72,7 @@ def _cmd_update_data(args: argparse.Namespace) -> int:
         path = db.build_database(
             color_slugs=color_slugs,
             theme_slugs=theme_slugs,
+            set_slugs=set_slugs,
             image_lookup=image_lookup,
             card_meta_lookup=card_meta_lookup,
         )
@@ -177,6 +195,7 @@ def _cmd_pool(args: argparse.Namespace) -> int:
 
 def _filters_from_args(args: argparse.Namespace) -> pool.PoolFilters:
     themes = tuple(args.themes.split(",")) if args.themes else ()
+    sets = tuple(args.sets.split(",")) if args.sets else ()
     return pool.PoolFilters(
         colors=args.colors,
         color_mode=args.color_mode,
@@ -187,6 +206,7 @@ def _filters_from_args(args: argparse.Namespace) -> pool.PoolFilters:
         max_price=args.max_price,
         max_salt=args.max_salt,
         min_salt=args.min_salt,
+        sets=sets,
     )
 
 
@@ -486,6 +506,20 @@ def _cmd_list_themes(_args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_list_sets(_args: argparse.Namespace) -> int:
+    try:
+        conn = db.connect()
+    except db.DbError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+    try:
+        for entry in pool.list_known_sets(conn):
+            print(f"{entry['slug']}\t{entry['name']}")
+    finally:
+        conn.close()
+    return 0
+
+
 def _add_pool_filter_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--colors", help="allowed colors, e.g. BRG (default: no color filter)")
     parser.add_argument(
@@ -524,6 +558,11 @@ def _add_pool_filter_args(parser: argparse.ArgumentParser) -> None:
         default="any",
         help="match ANY or ALL of --themes (default: any)",
     )
+    parser.add_argument(
+        "--sets",
+        help="comma-separated EDHREC set slugs to filter by, e.g. sos (default: none). "
+        "See `commander-picker list-sets` for what's available.",
+    )
     parser.add_argument("--pool-size", type=int, default=pool.DEFAULT_MAX_POOL_SIZE, help="max candidates to return (default: 40)")
     parser.add_argument("--min-pool-size", type=int, default=pool.DEFAULT_MIN_POOL_SIZE, help="error if fewer than this many match (default: 4)")
 
@@ -536,6 +575,16 @@ def build_parser() -> argparse.ArgumentParser:
     update.add_argument("--force", action="store_true", help="bypass the freshness cache")
     update.add_argument("--colors", help="comma-separated color slugs to fetch (default: all)")
     update.add_argument("--themes", help="comma-separated theme slugs to fetch (default: all)")
+    update.add_argument(
+        "--sets",
+        help="comma-separated EDHREC set slugs to fetch, e.g. sos (default: whatever's already cached)",
+    )
+    update.add_argument(
+        "--discover-sets",
+        action="store_true",
+        help="crawl Scryfall's set-code index to find every set with an EDHREC set page "
+        "(a few hundred speculative requests -- run occasionally, not on every update)",
+    )
     update.add_argument(
         "--skip-images",
         action="store_true",
@@ -607,6 +656,9 @@ def build_parser() -> argparse.ArgumentParser:
 
     list_themes = subparsers.add_parser("list-themes", help="print all known theme slugs")
     list_themes.set_defaults(func=_cmd_list_themes)
+
+    list_sets = subparsers.add_parser("list-sets", help="print all known set slugs (from the current commanders.db)")
+    list_sets.set_defaults(func=_cmd_list_sets)
 
     serve = subparsers.add_parser("serve", help="run the web UI (FastAPI + browser frontend)")
     serve.add_argument("--host", default="127.0.0.1")

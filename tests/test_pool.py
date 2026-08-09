@@ -31,12 +31,19 @@ def _make_conn():
             num_decks INTEGER NOT NULL DEFAULT 0,
             PRIMARY KEY (commander_name, theme)
         );
+        CREATE TABLE commander_sets (
+            commander_name TEXT NOT NULL,
+            set_slug TEXT NOT NULL,
+            set_name TEXT NOT NULL,
+            num_decks INTEGER NOT NULL DEFAULT 0,
+            PRIMARY KEY (commander_name, set_slug)
+        );
         """
     )
     return conn
 
 
-def _insert(conn, name, color_identity, num_decks, themes=(), price=None, salt=None):
+def _insert(conn, name, color_identity, num_decks, themes=(), price=None, salt=None, sets=()):
     conn.execute(
         "INSERT INTO commanders (name, sanitized, color_identity, num_decks, edhrec_url, price, salt) "
         "VALUES (?, ?, ?, ?, ?, ?, ?)",
@@ -50,14 +57,18 @@ def _insert(conn, name, color_identity, num_decks, themes=(), price=None, salt=N
         "INSERT INTO commander_themes (commander_name, theme, num_decks) VALUES (?, ?, ?)",
         [(name, t, count) for t, count in rows],
     )
+    conn.executemany(
+        "INSERT INTO commander_sets (commander_name, set_slug, set_name, num_decks) VALUES (?, ?, ?, ?)",
+        [(name, s, s.upper(), 0) for s in sets],
+    )
 
 
 @pytest.fixture
 def conn():
     conn = _make_conn()
-    _insert(conn, "Big Rakdos", "BR", 50000, themes=("aristocrats",))
-    _insert(conn, "Small Rakdos", "BR", 5000, themes=("tokens",))
-    _insert(conn, "Tiny Rakdos", "BR", 500, themes=("tokens", "aristocrats"))
+    _insert(conn, "Big Rakdos", "BR", 50000, themes=("aristocrats",), sets=("sos",))
+    _insert(conn, "Small Rakdos", "BR", 5000, themes=("tokens",), sets=("soc",))
+    _insert(conn, "Tiny Rakdos", "BR", 500, themes=("tokens", "aristocrats"), sets=("sos", "soc"))
     _insert(conn, "Mono Black", "B", 3000)
     _insert(conn, "Jund Beatdown", "BRG", 4000, themes=("aristocrats",))
     _insert(conn, "Five Color Pile", "WUBRG", 2000)
@@ -118,6 +129,27 @@ def test_themes_all_mode(conn):
     candidates = pool.build_pool(conn, filters, min_pool_size=1)
     names = {c.name for c in candidates}
     assert names == {"Tiny Rakdos"}
+
+
+def test_sets_filter_or_semantics(conn):
+    filters = pool.PoolFilters(sets=("sos",), max_decks=None)
+    candidates = pool.build_pool(conn, filters, min_pool_size=1)
+    names = {c.name for c in candidates}
+    assert names == {"Big Rakdos", "Tiny Rakdos"}
+
+
+def test_sets_filter_multiple_slugs_is_union(conn):
+    filters = pool.PoolFilters(sets=("sos", "soc"), max_decks=None)
+    candidates = pool.build_pool(conn, filters, min_pool_size=1)
+    names = {c.name for c in candidates}
+    assert names == {"Big Rakdos", "Small Rakdos", "Tiny Rakdos"}
+
+
+def test_sets_filter_empty_means_no_filter(conn):
+    filters = pool.PoolFilters(sets=(), max_decks=None)
+    candidates = pool.build_pool(conn, filters, min_pool_size=1)
+    names = {c.name for c in candidates}
+    assert "Mono Black" in names  # has no set rows at all, still included
 
 
 def test_themes_any_vs_all_differ(conn):
@@ -369,6 +401,17 @@ def test_list_known_themes_empty_when_no_themes():
     _insert(conn, "No Themes Commander", "BR", 1000)
     conn.commit()
     assert pool.list_known_themes(conn) == []
+
+
+def test_list_known_sets_returns_distinct_sets(conn):
+    assert pool.list_known_sets(conn) == [{"slug": "soc", "name": "SOC"}, {"slug": "sos", "name": "SOS"}]
+
+
+def test_list_known_sets_empty_when_no_sets():
+    conn = _make_conn()
+    _insert(conn, "No Sets Commander", "BR", 1000)
+    conn.commit()
+    assert pool.list_known_sets(conn) == []
 
 
 def test_commander_images_by_name_returns_matches_only(conn):

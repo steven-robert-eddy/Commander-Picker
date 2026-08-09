@@ -48,6 +48,8 @@ class FiltersBody(BaseModel):
     min_decks: int | None = pool_module.DEFAULT_MIN_DECKS
     themes: list[str] = []
     themes_mode: str = "any"
+    # Opt-in (see pool.PoolFilters.sets) -- empty means no set filter.
+    sets: list[str] = []
     # Bounded so a stray client value (or someone poking the API
     # directly) can't request an absurd pool size -- 200 is well above
     # any reasonable duel session length.
@@ -75,6 +77,7 @@ def _to_pool_filters(body: FiltersBody) -> pool_module.PoolFilters:
         max_price=body.max_price,
         max_salt=body.max_salt,
         min_salt=body.min_salt,
+        sets=tuple(body.sets),
     )
 
 
@@ -157,6 +160,12 @@ def _bracket_pairing_payload(conn, session_id: str, info: sessions.SessionInfo) 
 def api_themes():
     with _catalog_conn() as conn:
         return {"slugs": pool_module.list_known_themes(conn)}
+
+
+@app.get("/api/sets")
+def api_sets():
+    with _catalog_conn() as conn:
+        return {"sets": pool_module.list_known_sets(conn)}
 
 
 @app.get("/api/commanders/search")

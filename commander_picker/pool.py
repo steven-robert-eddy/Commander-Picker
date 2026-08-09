@@ -65,6 +65,11 @@ class PoolFilters:
     # never excluded by either bound.
     max_salt: float | None = None
     min_salt: float | None = None
+    # Opt-in categorical membership filter, mirroring `themes` -- empty
+    # means no set filter at all. OR semantics only (a commander matches
+    # if it's newly-from ANY selected set) since the expected UI is a
+    # single- or small multi-select, not `themes_mode`'s any/all toggle.
+    sets: tuple[str, ...] = ()
 
 
 def _color_identity_matches(color_identity: str, allowed: set[str], mode: str) -> bool:
@@ -106,6 +111,15 @@ def _load_themes_by_commander(conn: sqlite3.Connection) -> dict[str, set[str]]:
     return themes_by_commander
 
 
+def _load_commanders_by_set(conn: sqlite3.Connection) -> dict[str, set[str]]:
+    """Each commander's set slugs (from `commander_sets`, reprints already excluded by db.py)."""
+    sets_by_commander: dict[str, set[str]] = {}
+    rows = conn.execute("SELECT commander_name, set_slug FROM commander_sets")
+    for row in rows:
+        sets_by_commander.setdefault(row["commander_name"], set()).add(row["set_slug"])
+    return sets_by_commander
+
+
 def _filtered_candidates(conn: sqlite3.Connection, filters: PoolFilters) -> list[Commander]:
     """Every commander matching filters, with no pool-size bounding applied."""
     # None means "no color filter at all", regardless of color_mode --
@@ -120,6 +134,10 @@ def _filtered_candidates(conn: sqlite3.Connection, filters: PoolFilters) -> list
     # Always loaded, not just when filtering by theme -- Commander.themes
     # is informational output regardless of whether themes were filtered on.
     themes_by_commander = _load_themes_by_commander(conn)
+    wanted_sets = set(filters.sets)
+    # Only loaded when actually filtering by set -- unlike themes, set
+    # membership isn't an informational Commander field (see PoolFilters.sets).
+    sets_by_commander = _load_commanders_by_set(conn) if wanted_sets else None
 
     candidates = []
     for row in conn.execute(
@@ -140,6 +158,8 @@ def _filtered_candidates(conn: sqlite3.Connection, filters: PoolFilters) -> list
         if filters.max_salt is not None and row["salt"] is not None and row["salt"] > filters.max_salt:
             continue
         if filters.min_salt is not None and row["salt"] is not None and row["salt"] < filters.min_salt:
+            continue
+        if wanted_sets and not (wanted_sets & sets_by_commander.get(row["name"], set())):
             continue
 
         commander_themes = themes_by_commander.get(row["name"], set())
@@ -181,6 +201,14 @@ def list_known_themes(conn: sqlite3.Connection) -> list[str]:
     """
     rows = conn.execute("SELECT DISTINCT theme FROM commander_themes ORDER BY theme").fetchall()
     return [row["theme"] for row in rows]
+
+
+def list_known_sets(conn: sqlite3.Connection) -> list[dict]:
+    """Every distinct set (slug + human-readable name) actually stored in commander_sets."""
+    rows = conn.execute(
+        "SELECT DISTINCT set_slug, set_name FROM commander_sets ORDER BY set_name"
+    ).fetchall()
+    return [{"slug": row["set_slug"], "name": row["set_name"]} for row in rows]
 
 
 def count_matches(conn: sqlite3.Connection, filters: PoolFilters) -> int:

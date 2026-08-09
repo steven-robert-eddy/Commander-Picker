@@ -57,6 +57,90 @@ def test_fetch_theme_page_uses_theme_url(monkeypatch):
     assert calls == ["https://json.edhrec.com/pages/tags/tokens.json"]
 
 
+def test_fetch_set_page_uses_set_url(monkeypatch):
+    payload = {"container": {"json_dict": {"cardlists": []}}}
+    calls = []
+
+    def fake_get(url, headers, timeout):
+        calls.append(url)
+        return _FakeResponse(payload)
+
+    monkeypatch.setattr(edhrec_client.requests, "get", fake_get)
+
+    edhrec_client.fetch_set_page("sos")
+
+    assert calls == ["https://json.edhrec.com/pages/sets/sos.json"]
+
+
+def test_cached_slugs_returns_only_fetched_slugs_of_that_kind(monkeypatch):
+    monkeypatch.setattr(
+        edhrec_client.requests, "get", lambda *a, **k: _FakeResponse({"container": {"json_dict": {"cardlists": []}}})
+    )
+
+    assert edhrec_client.cached_slugs("set") == []
+    edhrec_client.fetch_set_page("sos")
+    edhrec_client.fetch_color_page("rakdos")
+
+    assert edhrec_client.cached_slugs("set") == ["sos"]
+
+
+def test_fetch_all_pages_fetches_given_set_slugs(monkeypatch):
+    calls = []
+
+    def fake_get(url, headers, timeout):
+        calls.append(url)
+        return _FakeResponse({"container": {"json_dict": {"cardlists": []}}})
+
+    monkeypatch.setattr(edhrec_client.requests, "get", fake_get)
+
+    results, failures = edhrec_client.fetch_all_pages(color_slugs=[], theme_slugs=[], set_slugs=["sos"])
+
+    assert failures == []
+    assert len(results) == 1
+    assert results[0].kind == "set"
+    assert calls == ["https://json.edhrec.com/pages/sets/sos.json"]
+
+
+def test_fetch_all_pages_no_set_slugs_fetches_nothing_for_sets(monkeypatch):
+    monkeypatch.setattr(
+        edhrec_client.requests, "get", lambda *a, **k: _FakeResponse({"container": {"json_dict": {"cardlists": []}}})
+    )
+
+    results, failures = edhrec_client.fetch_all_pages(color_slugs=[], theme_slugs=[])
+
+    assert results == []
+    assert failures == []
+
+
+def test_discover_set_slugs_keeps_only_resolving_codes(monkeypatch):
+    from commander_picker import scryfall_client
+
+    monkeypatch.setattr(
+        scryfall_client,
+        "fetch_set_index",
+        lambda force=False: [
+            {"code": "sos", "name": "Secrets of Strixhaven", "set_type": "expansion", "released_at": "2026-01-01"},
+            {"code": "nope", "name": "Not On EDHREC", "set_type": "expansion", "released_at": "2020-01-01"},
+        ],
+    )
+    monkeypatch.setattr(edhrec_client.time, "sleep", lambda *_: None)
+
+    import requests
+
+    def fake_get(url, headers, timeout):
+        if url.endswith("/nope.json"):
+            resp = requests.Response()
+            resp.status_code = 404
+            raise requests.HTTPError("404 Client Error", response=resp)
+        return _FakeResponse({"container": {"json_dict": {"cardlists": []}}})
+
+    monkeypatch.setattr(edhrec_client.requests, "get", fake_get)
+
+    found = edhrec_client.discover_set_slugs()
+
+    assert found == ["sos"]
+
+
 def test_second_fetch_within_freshness_window_uses_cache(monkeypatch):
     call_count = 0
 
