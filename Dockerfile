@@ -12,7 +12,16 @@ RUN pip install --no-cache-dir .
 # Only data/commanders.db is needed at runtime: build_database() already
 # resolved every commander's Scryfall image URLs into it at this step, so
 # the app never touches data/scryfall/ again once this RUN completes.
-RUN commander-picker update-data \
+#
+# --discover-sets is required here, not optional: there's no persistent
+# disk on Render's free tier (see PLAN.md), so commanders.db -- and with
+# it the commander_sets table the Set filter reads from -- is rebuilt
+# from nothing on every single deploy. Without this flag, set_slugs stays
+# unset the whole way through and every deploy ships with zero known
+# sets, no matter what's been discovered on any local machine (that
+# data never leaves data/edhrec/, which is gitignored). This does add a
+# few hundred speculative EDHREC requests to each build.
+RUN commander-picker update-data --discover-sets \
     && rm -rf data/scryfall data/edhrec data/edhrec_meta.json
 EXPOSE 8000
 # `exec` replaces the shell with the uvicorn process (PID 1) so it receives
