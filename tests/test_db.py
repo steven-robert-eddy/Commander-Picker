@@ -101,6 +101,27 @@ def test_build_database_populates_commander_sets_excluding_reprints(populated_ca
         conn.close()
 
 
+def test_build_database_populates_commander_sets_from_plain_commanders_tag(populated_cache):
+    # Older/simpler set pages (e.g. Amonkhet) have no dedicated
+    # Commander-precon product to split into commanders(<code>)/
+    # commanders(<precon code>) -- just a single plain "commanders" tag.
+    # That shape must still be picked up, not just the parenthesized one.
+    shutil.copy(FIXTURES / "sample_set_page_plain_tag.json", populated_cache / "edhrec" / "set__akh.json")
+    db_path = populated_cache / "commanders.db"
+
+    db.build_database(color_slugs=["rakdos"], theme_slugs=["aristocrats"], set_slugs=["akh"], db_path=db_path)
+
+    conn = db.connect(db_path=db_path)
+    try:
+        rows = conn.execute("SELECT commander_name, set_slug FROM commander_sets").fetchall()
+        by_name = {r["commander_name"]: r for r in rows}
+        assert set(by_name) == {"Rakdos, Lord of Riots"}
+        assert "Valgavoth, Harrower of Souls" not in by_name  # commanders(reprints) -- excluded
+        assert by_name["Rakdos, Lord of Riots"]["set_slug"] == "akh"
+    finally:
+        conn.close()
+
+
 def test_build_database_default_set_slugs_loads_whatever_is_cached(populated_cache_with_set):
     db_path = populated_cache_with_set / "commanders.db"
 

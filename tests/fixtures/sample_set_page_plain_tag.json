@@ -1,0 +1,59 @@
+{
+  "_comment": "Hand-assembled from the real captured shape of https://json.edhrec.com/pages/sets/akh.json (Amonkhet), verified live 2026-08-10. Unlike sample_set_page.json (which has a dedicated Commander-precon product and splits into commanders(sos)/commanders(soc)), older/simpler sets with no such split use one plain 'commanders' tag instead -- reuses commander names already present in sample_color_page.json ('Rakdos, Lord of Riots', 'Valgavoth, Harrower of Souls') so test_db.py can exercise the same color+set merge.",
+  "header": "Amonkhet",
+  "panels": {"articles": []},
+  "description": "",
+  "container": {
+    "breadcrumb": [{"/sets": "Sets"}, {"/sets/akh": "Amonkhet"}],
+    "description": "Top EDH / Commander cards from Amonkhet",
+    "json_dict": {
+      "cardlists": [
+        {
+          "header": "Commanders",
+          "tag": "commanders",
+          "cardviews": [
+            {
+              "id": "3d0d5a41-8251-437c-a4a0-3b712281ebb0",
+              "name": "Rakdos, Lord of Riots",
+              "sanitized": "rakdos-lord-of-riots",
+              "slug": "rakdos-lord-of-riots",
+              "url": "/commanders/rakdos-lord-of-riots",
+              "label": "9957 decks",
+              "num_decks": 9957
+            }
+          ]
+        },
+        {
+          "header": "Commanders (Reprints)",
+          "tag": "commanders(reprints)",
+          "cardviews": [
+            {
+              "id": "8d7c1f6c-af45-4449-8cf8-e13830b3df8a",
+              "name": "Valgavoth, Harrower of Souls",
+              "sanitized": "valgavoth-harrower-of-souls",
+              "slug": "valgavoth-harrower-of-souls",
+              "url": "/commanders/valgavoth-harrower-of-souls",
+              "label": "28969 decks",
+              "num_decks": 28969
+            }
+          ]
+        },
+        {
+          "header": "Cards",
+          "tag": "cards",
+          "cardviews": [
+            {
+              "id": "1b832fda-d7c4-4566-884c-2a8b6da15488",
+              "name": "Anointed Procession",
+              "sanitized": "anointed-procession",
+              "slug": "anointed-procession",
+              "url": "/cards/anointed-procession",
+              "num_decks": 305057,
+              "potential_decks": 1382107
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

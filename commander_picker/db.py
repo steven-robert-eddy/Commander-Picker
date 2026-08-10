@@ -74,20 +74,32 @@ def _cardviews_from_page(page_json: dict) -> list[dict]:
 def _set_commander_cardviews(page_json: dict) -> list[dict]:
     """Commander cardviews on a set page, excluding reprints.
 
-    A set page's cardlists are tagged e.g. ``commanders(sos)`` (the main
-    set), ``commanders(soc)`` (its Commander-precon product), and
-    ``commanders(reprints)`` (older commanders reprinted into those
-    precons) -- plus parallel ``cards(...)`` lists this app has no use
-    for (it only ever pools commanders). Reprints are deliberately
-    excluded here (per the user): a reprint already exists elsewhere in
-    the catalog and isn't really "from" this set/release. Verified
-    2026-08-09 against a live ``.../pages/sets/sos.json`` response.
+    Two different tagging shapes exist across EDHREC's set pages,
+    confirmed 2026-08-10 by inspecting 220 real discovered set pages
+    (see ``edhrec_client.discover_set_slugs``): sets with a dedicated
+    Commander-precon product (roughly 2021+) split into e.g.
+    ``commanders(sos)`` (the main set) and ``commanders(soc)`` (its
+    precon), while older/simpler sets with no such split -- Amonkhet,
+    the original Commander decks, etc. -- use a single plain
+    ``commanders`` tag instead. Both shapes can also carry a
+    ``commanders(reprints)`` cardlist (older commanders reprinted in),
+    which is deliberately excluded (per the user): a reprint already
+    exists elsewhere in the catalog and isn't really "from" this
+    set/release. Plus parallel ``cards(...)``/``reprints`` lists this
+    app has no use for (it only ever pools commanders).
+
+    The earlier version of this only matched ``commanders(...)``,
+    silently dropping the plain-``commanders``-tag shape -- 115 of the
+    220 discovered set pages, including sets as recent and
+    commander-relevant as Amonkhet and the original Commander (2011)
+    product, contributed zero rows as a result.
     """
     cardlists = page_json.get("container", {}).get("json_dict", {}).get("cardlists", [])
     views = []
     for cardlist in cardlists:
         tag = cardlist.get("tag", "")
-        if not tag.startswith("commanders(") or tag == "commanders(reprints)":
+        is_commanders_list = tag == "commanders" or (tag.startswith("commanders(") and tag != "commanders(reprints)")
+        if not is_commanders_list:
             continue
         views.extend(cardlist.get("cardviews", []))
     return views
