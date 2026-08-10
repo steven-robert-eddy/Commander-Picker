@@ -19,7 +19,7 @@ from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from commander_picker import challenge, colors, db, elo, favorites, pods, sessions, store
+from commander_picker import challenge, colors, db, elo, favorites, pods, sessions, set_challenge, store
 from commander_picker import pool as pool_module
 from commander_picker.store import SessionError
 
@@ -502,6 +502,120 @@ def api_add_challenge_commander_auto(body: ChallengeAddByColorBody):
         except SessionError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
     return {"slug": slug, **asdict(entry)}
+
+
+# ---- set challenge: like the 32-deck challenge, but one entry per
+# EDHREC set release with a real (non-reprint) commander, instead of
+# per color-identity combo. See set_challenge.py's module docstring
+# for why this needs a fresh catalog-DB known_sets list on every
+# mutating call, unlike challenge.py's fixed 32-slug list. ----
+
+
+def _known_sets_or_503() -> list[dict]:
+    with _catalog_conn() as conn:
+        return pool_module.list_known_sets(conn)
+
+
+def _enrich_set_challenge_entries(entries: list) -> list[dict]:
+    """Same image_urls/color_identity enrichment as
+    _enrich_challenge_entries, for the set challenge's candidate
+    shortlists.
+    """
+    all_names = {c.name for e in entries for c in e.commanders}
+    images_by_name: dict[str, dict] = {}
+    if all_names:
+        try:
+            with _catalog_conn() as conn:
+                images_by_name = pool_module.commander_images_by_name(conn, list(all_names))
+        except HTTPException:
+            pass  # no catalog yet -- candidates just render without art
+
+    result = []
+    for e in entries:
+        d = asdict(e)
+        for c in d["commanders"]:
+            info = images_by_name.get(c["name"], {})
+            c["image_urls"] = info.get("image_urls", [])
+            c["color_identity"] = info.get("color_identity")
+        result.append(d)
+    return result
+
+
+@app.get("/api/set-challenge")
+def api_get_set_challenge():
+    known_sets = _known_sets_or_503()
+    with _sessions_conn() as conn:
+        entries = set_challenge.get_tracker(conn, known_sets)
+    return {"entries": _enrich_set_challenge_entries(entries)}
+
+
+class SetChallengeStatusBody(BaseModel):
+    status: str
+    notes: str | None = None
+
+
+@app.put("/api/set-challenge/{slug}")
+def api_set_set_challenge_status(slug: str, body: SetChallengeStatusBody):
+    known_sets = _known_sets_or_503()
+    with _sessions_conn() as conn:
+        try:
+            entry = set_challenge.set_status(conn, known_sets, slug, body.status, body.notes)
+        except SessionError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return asdict(entry)
+
+
+class SetChallengeCommanderBody(BaseModel):
+    commander_name: str
+
+
+@app.post("/api/set-challenge/{slug}/commanders")
+def api_add_set_challenge_commander(slug: str, body: SetChallengeCommanderBody):
+    known_sets = _known_sets_or_503()
+    with _sessions_conn() as conn:
+        try:
+            entry = set_challenge.add_commander(conn, known_sets, slug, body.commander_name)
+        except SessionError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return asdict(entry)
+
+
+@app.delete("/api/set-challenge/{slug}/commanders/{commander_name}")
+def api_remove_set_challenge_commander(slug: str, commander_name: str):
+    known_sets = _known_sets_or_503()
+    with _sessions_conn() as conn:
+        try:
+            entry = set_challenge.remove_commander(conn, known_sets, slug, commander_name)
+        except SessionError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return asdict(entry)
+
+
+@app.post("/api/set-challenge/{slug}/commanders/{commander_name}/choose")
+def api_choose_set_challenge_commander(slug: str, commander_name: str):
+    known_sets = _known_sets_or_503()
+    with _sessions_conn() as conn:
+        try:
+            entry = set_challenge.choose_commander(conn, known_sets, slug, commander_name)
+        except SessionError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return asdict(entry)
+
+
+@app.get("/api/set-challenge/{slug}/commanders/search")
+def api_search_set_challenge_commanders(
+    slug: str, q: str = Query(min_length=1), limit: int = Query(default=20, ge=1, le=50)
+):
+    """Scoped to commanders actually in this set (see
+    pool.search_commanders_in_set), unlike /api/commanders/search's
+    whole-catalog search backing the 32-deck challenge's single global
+    add box -- there's no auto-routing a commander to "the" set it
+    belongs to the way color identity maps to exactly one of the 32
+    combos, so each set row gets its own scoped search instead.
+    """
+    with _catalog_conn() as conn:
+        rows = pool_module.search_commanders_in_set(conn, slug, q, limit=limit)
+    return {"results": [{"name": r["name"], "color_identity": r["color_identity"], "num_decks": r["num_decks"]} for r in rows]}
 
 
 # ---- favorites: per-commander owned/wishlist tracking ----

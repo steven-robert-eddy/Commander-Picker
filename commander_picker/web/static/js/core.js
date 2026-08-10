@@ -117,6 +117,7 @@
     "screen-leaderboard",
     "screen-sessions",
     "screen-challenge",
+    "screen-set-challenge",
     "screen-pod",
   ];
 
@@ -132,6 +133,7 @@
       : id === "screen-results" ? "Results"
       : id === "screen-sessions" ? "Sessions"
       : id === "screen-challenge" ? "32-Deck Challenge"
+      : id === "screen-set-challenge" ? "Set Challenge"
       : id === "screen-pod" ? "Pod Tracker"
       : "Leaderboard";
   }

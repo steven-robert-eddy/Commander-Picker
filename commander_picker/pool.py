@@ -273,6 +273,24 @@ def search_commanders(conn: sqlite3.Connection, query: str, limit: int = 20):
     ).fetchall()
 
 
+def search_commanders_in_set(conn: sqlite3.Connection, set_slug: str, query: str, limit: int = 20):
+    """Name search scoped to one set's own commander_sets membership.
+
+    Unlike search_commanders (which searches the whole catalog, for the
+    32-deck challenge's color-auto-routed add flow -- any commander can
+    fill a color-identity slot), a set-challenge candidate should
+    actually be "from" the set its row represents, so this joins
+    against commander_sets instead of querying commanders alone.
+    """
+    like = f"%{query}%"
+    return conn.execute(
+        "SELECT c.name, c.color_identity, c.num_decks FROM commanders c "
+        "JOIN commander_sets cs ON cs.commander_name = c.name "
+        "WHERE cs.set_slug = ? AND c.name LIKE ? ORDER BY c.num_decks DESC LIMIT ?",
+        (set_slug, like, limit),
+    ).fetchall()
+
+
 def commander_images_by_name(conn: sqlite3.Connection, names: list[str]) -> dict[str, dict]:
     """Bulk lookup of image_urls/color_identity by exact commander name.
 

@@ -9,6 +9,7 @@
 
   $("home-picker-card").addEventListener("click", () => window.CP.showFilterScreen());
   $("home-challenge-card").addEventListener("click", () => window.CP.showChallenge());
+  $("home-set-challenge-card").addEventListener("click", () => window.CP.showSetChallenge());
   $("home-pod-card").addEventListener("click", () => window.CP.showPodTracker());
   $("home-leaderboard-card").addEventListener("click", () => window.CP.showLeaderboard());
   $("home-sessions-card").addEventListener("click", () => window.CP.showSessions());

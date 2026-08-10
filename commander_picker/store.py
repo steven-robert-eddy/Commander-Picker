@@ -182,6 +182,19 @@ def _ensure_schema(conn: sqlite3.Connection) -> None:
             added_at REAL,
             PRIMARY KEY (slug, commander_name)
         );
+        CREATE TABLE IF NOT EXISTS set_challenge_tracker (
+            slug TEXT PRIMARY KEY,
+            status TEXT NOT NULL DEFAULT 'not_started',
+            notes TEXT,
+            updated_at REAL
+        );
+        CREATE TABLE IF NOT EXISTS set_challenge_commanders (
+            slug TEXT NOT NULL,
+            commander_name TEXT NOT NULL,
+            is_chosen INTEGER NOT NULL DEFAULT 0,
+            added_at REAL,
+            PRIMARY KEY (slug, commander_name)
+        );
         CREATE TABLE IF NOT EXISTS commander_favorites (
             commander_name TEXT PRIMARY KEY,
             status TEXT NOT NULL,

@@ -738,6 +738,85 @@ def test_add_challenge_commander_auto_rejects_bad_colors(client):
     assert resp.status_code == 422
 
 
+def test_get_set_challenge_returns_one_entry_per_known_set(client_with_set):
+    resp = client_with_set.get("/api/set-challenge")
+    assert resp.status_code == 200
+    entries = resp.json()["entries"]
+    assert len(entries) == 1
+    assert entries[0]["slug"] == "sos"
+    assert entries[0]["name"] == "Secrets of Strixhaven"
+    assert entries[0]["status"] == "not_started"
+
+
+def test_get_set_challenge_empty_when_no_sets(client):
+    resp = client.get("/api/set-challenge")
+    assert resp.status_code == 200
+    assert resp.json()["entries"] == []
+
+
+def test_get_set_challenge_enriches_candidates_with_catalog_art(client_with_set):
+    client_with_set.post("/api/set-challenge/sos/commanders", json={"commander_name": "Rakdos, Lord of Riots"})
+    client_with_set.post("/api/set-challenge/sos/commanders", json={"commander_name": "Not In Catalog"})
+
+    entries = client_with_set.get("/api/set-challenge").json()["entries"]
+    sos = next(e for e in entries if e["slug"] == "sos")
+    by_name = {c["name"]: c for c in sos["commanders"]}
+
+    assert by_name["Rakdos, Lord of Riots"]["color_identity"] == "BR"
+    assert isinstance(by_name["Rakdos, Lord of Riots"]["image_urls"], list)
+    assert by_name["Not In Catalog"]["image_urls"] == []
+    assert by_name["Not In Catalog"]["color_identity"] is None
+
+
+def test_put_set_challenge_status_round_trips(client_with_set):
+    resp = client_with_set.put("/api/set-challenge/sos", json={"status": "planning", "notes": "hmm"})
+    assert resp.status_code == 200
+    assert resp.json()["status"] == "planning"
+    assert resp.json()["notes"] == "hmm"
+
+    entries = client_with_set.get("/api/set-challenge").json()["entries"]
+    sos = next(e for e in entries if e["slug"] == "sos")
+    assert sos["status"] == "planning"
+
+
+def test_put_set_challenge_status_rejects_bad_slug_or_status(client_with_set):
+    assert client_with_set.put("/api/set-challenge/not-a-slug", json={"status": "planning"}).status_code == 422
+    assert client_with_set.put("/api/set-challenge/sos", json={"status": "vibing"}).status_code == 422
+
+
+def test_set_challenge_commanders_add_choose_remove_round_trip(client_with_set):
+    add_resp = client_with_set.post("/api/set-challenge/sos/commanders", json={"commander_name": "Rakdos, Lord of Riots"})
+    assert add_resp.status_code == 200
+    assert [c["name"] for c in add_resp.json()["commanders"]] == ["Rakdos, Lord of Riots"]
+
+    choose_resp = client_with_set.post("/api/set-challenge/sos/commanders/Rakdos, Lord of Riots/choose")
+    assert choose_resp.status_code == 200
+    assert choose_resp.json()["commanders"][0]["is_chosen"] is True
+
+    remove_resp = client_with_set.delete("/api/set-challenge/sos/commanders/Rakdos, Lord of Riots")
+    assert remove_resp.status_code == 200
+    assert remove_resp.json()["commanders"] == []
+
+
+def test_choose_set_challenge_commander_422_if_not_a_candidate(client_with_set):
+    resp = client_with_set.post("/api/set-challenge/sos/commanders/Nobody/choose")
+    assert resp.status_code == 422
+
+
+def test_add_set_challenge_commander_422_on_unknown_slug(client_with_set):
+    resp = client_with_set.post("/api/set-challenge/not-a-slug/commanders", json={"commander_name": "Whoever"})
+    assert resp.status_code == 422
+
+
+def test_search_set_challenge_commanders_scoped_to_the_set(client_with_set):
+    resp = client_with_set.get("/api/set-challenge/sos/commanders/search?q=o")
+    assert resp.status_code == 200
+    names = {r["name"] for r in resp.json()["results"]}
+    # Both are genuinely "from" sos (main-set + precon, non-reprint) --
+    # Valgavoth (commanders(reprints)) must NOT show up here.
+    assert names == {"Rakdos, Lord of Riots", "Prosper, Tome-Bound"}
+
+
 def test_finish_session_includes_winner_challenge_slug(client):
     created = client.post("/api/sessions", json=_pool_body()).json()
     session_id = created["session_id"]

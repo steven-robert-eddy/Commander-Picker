@@ -375,6 +375,17 @@ def test_search_commanders_no_match(conn):
     assert pool.search_commanders(conn, "nonexistent-xyz") == []
 
 
+def test_search_commanders_in_set_scoped_to_membership(conn):
+    # "Small Rakdos" is only in "soc", not "sos" -- a substring match on
+    # the whole catalog would find it, but scoped to "sos" it shouldn't.
+    results = pool.search_commanders_in_set(conn, "sos", "rakdos")
+    assert [r["name"] for r in results] == ["Big Rakdos", "Tiny Rakdos"]
+
+
+def test_search_commanders_in_set_no_match_outside_set(conn):
+    assert pool.search_commanders_in_set(conn, "sos", "small") == []
+
+
 def test_commanders_by_names_preserves_order(conn):
     candidates = pool.commanders_by_names(conn, ["Tiny Rakdos", "Big Rakdos", "Mono Black"])
     assert [c.name for c in candidates] == ["Tiny Rakdos", "Big Rakdos", "Mono Black"]

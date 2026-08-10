@@ -32,6 +32,10 @@
           <div class="home-card-title">32-deck challenge</div>
           <div class="home-card-desc">Track a deck for every color-identity combination, colorless through five-color.</div>
         </button>
+        <button class="home-card" id="home-set-challenge-card" type="button">
+          <div class="home-card-title">Set challenge</div>
+          <div class="home-card-desc">Track a deck for every set release with a real commander, from the earliest precons to the newest drop.</div>
+        </button>
         <button class="home-card" id="home-pod-card" type="button">
           <div class="home-card-title">Pod tracker</div>
           <div class="home-card-desc">Log real games with your playgroup — Elo ratings for both players and decks.</div>
@@ -228,6 +232,29 @@
       <div class="panel" id="challenge-list"></div>
     </section>
 
+    <!-- SET CHALLENGE SCREEN -->
+    <section id="screen-set-challenge" class="hidden">
+      <p class="lede">
+        Track a deck for every set release with a real commander. Set
+        each release's status and keep a short shortlist of commanders
+        you're considering for it, with one optionally marked as your
+        pick.
+      </p>
+      <div class="panel">
+        <input type="text" id="set-challenge-filter-input" class="num-input" placeholder="Filter by set name…" autocomplete="off" />
+        <!--
+          Filters which set rows are shown, not which commanders --
+          each row gets its own scoped candidate search instead of one
+          shared box (see set-challenge.js): a commander can't be
+          auto-routed to "the" set it belongs to the way color identity
+          maps to exactly one of the 32 combos, so the natural search
+          scope is "commanders actually from this set", one row at a
+          time, not the whole catalog.
+        -->
+      </div>
+      <div class="panel" id="set-challenge-list"></div>
+    </section>
+
     <!-- POD TRACKER SCREEN -->
     <section id="screen-pod" class="hidden">
       <p class="lede">
@@ -372,6 +399,7 @@
   <script src="/static/js/leaderboard.js"></script>
   <script src="/static/js/sessions-list.js"></script>
   <script src="/static/js/challenge.js"></script>
+  <script src="/static/js/set-challenge.js"></script>
   <script src="/static/js/pod.js"></script>
   <script src="/static/js/home.js"></script>
   <script src="/static/js/init.js"></script>
