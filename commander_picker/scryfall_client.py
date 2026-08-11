@@ -1,16 +1,17 @@
 """Fetch and cache Scryfall's oracle_cards bulk data, for card art lookups.
 
-Scryfall's bulk-data API (https://scryfall.com/docs/api/bulk-data) is
-well-documented and stable, but -- like edhrec_client.py -- this dev
-sandbox's egress policy blocks api.scryfall.com directly (confirmed
-403 via the proxy), so the exact response shape below is built from
-public documentation, not a captured live response. Same discipline as
-edhrec_client.py applies: verify against a live `update-data` run once
-reachable and fix up if it differs.
+As of August 2026, Scryfall's bulk-data index (https://scryfall.com/docs/api/bulk-data)
+no longer returns a plain-JSON `download_uri` for oracle_cards -- only a
+gzip-compressed JSON Lines `jsonl_download_uri`, one card object per line
+instead of a single JSON array. `fetch_oracle_cards` decompresses/reassembles
+that into a JSON array on disk so `ORACLE_CARDS_PATH` and every reader's
+`json.load` stay unchanged; the old plain-JSON `download_uri` is still
+accepted as a fallback in case Scryfall reintroduces it.
 """
 
 from __future__ import annotations
 
+import gzip
 import json
 import time
 from dataclasses import dataclass
@@ -108,9 +109,12 @@ def fetch_oracle_cards(force: bool = False, max_age_seconds: int = DEFAULT_MAX_A
     if oracle_entry is None:
         raise ScryfallFetchError("No 'oracle_cards' entry in Scryfall's bulk-data index")
 
-    download_uri = oracle_entry.get("download_uri")
+    # jsonl_download_uri is what Scryfall actually serves now; download_uri
+    # is kept as a fallback for the old plain-JSON shape (see module
+    # docstring, and the tests exercising both).
+    download_uri = oracle_entry.get("jsonl_download_uri") or oracle_entry.get("download_uri")
     if not download_uri:
-        raise ScryfallFetchError("Scryfall's oracle_cards bulk-data entry has no download_uri")
+        raise ScryfallFetchError("Scryfall's oracle_cards bulk-data entry has no download URI")
 
     try:
         cards_resp = requests.get(download_uri, headers=REQUEST_HEADERS, timeout=180)
@@ -118,7 +122,16 @@ def fetch_oracle_cards(force: bool = False, max_age_seconds: int = DEFAULT_MAX_A
     except requests.RequestException as exc:
         raise ScryfallFetchError(f"Failed to download Scryfall oracle_cards bulk file: {exc}") from exc
 
-    ORACLE_CARDS_PATH.write_bytes(cards_resp.content)
+    raw = cards_resp.content
+    if download_uri.endswith(".gz"):
+        raw = gzip.decompress(raw)
+    if download_uri.endswith(".jsonl") or download_uri.endswith(".jsonl.gz"):
+        # One JSON object per line -- reassemble into the single JSON array
+        # every reader of ORACLE_CARDS_PATH (build_image_lookup etc.) expects.
+        cards = [json.loads(line) for line in raw.decode("utf-8").splitlines() if line.strip()]
+        ORACLE_CARDS_PATH.write_text(json.dumps(cards))
+    else:
+        ORACLE_CARDS_PATH.write_bytes(raw)
     _write_meta({"fetched_at": time.time(), "download_uri": download_uri})
     return ORACLE_CARDS_PATH
 

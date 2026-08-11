@@ -1,3 +1,4 @@
+import gzip
 import json
 
 import pytest
@@ -55,6 +56,63 @@ def test_fetch_oracle_cards_follows_index_to_download_uri(monkeypatch):
     assert calls == [scryfall_client.BULK_DATA_INDEX_URL, "https://data.scryfall.io/oracle-cards.json"]
     assert path.exists()
     assert json.loads(path.read_text()) == cards_payload
+
+
+def test_fetch_oracle_cards_decompresses_jsonl_gz(monkeypatch):
+    # Scryfall's current bulk-data shape: jsonl_download_uri pointing at a
+    # gzip-compressed JSON-Lines file (one card object per line), not a
+    # plain JSON array. fetch_oracle_cards should reassemble it into the
+    # JSON-array shape every reader of ORACLE_CARDS_PATH expects.
+    index_payload = {
+        "data": [
+            {
+                "type": "oracle_cards",
+                "jsonl_download_uri": "https://data.scryfall.io/oracle-cards.jsonl.gz",
+            },
+        ]
+    }
+    cards = [
+        {"name": "Korvold, Fae-Cursed King", "image_uris": {"art_crop": "https://img/korvold.jpg"}},
+        {"name": "Atraxa, Praetors' Voice"},
+    ]
+    jsonl_gz = gzip.compress("\n".join(json.dumps(c) for c in cards).encode())
+    calls = []
+
+    def fake_get(url, headers, timeout):
+        calls.append(url)
+        if url == scryfall_client.BULK_DATA_INDEX_URL:
+            return _FakeResponse(index_payload)
+        return _FakeResponse(content=jsonl_gz)
+
+    monkeypatch.setattr(scryfall_client.requests, "get", fake_get)
+
+    path = scryfall_client.fetch_oracle_cards()
+
+    assert calls == [scryfall_client.BULK_DATA_INDEX_URL, "https://data.scryfall.io/oracle-cards.jsonl.gz"]
+    assert json.loads(path.read_text()) == cards
+
+
+def test_fetch_oracle_cards_prefers_jsonl_download_uri_over_download_uri(monkeypatch):
+    index_payload = {
+        "data": [
+            {
+                "type": "oracle_cards",
+                "download_uri": "https://data.scryfall.io/oracle-cards.json",
+                "jsonl_download_uri": "https://data.scryfall.io/oracle-cards.jsonl.gz",
+            },
+        ]
+    }
+
+    def fake_get(url, headers, timeout):
+        if url == scryfall_client.BULK_DATA_INDEX_URL:
+            return _FakeResponse(index_payload)
+        return _FakeResponse(content=gzip.compress(b""))
+
+    monkeypatch.setattr(scryfall_client.requests, "get", fake_get)
+
+    path = scryfall_client.fetch_oracle_cards()
+
+    assert json.loads(path.read_text()) == []
 
 
 def test_fetch_oracle_cards_missing_oracle_entry_raises(monkeypatch):
