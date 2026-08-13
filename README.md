@@ -16,6 +16,11 @@ The repo, git remote, deploy URL, and installed CLI command
 name — only the product-facing branding (what you see in the app
 itself) changed.
 
+A TypeScript rewrite of this same app (Node/Express + React, same
+product, same EDHREC/Scryfall data) lives alongside this one in
+[`ts/`](ts/README.md) — independent data directory, independent Docker
+image, nothing here touches it.
+
 ## Status
 
 Fully built and live-verified: EDHREC data ingestion (a real
