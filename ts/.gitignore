@@ -1,0 +1,12 @@
+node_modules/
+dist/
+*.tsbuildinfo
+.env
+
+# Cached EDHREC/Scryfall pages and derived DBs — regenerated via `npm run cli update-data`
+data/edhrec/*.json
+data/scryfall/
+data/*.db
+data/edhrec_meta.json
+!data/.gitkeep
+!data/edhrec/.gitkeep
