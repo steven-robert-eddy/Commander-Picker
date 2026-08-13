@@ -1,0 +1,1231 @@
+@media (prefers-color-scheme: dark) {
+  :root { color-scheme: dark; }
+}
+
+/* Palette mood: a wizard's herbarium at dusk -- pressed leaves and inked
+   marginalia under low library light. Two brand hues carry the identity
+   instead of a single metallic accent: moss (--primary) marks what's
+   chosen/selected, rust (--accent) marks what's actionable or has won.
+   All colors in OKLCH; --accent-fill is a deeper shade of --accent
+   specifically for solid button backgrounds (so white button text stays
+   readable) while --accent itself stays lighter for use as text/borders
+   against the dark ground. */
+:root {
+  --bg: oklch(0.14 0.03 145);
+  --bg-alt: oklch(0.19 0.035 145);
+  --surface: oklch(0.235 0.04 145);
+  --border: oklch(0.36 0.05 145);
+  --ink: oklch(0.95 0.02 95);
+  --ink-dim: oklch(0.78 0.02 95);
+  --ink-faint: oklch(0.60 0.02 100);
+  --primary: oklch(0.68 0.15 145);
+  --primary-soft: oklch(0.68 0.15 145 / 0.20);
+  --accent: oklch(0.68 0.19 40);
+  --accent-fill: oklch(0.48 0.19 40);
+  --accent-soft: oklch(0.68 0.19 40 / 0.20);
+  --accent-glow: oklch(0.68 0.19 40 / 0.40);
+  --on-accent: oklch(0.99 0.005 90);
+  --good: oklch(0.72 0.16 150);
+  --bad: oklch(0.64 0.20 20);
+  /* Always sits on the lightbox's fixed dark backdrop, not the page's
+     own theme background -- one value regardless of theme. */
+  --lightbox-ink: oklch(0.96 0.012 90);
+  --lightbox-border: oklch(0.96 0.012 90 / 0.35);
+
+  --serif: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+  --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --mono: ui-monospace, "SF Mono", "Cascadia Code", "Roboto Mono", monospace;
+
+  /* "Engraved plate" shape system -- corners settle at a small,
+     consistent radius (matching a real Magic card's own corner, not
+     the soft "app" default), and surfaces read as pressed into the
+     page rather than floating above it. --card-radius is reused
+     wherever a corner is structural; art (which already renders real
+     card images) keeps its own separate, larger radius unchanged, so
+     rounding still means "this is a physical card" there. --groove is
+     the panel/container treatment (a highlight catching the top edge,
+     a shadow pooling at the bottom, like a line pressed into card
+     stock); --emboss is the same idea for solid-fill buttons;
+     --deboss is a sunken-slot look for inputs/tags. Fixed
+     white/black-based values regardless of theme -- same precedent
+     the old .panel shadow already used (a literal rgba(255,255,255,.04)
+     inset applied unchanged in both dark and light mode). */
+  --card-radius: 4px;
+  --groove:
+    inset 0 1px 0 0 oklch(1 0 0 / 0.05),
+    inset 0 -1px 0 0 oklch(0 0 0 / 0.35),
+    inset 1px 0 0 0 oklch(0 0 0 / 0.12),
+    inset -1px 0 0 0 oklch(1 0 0 / 0.03);
+  --emboss:
+    inset 0 1px 0 0 oklch(1 0 0 / 0.18),
+    inset 0 -2px 0 0 oklch(0 0 0 / 0.25);
+  --emboss-ghost:
+    inset 0 1px 0 0 oklch(1 0 0 / 0.04),
+    inset 0 -1px 0 0 oklch(0 0 0 / 0.3);
+  --deboss: inset 0 1px 2px 0 oklch(0 0 0 / 0.3);
+  --row-rule: inset 0 -1px 0 0 oklch(0 0 0 / 0.3), inset 0 -2px 0 0 oklch(1 0 0 / 0.03);
+}
+
+:root[data-theme="light"] {
+  --bg: oklch(0.94 0.010 135);
+  --bg-alt: oklch(0.905 0.012 135);
+  --surface: oklch(0.975 0.007 135);
+  --border: oklch(0.82 0.018 135);
+  --ink: oklch(0.24 0.018 135);
+  --ink-dim: oklch(0.43 0.018 135);
+  --ink-faint: oklch(0.52 0.016 130);
+  --primary: oklch(0.36 0.09 132);
+  --primary-soft: oklch(0.36 0.09 132 / 0.34);
+  --accent: oklch(0.48 0.15 42);
+  --accent-fill: oklch(0.48 0.15 42);
+  --accent-soft: oklch(0.48 0.15 42 / 0.14);
+  --accent-glow: oklch(0.48 0.15 42 / 0.30);
+  --on-accent: oklch(0.99 0.004 90);
+  --good: oklch(0.46 0.14 150);
+  --bad: oklch(0.50 0.17 22);
+}
+
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    --bg: oklch(0.90 0.025 140);
+    --bg-alt: oklch(0.86 0.03 140);
+    --surface: oklch(0.965 0.012 140);
+    --border: oklch(0.76 0.035 140);
+    --ink: oklch(0.22 0.02 140);
+    --ink-dim: oklch(0.40 0.02 140);
+    --ink-faint: oklch(0.50 0.018 135);
+    --primary: oklch(0.42 0.13 145);
+    --primary-soft: oklch(0.42 0.13 145 / 0.36);
+    --accent: oklch(0.52 0.19 40);
+    --accent-fill: oklch(0.48 0.19 40);
+    --accent-soft: oklch(0.52 0.19 40 / 0.16);
+    --accent-glow: oklch(0.52 0.19 40 / 0.32);
+    --on-accent: oklch(0.99 0.004 90);
+    --good: oklch(0.48 0.16 150);
+    --bad: oklch(0.52 0.19 20);
+  }
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  min-height: 100%;
+  background: radial-gradient(ellipse at top, var(--bg-alt), var(--bg) 70%);
+  color: var(--ink);
+  font-family: var(--sans);
+  -webkit-tap-highlight-color: transparent;
+}
+
+body {
+  display: flex;
+  justify-content: center;
+  padding: env(safe-area-inset-top, 20px) 16px calc(env(safe-area-inset-bottom, 20px) + 16px);
+}
+
+main {
+  width: 100%;
+  max-width: 480px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+@media (min-width: 720px) {
+  main { max-width: 860px; }
+}
+
+header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  padding-top: 6px;
+}
+
+.wordmark {
+  font-family: var(--serif);
+  font-size: 1.5rem;
+  letter-spacing: 0.01em;
+  color: var(--ink);
+  text-wrap: balance;
+}
+.wordmark em { font-style: normal; color: var(--accent); }
+
+.header-right {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+}
+
+.header-home-btn {
+  background: none;
+  border: none;
+  color: var(--accent);
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+  padding: 4px 2px;
+}
+.header-home-btn:hover { text-decoration: underline; }
+.header-home-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.phase {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+
+.lede {
+  font-size: 0.95rem;
+  line-height: 1.55;
+  color: var(--ink-dim);
+  max-width: 62ch;
+}
+.lede strong { color: var(--ink); font-weight: 600; }
+
+.panel {
+  background: var(--surface);
+  border-radius: var(--card-radius);
+  padding: 16px;
+  box-shadow: var(--groove);
+}
+
+.home-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+}
+
+@media (min-width: 720px) {
+  .home-grid { grid-template-columns: 1fr 1fr; }
+}
+
+.home-card {
+  display: block;
+  text-align: left;
+  background: var(--surface);
+  border: none;
+  border-radius: var(--card-radius);
+  padding: 16px;
+  box-shadow: var(--groove);
+  cursor: pointer;
+  transition: box-shadow 0.15s ease, transform 0.15s ease;
+}
+.home-card:hover { box-shadow: var(--groove), inset 0 0 0 1px var(--accent); transform: translateY(-1px); }
+.home-card:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.home-card-title {
+  font-family: var(--serif);
+  font-size: 1.1rem;
+  color: var(--ink);
+  margin-bottom: 6px;
+}
+
+.home-card-desc {
+  font-size: 0.85rem;
+  line-height: 1.5;
+  color: var(--ink-dim);
+}
+
+.filter-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.filter-label {
+  font-family: var(--mono);
+  font-size: 0.68rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  margin-top: 14px;
+}
+.filter-label:first-child { margin-top: 0; }
+
+.filter-disclosure {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  background: none;
+  border: none;
+  padding: 0;
+  margin-top: 14px;
+  cursor: pointer;
+  text-align: left;
+}
+.filter-disclosure .filter-label { margin-top: 0; }
+.filter-disclosure:hover .filter-label,
+.filter-disclosure:hover .filter-disclosure-chevron { color: var(--accent); }
+.filter-disclosure:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.filter-disclosure-chevron {
+  font-family: var(--mono);
+  font-size: 0.68rem;
+  color: var(--ink-faint);
+  transition: transform 0.15s ease, color 0.15s ease;
+}
+.filter-disclosure[aria-expanded="true"] .filter-disclosure-chevron { transform: rotate(180deg); }
+
+.segmented {
+  display: flex;
+  margin-top: 10px;
+  border-radius: var(--card-radius);
+  overflow: hidden;
+  box-shadow: var(--deboss), inset 0 0 0 1px var(--border);
+}
+.segmented-btn {
+  flex: 1;
+  font-family: var(--sans);
+  font-size: 0.8rem;
+  padding: 9px 8px;
+  border: none;
+  background: transparent;
+  color: var(--ink-dim);
+  cursor: pointer;
+  text-align: center;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.segmented-btn:not(:first-child) { border-left: 1px solid var(--border); }
+.segmented-btn:hover { color: var(--ink); }
+.segmented-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.segmented-btn[aria-pressed="true"] {
+  background: var(--primary-soft);
+  box-shadow: inset 0 0 0 2px var(--primary);
+  color: var(--primary);
+  font-weight: 600;
+}
+
+.deck-range {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+}
+.deck-range input[type="range"] {
+  flex: 1;
+  accent-color: var(--accent);
+  height: 28px; /* larger hit area/thumb -- native sliders can feel fiddly otherwise */
+}
+
+.num-input {
+  font-family: var(--mono);
+  font-size: 0.82rem;
+  color: var(--ink);
+  background: var(--bg-alt);
+  border: none;
+  border-radius: var(--card-radius);
+  box-shadow: var(--deboss);
+  padding: 6px 6px 6px 8px;
+  width: 11ch; /* room for up to 6 digits + the spin-button icon without clipping */
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.num-input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+/* Hide native spinner arrows -- cleaner next to the slider, typing/arrow-keys still work */
+.num-input::-webkit-inner-spin-button,
+.num-input::-webkit-outer-spin-button { opacity: 0.5; }
+
+.pool-size-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+}
+.pool-size-hint {
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  color: var(--ink-faint);
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--mono);
+  font-size: 0.82rem;
+  padding: 6px 12px;
+  border-radius: var(--card-radius);
+  border: none;
+  background: var(--bg-alt);
+  box-shadow: var(--deboss), inset 0 0 0 1px var(--border);
+  color: var(--ink-dim);
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
+}
+.chip:hover { box-shadow: var(--deboss), inset 0 0 0 1px var(--accent); }
+.chip:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.chip[aria-pressed="true"] {
+  background: var(--primary-soft);
+  box-shadow: var(--emboss-ghost), inset 0 0 0 2px var(--primary);
+  color: var(--primary);
+  font-weight: 600;
+}
+/* Real Scryfall mana symbol, same source as the duel/results pips
+   (see MANA_SYMBOL_BASE_URL in app.js) -- not affected by the chip's
+   own pressed/unpressed text color, since the symbol already carries
+   its correct color. */
+.chip-pip { display: block; width: 16px; height: 16px; }
+/* Bracket-size presets larger than what the current filters match --
+   see app.js updateBracketSizeChipAvailability. */
+.chip:disabled,
+.chip.chip-disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+.chip:disabled:hover { box-shadow: var(--deboss), inset 0 0 0 1px var(--border); }
+
+.pool-count {
+  margin-top: 14px;
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  color: var(--ink-faint);
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.pool-count b { color: var(--ink); font-variant-numeric: tabular-nums; }
+
+.error-note {
+  margin-top: 10px;
+  font-size: 0.82rem;
+  color: var(--bad);
+}
+
+.start-btn {
+  width: 100%;
+  margin-top: 16px;
+  padding: 13px;
+  border-radius: var(--card-radius);
+  border: none;
+  background: var(--accent-fill);
+  box-shadow: var(--emboss);
+  color: var(--on-accent);
+  font-family: var(--sans);
+  font-weight: 700;
+  font-size: 0.95rem;
+  cursor: pointer;
+  transition: filter 0.15s ease, transform 0.05s ease;
+}
+.start-btn:hover { filter: brightness(1.1); }
+.start-btn:active { transform: scale(0.99); }
+.start-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.start-btn:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+
+.progress-track {
+  height: 3px;
+  border-radius: 3px;
+  background: var(--border);
+  overflow: hidden;
+}
+.progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--primary), var(--accent));
+  width: 0%;
+  transition: width 0.35s ease;
+}
+@media (prefers-reduced-motion: reduce) {
+  .progress-fill { transition: none; }
+}
+
+.round-meta {
+  display: flex;
+  justify-content: space-between;
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  color: var(--ink-faint);
+}
+.round-meta b { color: var(--ink-dim); font-variant-numeric: tabular-nums; }
+
+.duel {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  position: relative;
+}
+
+/* Side-by-side comparison once there's room for it -- stacked
+   top/bottom is right for a phone, but wastes width on anything
+   tablet-sized or larger. */
+@media (min-width: 720px) {
+  .duel {
+    flex-direction: row;
+    align-items: stretch;
+    gap: 0;
+  }
+  .card-btn { flex: 1 1 0; min-width: 0; }
+}
+
+.medallion {
+  align-self: center;
+  z-index: 2;
+  margin: -14px 0;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--bg);
+  border: 1px solid var(--accent);
+  color: var(--accent);
+  font-family: var(--serif);
+  font-size: 0.8rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+@media (min-width: 720px) {
+  .medallion { margin: 0 -14px; }
+}
+
+.card-btn {
+  text-align: left;
+  background: var(--surface);
+  border: none;
+  border-radius: var(--card-radius);
+  padding: 18px 18px 16px;
+  cursor: pointer;
+  color: var(--ink);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  box-shadow: var(--groove);
+  transition: box-shadow 0.15s ease, transform 0.08s ease;
+  position: relative;
+  overflow: hidden;
+}
+.card-btn:hover { box-shadow: var(--groove), inset 0 0 0 1px var(--accent); }
+.card-btn:active { transform: scale(0.985); }
+.card-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.card-btn:disabled { cursor: default; }
+
+.card-btn.winner {
+  box-shadow: var(--groove), inset 0 0 0 1.5px var(--accent), 0 8px 24px -8px var(--accent-glow);
+}
+/* A soft radial bloom from the card's center, not a diagonal metallic
+   shine -- reads as an inked stamp of approval rather than foil glare. */
+.card-btn.winner::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 50% 38%, var(--accent-glow) 0%, transparent 65%);
+  animation: bloom 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
+  pointer-events: none;
+}
+.card-btn.loser { opacity: 0.45; }
+@media (prefers-reduced-motion: reduce) {
+  .card-btn.winner::after { animation: none; }
+  .card-btn { transition: none; }
+}
+
+/* app.js caps each card face at a fixed target width (see
+   CARD_ART_TARGET_WIDTH) via an inline max-width on this element, so
+   a plain 1-image commander's art renders at the same standard size
+   as each face of a 2-image Partner/Background pair or DFC, instead
+   of stretching to fill however much room its card-btn happens to
+   have. Centered rather than bled to the button's edges, since it no
+   longer needs to fill the full available width. flex-wrap is still
+   the fallback if the button is ever narrower than two capped faces
+   side by side (e.g. mobile) -- the second wraps below the first
+   instead of squeezing both below a legible size. `gap` + a matching
+   background color draws a 1px seam between the images in either
+   orientation without extra selectors. */
+.card-art-group {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 1px;
+  background: var(--border);
+  width: 100%;
+  margin: 0 auto;
+  border-radius: 12px;
+  overflow: hidden;
+}
+.card-art {
+  display: block;
+  flex: 1 1 150px;
+  min-width: 150px;
+  aspect-ratio: 63 / 88; /* real Magic card ratio -- show the whole card, not a cropped illustration */
+  object-fit: contain;
+  background: var(--bg-alt);
+}
+@keyframes bloom {
+  from { opacity: 0; transform: scale(0.88); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+.card-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.card-name {
+  font-family: var(--serif);
+  font-size: 1.12rem;
+  line-height: 1.25;
+  text-wrap: balance;
+}
+
+.pips { display: flex; gap: 3px; flex-shrink: 0; }
+/* Scryfall's own mana symbol SVGs (see MANA_SYMBOL_BASE_URL in app.js)
+   -- each already carries its correct color, so no per-letter class
+   or background is needed here, unlike the plain colored-circle
+   version this replaced. */
+.pip {
+  display: block;
+  width: 18px;
+  height: 18px;
+}
+
+.card-stats {
+  display: flex;
+  gap: 14px;
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  color: var(--ink-dim);
+  font-variant-numeric: tabular-nums;
+}
+.card-stats b { color: var(--ink); }
+
+.theme-tags { display: flex; flex-wrap: wrap; gap: 6px; }
+.tag {
+  font-family: var(--mono);
+  font-size: 0.66rem;
+  letter-spacing: 0.03em;
+  padding: 3px 8px;
+  border-radius: 3px;
+  background: var(--bg-alt);
+  color: var(--ink-faint);
+  border: none;
+  box-shadow: var(--deboss);
+}
+/* EDHREC rank badge -- reuses .tag's pill styling, just its own class
+   so it can sit apart from the theme-tags row (see cardInnerHTML). */
+.rank-tag { display: inline-block; margin-top: 6px; }
+
+/* Power-level badge (EDHREC's dominant Commander Bracket for this
+   commander) -- same .tag pill base as rank-tag, shown on duel/bracket
+   cards (cardInnerHTML) and session-results rows (renderRankList). */
+.power-tag { display: inline-block; margin-top: 6px; margin-left: 6px; }
+.rank-name-line .power-tag { margin-top: 0; }
+
+/* Mana cost (Scryfall symbol SVGs, see manaCostHTML in app.js) / type
+   line -- shown between the card name and the deck-count stats. Only
+   one of the two ever renders for a given card (type line is the
+   fallback when there's no mana cost to show, e.g. vehicles). */
+.mana-cost { display: flex; gap: 3px; }
+.type-line {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  color: var(--ink-faint);
+}
+
+.duel-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 2px;
+}
+.ghost-btn {
+  background: none;
+  border: none;
+  color: var(--ink-faint);
+  font-family: var(--mono);
+  font-size: 0.75rem;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  padding: 6px 4px;
+}
+.ghost-btn:hover { color: var(--accent); }
+.ghost-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.ghost-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+.ghost-btn:disabled:hover { color: var(--ink-faint); }
+
+/* Undo/Finish-now on the duel screen -- a real bordered button (same
+   inset-ring technique as .again-btn/.tag) instead of .ghost-btn's
+   plain text, so they read as clickable rather than blending into
+   .duel-hint's inert caption sitting right next to them. */
+.action-btn {
+  background: none;
+  border: none;
+  border-radius: var(--card-radius);
+  box-shadow: inset 0 0 0 1px var(--border);
+  color: var(--ink);
+  font-family: var(--mono);
+  font-size: 0.75rem;
+  letter-spacing: 0.04em;
+  padding: 6px 10px;
+  cursor: pointer;
+  transition: box-shadow 0.15s ease, color 0.15s ease;
+}
+.action-btn:hover { box-shadow: inset 0 0 0 1px var(--accent); color: var(--accent); }
+.action-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.action-btn:disabled { opacity: 0.35; cursor: not-allowed; box-shadow: inset 0 0 0 1px var(--border); color: var(--ink); }
+.action-btn:disabled:hover { box-shadow: inset 0 0 0 1px var(--border); color: var(--ink); }
+
+/* Owned/wishlist collection toggle -- cycles none -> owned -> wishlist
+   -> none. "none" reuses .chip's unpressed deboss look; "owned"/
+   "wishlist" both reuse the emboss-ghost "pressed" treatment already
+   established by .chip[aria-pressed="true"], distinguished by which
+   token colors the ring (--primary vs --accent) rather than inventing
+   a third color.
+
+   Hidden for now, not removed, after user feedback -- core.js still
+   builds and wires one of these into every rank row and the lightbox
+   exactly as before, the backend (favorites.py, /api/favorites/...)
+   is fully intact and tested, this single `display: none` is the only
+   thing standing between this and being visible again. */
+.fav-btn {
+  display: none;
+  margin-top: 6px;
+  border: none;
+  border-radius: var(--card-radius);
+  background: var(--bg-alt);
+  box-shadow: var(--deboss), inset 0 0 0 1px var(--border);
+  color: var(--ink-dim);
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.03em;
+  padding: 4px 9px;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
+}
+.fav-btn:hover { box-shadow: var(--deboss), inset 0 0 0 1px var(--accent); }
+.fav-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.fav-btn[data-status="owned"] {
+  background: var(--primary-soft);
+  box-shadow: var(--emboss-ghost), inset 0 0 0 2px var(--primary);
+  color: var(--primary);
+  font-weight: 600;
+}
+.fav-btn[data-status="wishlist"] {
+  background: var(--accent-soft);
+  box-shadow: var(--emboss-ghost), inset 0 0 0 2px var(--accent);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.duel-hint {
+  color: var(--ink-faint);
+  font-family: var(--mono);
+  font-size: 0.75rem;
+  letter-spacing: 0.04em;
+  padding: 6px 4px;
+}
+
+/* Standalone nav/reset links around the all-time leaderboard --
+   centered, full-width, with breathing room below whatever's above
+   them, unlike .ghost-btn's default inline placement within
+   .duel-actions. */
+#leaderboard-link,
+#results-leaderboard-link,
+#leaderboard-reset-btn,
+#leaderboard-reset-data-btn {
+  display: block;
+  width: 100%;
+  text-align: center;
+  margin-top: 10px;
+}
+
+/* Destructive action -- tinted with --bad (already used for negative
+   rating deltas) instead of the usual --accent hover, so it doesn't
+   read as just another nav link. */
+.danger-btn { color: var(--bad); opacity: 0.75; }
+.danger-btn:hover { color: var(--bad); opacity: 1; }
+.danger-btn:focus-visible { outline: 2px solid var(--bad); outline-offset: 2px; }
+
+.rank-row {
+  display: grid;
+  grid-template-columns: 28px 1fr auto;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 4px;
+  box-shadow: var(--row-rule);
+}
+.rank-row:last-child { box-shadow: none; }
+/* Rows for a commander with art open the full-size lightbox on click
+   (see openLightbox() in app.js) -- rows with no art (no Scryfall
+   match) aren't clickable, so no hover affordance for those. */
+.rank-row.has-art { cursor: pointer; border-radius: var(--card-radius); }
+.rank-row.has-art:hover { background: var(--bg-alt); }
+.rank-row.has-art:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+/* The session's actual winner gets a one-time podium tint -- a real
+   moment worth a small highlight, not a pattern repeated down the list. */
+.rank-row.top1 { background: var(--accent-soft); border-radius: var(--card-radius); }
+
+.rank-num {
+  font-family: var(--serif);
+  font-size: 1rem;
+  color: var(--ink-faint);
+  text-align: center;
+}
+.rank-row.top1 .rank-num { color: var(--accent); }
+
+/* flex-wrap so the name drops to its own full-width line below the
+   thumbnail(s)/pips whenever there isn't room beside them, rather than
+   being squeezed into whatever narrow remainder is left -- on a 2-image
+   partner pair with a multi-color pip row on a phone-width screen, that
+   remainder can be narrower than a single word, forcing an ugly
+   letter-by-letter wrap. */
+.rank-name-line { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; min-width: 0; }
+.rank-thumb-group { display: flex; gap: 2px; flex-shrink: 0; }
+.rank-thumb {
+  width: 36px;
+  height: 50px; /* real Magic card ratio (63/88), not a square crop */
+  border-radius: 4px;
+  object-fit: cover;
+  flex-shrink: 0;
+  background: var(--bg-alt);
+}
+/* Wraps instead of truncating -- a single-line ellipsis was cutting
+   most names down to a few characters on a narrow viewport (e.g. three
+   different "Prava ..." commanders all read identically). A wrapped
+   name costs a taller row; a truncated one costs knowing which
+   commander it is. flex-basis gives it a floor so it wraps to its own
+   line (see .rank-name-line) instead of cramming into a sliver next to
+   the thumbnail(s)/pips. */
+.rank-name {
+  flex: 1 1 160px;
+  min-width: 0;
+  font-size: 0.92rem;
+  line-height: 1.3;
+  overflow-wrap: break-word;
+}
+.rank-rating {
+  font-family: var(--mono);
+  font-size: 0.82rem;
+  color: var(--ink-dim);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+.rank-rating.up { color: var(--good); }
+
+/* Sessions list (screen-sessions) -- each row is a past/active picker
+   session, "Resume"/"View results" jumps back into it via app.js's
+   resumeSession(). No art/pips here (a session isn't one commander), so
+   a simpler two-column row than .rank-row rather than reusing it as-is. */
+.session-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 4px;
+  box-shadow: var(--row-rule);
+}
+.session-row:last-child { box-shadow: none; }
+.session-info { min-width: 0; }
+.session-desc {
+  font-size: 0.92rem;
+  overflow-wrap: break-word;
+}
+.session-meta {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  color: var(--ink-faint);
+  margin-top: 2px;
+}
+.session-action { flex-shrink: 0; white-space: nowrap; }
+
+/* Custom-list mode (screen-intro) -- search/autocomplete + the picked
+   list, see app.js searchCommanders/renderCustomList. */
+.autocomplete-wrap {
+  position: relative;
+  margin-top: 10px;
+}
+.autocomplete-wrap .num-input {
+  width: 100%;
+  text-align: left;
+}
+.autocomplete-dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  z-index: 5;
+  max-height: 260px;
+  overflow-y: auto;
+  background: var(--surface);
+  border: none;
+  border-radius: var(--card-radius);
+  /* Genuinely floats above content (position: absolute) -- unlike
+     panels sitting in normal document flow, this keeps a real
+     elevation shadow instead of the groove treatment. */
+  box-shadow: inset 0 0 0 1px var(--border), 0 12px 32px -16px rgba(0, 0, 0, 0.5);
+}
+.autocomplete-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 9px 12px;
+  border: none;
+  background: transparent;
+  color: var(--ink);
+  font-size: 0.85rem;
+  text-align: left;
+  cursor: pointer;
+}
+.autocomplete-item:hover,
+.autocomplete-item:focus-visible { background: var(--primary-soft); }
+.autocomplete-item .pip { width: 14px; height: 14px; }
+.autocomplete-item-decks {
+  margin-left: auto;
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  color: var(--ink-faint);
+  white-space: nowrap;
+}
+
+.custom-list-panel { margin-top: 10px; }
+.custom-list-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 4px;
+  box-shadow: var(--row-rule);
+}
+.custom-list-row:last-child { box-shadow: none; }
+.custom-list-name { font-size: 0.88rem; display: flex; align-items: center; gap: 6px; }
+.custom-list-remove { flex-shrink: 0; white-space: nowrap; }
+
+/* 32-deck challenge tracker (screen-challenge) -- see app.js
+   renderChallengeList. Each combo is a row: header (pips + name +
+   status select), then its candidate-commander chips, then an add row. */
+.challenge-row {
+  padding: 12px 4px;
+  border-radius: var(--card-radius);
+  box-shadow: var(--row-rule);
+  transition: background 0.4s ease;
+}
+/* Briefly pulses after the top search box adds a candidate here, so
+   it's obvious which of the 32 rows it landed in -- see app.js
+   highlightChallengeRow. */
+.challenge-row-highlight { background: var(--accent-soft); }
+.challenge-row:last-child { box-shadow: none; }
+.challenge-row-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+.challenge-combo { display: flex; align-items: center; gap: 6px; font-size: 0.92rem; }
+.challenge-status-select {
+  font-family: var(--sans);
+  font-size: 0.8rem;
+  color: var(--ink);
+  background: var(--bg-alt);
+  border: none;
+  border-radius: var(--card-radius);
+  box-shadow: var(--deboss);
+  padding: 5px 6px;
+}
+.challenge-commanders {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 8px;
+}
+/* Card-style row (thumbnail + pips/name), not a plain text chip --
+   mirrors .rank-row's thumbnail treatment on the results/leaderboard
+   screens, just more compact. */
+.challenge-candidate {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border: none;
+  border-radius: var(--card-radius);
+  background: var(--bg-alt);
+  box-shadow: var(--deboss);
+}
+.challenge-candidate.chosen {
+  background: var(--primary-soft);
+  box-shadow: var(--emboss-ghost), inset 0 0 0 1px var(--primary);
+}
+.challenge-candidate-thumb-group { display: flex; gap: 2px; flex-shrink: 0; }
+.challenge-candidate-thumb {
+  width: 28px;
+  height: 39px; /* real Magic card ratio (63/88), same as .rank-thumb */
+  border-radius: 3px;
+  object-fit: cover;
+  flex-shrink: 0;
+  background: var(--bg);
+}
+.challenge-candidate-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.challenge-candidate-name { font-size: 0.88rem; overflow-wrap: break-word; }
+.challenge-candidate-actions { display: flex; gap: 8px; flex-shrink: 0; }
+.challenge-choose-btn,
+.challenge-remove-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: 0.9rem;
+  cursor: pointer;
+  color: inherit;
+  line-height: 1;
+}
+.challenge-add-row {
+  position: relative;
+  margin-top: 8px;
+}
+.challenge-add-input { width: 100%; text-align: left; }
+
+/* Results-screen 32-deck-challenge nudge -- purely additive, see app.js
+   maybeShowChallengeNudge. */
+.challenge-nudge {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  margin-bottom: 10px;
+  border-radius: var(--card-radius);
+  background: var(--bg-alt);
+  border: none;
+  box-shadow: var(--deboss);
+  font-size: 0.85rem;
+}
+
+/* Pod tracker (screen-pod) -- see pod.js. Deck/player rows reuse
+   .session-row/.session-info/.session-desc/.session-meta as-is (a
+   flex row with a trailing action button already fits both), so only
+   what's genuinely new gets its own rules here: the log-a-game form's
+   dynamic participant rows, archived-deck dimming, and the recent-
+   games list's per-game participant summary. */
+.pod-participant-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+.pod-participant-row .pod-participant-name { flex: 1 1 40%; }
+.pod-participant-row .pod-participant-deck { flex: 1 1 40%; }
+.pod-winner-label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.82rem;
+  color: var(--ink-dim);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.pod-participant-remove { flex-shrink: 0; }
+
+.pod-archived-row { opacity: 0.55; }
+
+.pod-game-row {
+  padding: 10px 4px;
+  box-shadow: var(--row-rule);
+}
+.pod-game-row:last-child { box-shadow: none; }
+.pod-game-participants { margin-top: 4px; font-size: 0.88rem; }
+.pod-game-participant { padding: 2px 0; }
+.pod-game-participant.pod-winner { color: var(--accent); font-weight: 600; }
+.pod-game-row .pod-delete-last-btn { margin-top: 6px; }
+
+/* Bracket champion banner (results screen, bracket mode only). */
+.champion-banner {
+  text-align: center;
+  padding: 18px 12px;
+  margin-bottom: 10px;
+  border-radius: var(--card-radius);
+  background: var(--accent-soft);
+  border: none;
+  box-shadow: var(--emboss-ghost), inset 0 0 0 1px var(--accent);
+}
+.champion-label {
+  font-family: var(--mono);
+  font-size: 0.75rem;
+  letter-spacing: 0.06em;
+  color: var(--accent);
+  text-transform: uppercase;
+}
+.champion-name {
+  font-family: var(--serif);
+  font-size: 1.3rem;
+  color: var(--ink);
+  margin-top: 4px;
+}
+
+/* Bracket tree -- columns per round, rows per match. Used both live
+   (compact strip above the current duel, screen-duel) and in full on
+   the results screen once a bracket's complete. See app.js
+   renderBracketTree/BracketMatch shapes returned by GET
+   /api/sessions/{id}/bracket. */
+.bracket-tree {
+  display: flex;
+  gap: 14px;
+  overflow-x: auto;
+  padding: 10px 2px;
+  margin: 10px 0;
+}
+.bracket-tree-compact {
+  gap: 10px;
+  padding: 8px 2px;
+}
+.bracket-round {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 140px;
+  flex-shrink: 0;
+}
+.bracket-round-label {
+  font-family: var(--mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.05em;
+  color: var(--ink-faint);
+  text-transform: uppercase;
+  text-align: center;
+}
+.bracket-match {
+  display: flex;
+  flex-direction: column;
+  border-radius: var(--card-radius);
+  overflow: hidden;
+  box-shadow: inset 0 0 0 1px var(--border);
+}
+.bracket-slot {
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  padding: 6px 8px;
+  color: var(--ink-dim);
+  background: var(--surface);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.bracket-slot:first-child { border-bottom: 1px solid var(--border); }
+.bracket-slot.bracket-winner { color: var(--accent); font-weight: 700; }
+.bracket-slot.bracket-loser { color: var(--ink-faint); text-decoration: line-through; opacity: 0.7; }
+.bracket-tree-compact .bracket-round { min-width: 110px; }
+.bracket-tree-compact .bracket-slot { font-size: 0.72rem; padding: 4px 6px; }
+
+.again-btn {
+  width: 100%;
+  margin-top: 14px;
+  padding: 12px;
+  border-radius: var(--card-radius);
+  border: none;
+  background: transparent;
+  box-shadow: inset 0 0 0 1px var(--accent);
+  color: var(--accent);
+  font-family: var(--sans);
+  font-weight: 600;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+.again-btn:hover { background: var(--accent-soft); }
+.again-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+footer {
+  text-align: center;
+  font-size: 0.72rem;
+  line-height: 1.6;
+  color: var(--ink-faint);
+  padding: 4px 8px 2px;
+}
+footer code {
+  font-family: var(--mono);
+  background: var(--surface);
+  padding: 1px 5px;
+  border-radius: 3px;
+  border: none;
+  box-shadow: var(--deboss);
+}
+
+.hidden { display: none !important; }
+
+.spinner-note {
+  text-align: center;
+  font-family: var(--mono);
+  font-size: 0.8rem;
+  color: var(--ink-faint);
+  padding: 20px 0;
+}
+
+/* Full-size card view, opened by clicking a ranked commander on the
+   results screen (see openLightbox()/closeLightbox() in app.js). */
+.lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  padding: 32px 16px;
+  background: rgba(0, 0, 0, 0.78);
+  overflow-y: auto; /* two tall images (a Partner pair/DFC) can exceed
+                        viewport height on a short screen -- scroll
+                        rather than silently cropping the second card */
+}
+.lightbox-name {
+  font-family: var(--serif);
+  font-size: 1.15rem;
+  color: var(--lightbox-ink); /* fixed -- always sits on the dark backdrop, not the page's own theme background */
+  text-align: center;
+}
+.lightbox-images {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 16px;
+  max-width: 100%;
+  max-height: 80vh;
+}
+.lightbox-images img {
+  max-width: min(90vw, 480px);
+  max-height: 80vh;
+  border-radius: 6px;
+  box-shadow: 0 24px 60px -12px rgba(0, 0, 0, 0.6);
+  object-fit: contain;
+}
+.lightbox-links {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+}
+.lightbox-links a {
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  padding: 6px 12px;
+  border-radius: var(--card-radius);
+  border: none;
+  box-shadow: inset 0 0 0 1px var(--lightbox-border);
+  color: var(--lightbox-ink);
+  text-decoration: none;
+}
+.lightbox-links a:hover { background: rgba(255, 255, 255, 0.1); }
+.lightbox-close {
+  position: absolute;
+  top: 18px;
+  right: 20px;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 1px solid var(--lightbox-border);
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--lightbox-ink);
+  font-size: 1.1rem;
+  line-height: 1;
+  cursor: pointer;
+}
+.lightbox-close:hover { background: rgba(255, 255, 255, 0.14); }
+.lightbox-close:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
