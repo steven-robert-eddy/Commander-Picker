@@ -48,6 +48,10 @@
           <div class="home-card-title">My sessions</div>
           <div class="home-card-desc">Resume an active picker session, or revisit a finished one's results.</div>
         </button>
+        <button class="home-card" id="home-guess-game-card" type="button">
+          <div class="home-card-title">Guess the Commander</div>
+          <div class="home-card-desc">A random popular commander revealed clue by clue — guess the name before you run out of attempts.</div>
+        </button>
       </div>
     </section>
 
@@ -294,6 +298,43 @@
       <div class="panel" id="pod-games-list"></div>
     </section>
 
+    <!-- GUESS THE COMMANDER SCREEN -->
+    <section id="screen-guess-game" class="hidden">
+      <p class="lede">
+        A random commander with at least 10,000 decks on EDHREC. Its
+        type and mana cost are shown up front — guess the name before
+        you run out of attempts, revealing one more line of its rules
+        text after each wrong guess.
+      </p>
+
+      <div class="panel" id="guess-clue-panel">
+        <div class="guess-fact-line" id="guess-fact-line"></div>
+        <div class="guess-text-clues" id="guess-text-clues"></div>
+      </div>
+
+      <div class="guess-attempts" id="guess-attempts-line"></div>
+
+      <div class="autocomplete-wrap">
+        <input type="text" id="guess-input" class="num-input" placeholder="Guess the commander…" autocomplete="off" />
+        <div class="autocomplete-dropdown hidden" id="guess-search-results"></div>
+      </div>
+      <div class="error-note hidden" id="guess-error"></div>
+      <button class="start-btn" id="guess-submit-btn" type="button">Guess</button>
+
+      <div class="guess-history" id="guess-history"></div>
+
+      <!-- Shown once the game ends (won or lost) -->
+      <div class="panel guess-reveal-panel hidden" id="guess-reveal-panel">
+        <div class="guess-reveal-name" id="guess-reveal-name"></div>
+        <div class="guess-reveal-images" id="guess-reveal-images"></div>
+        <div class="guess-reveal-text" id="guess-reveal-text"></div>
+        <div class="guess-reveal-meta" id="guess-reveal-meta"></div>
+        <a class="ghost-btn hidden" id="guess-reveal-edhrec-link" target="_blank" rel="noopener">View on EDHREC →</a>
+      </div>
+
+      <button class="again-btn hidden" id="guess-play-again-btn" type="button">Play again</button>
+    </section>
+
     <!-- DUEL SCREEN -->
     <section id="screen-duel" class="hidden">
       <div class="round-meta">
@@ -401,6 +442,7 @@
   <script src="/static/js/challenge.js"></script>
   <script src="/static/js/set-challenge.js"></script>
   <script src="/static/js/pod.js"></script>
+  <script src="/static/js/guess-game.js"></script>
   <script src="/static/js/home.js"></script>
   <script src="/static/js/init.js"></script>
 </body>

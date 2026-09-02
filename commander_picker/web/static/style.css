@@ -1229,3 +1229,83 @@ footer code {
 }
 .lightbox-close:hover { background: rgba(255, 255, 255, 0.14); }
 .lightbox-close:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* GUESS-THE-COMMANDER: the always-visible type/cost fact, revealed
+   oracle-text lines, attempt counter, guess history, and end-of-game
+   reveal panel (see guess-game.js). */
+/* Extra clearance below the search input specifically here (unlike
+   the custom-list picker's dropdown, which always has a full "Your
+   list" panel underneath for clearance) -- the autocomplete dropdown
+   sits right above the Guess button, and with only 1-2 results its
+   box doesn't reach far enough down to avoid visually brushing the
+   button's top edge otherwise. */
+#screen-guess-game #guess-submit-btn { margin-top: 30px; }
+
+.guess-fact-line {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.guess-fact-type {
+  font-family: var(--serif);
+  font-size: 1rem;
+  color: var(--ink);
+}
+.guess-fact-mana { display: flex; gap: 2px; }
+.guess-fact-mana .pip { width: 20px; height: 20px; }
+
+.guess-text-clues { margin-top: 12px; }
+.guess-text-clue-line {
+  font-size: 0.88rem;
+  line-height: 1.6;
+  color: var(--ink-dim);
+  padding: 6px 0;
+  border-top: 1px solid var(--border);
+}
+.guess-text-clue-line:first-child { border-top: none; padding-top: 0; }
+
+.guess-attempts {
+  margin-top: 12px;
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  color: var(--ink-faint);
+}
+
+.guess-history { margin-top: 10px; display: flex; flex-direction: column; gap: 4px; }
+.guess-history-row {
+  font-family: var(--mono);
+  font-size: 0.82rem;
+  padding: 4px 0;
+}
+.guess-history-row.guess-wrong { color: var(--bad); }
+.guess-history-row.guess-correct { color: var(--good); font-weight: 600; }
+
+.guess-reveal-panel { margin-top: 16px; }
+.guess-reveal-name {
+  font-family: var(--serif);
+  font-size: 1.15rem;
+  color: var(--ink);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.guess-reveal-images { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.guess-reveal-images img {
+  max-width: 220px;
+  border-radius: 6px;
+  box-shadow: var(--groove);
+}
+.guess-reveal-text {
+  margin-top: 10px;
+  font-size: 0.85rem;
+  line-height: 1.6;
+  color: var(--ink-dim);
+}
+.guess-reveal-meta {
+  margin-top: 8px;
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  color: var(--ink-faint);
+}

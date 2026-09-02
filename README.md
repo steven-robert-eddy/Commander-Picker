@@ -8,8 +8,8 @@ filter down to a candidate pool (colors, archetype, an "underbuilt"
 deck-count ceiling), and runs a swipe-style head-to-head picker with
 Elo ratings to narrow the pool to a ranked shortlist. Also tracks a
 32-deck color-identity challenge and a pod tracker — Elo ratings for
-real games, players, and decks — alongside the picker, from one home
-screen.
+real games, players, and decks — plus a Guess-the-Commander mini-game,
+alongside the picker, from one home screen.
 
 The repo, git remote, deploy URL, and installed CLI command
 (`commander-picker`) all still use the original "Commander Picker"
@@ -23,10 +23,10 @@ Fully built and live-verified: EDHREC data ingestion (a real
 identities, deck counts, theme tags, and card art), filtering /
 candidate pools, the Elo-style swipe picker with cross-session
 persistent ratings and an all-time leaderboard, a 32-deck challenge
-tracker, a pod tracker with separate player/deck Elo ratings, a home
-screen tying it all together, a web UI on top of the same engine, and
-a Docker deployment for a public URL — see `PLAN.md` for architecture
-notes and what's not yet started.
+tracker, a pod tracker with separate player/deck Elo ratings, a
+Guess-the-Commander mini-game, a home screen tying it all together, a
+web UI on top of the same engine, and a Docker deployment for a public
+URL — see `PLAN.md` for architecture notes and what's not yet started.
 
 ## Setup
 

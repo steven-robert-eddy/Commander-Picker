@@ -1064,3 +1064,78 @@ def test_leaderboard_includes_favorite_status(client):
 
     board = {row["name"]: row for row in client.get("/api/leaderboard").json()["leaderboard"]}
     assert board[a["name"]]["favorite_status"] == "owned"
+
+
+# ---- guess-the-commander mini-game ----
+# The `client` fixture's commanders.db has no Scryfall card-meta lookup
+# applied (see its own fixture above), so mana_cost/type_line/oracle_text
+# are all None here -- these tests exercise the endpoint wiring/shape,
+# not clue content (see test_guess_game.py for clue-building coverage
+# against a catalog with real oracle text).
+
+
+def test_api_start_guess_game_returns_initial_state_without_leaking_answer(client):
+    resp = client.post("/api/guess-game", json={"min_decks": 10000})
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["status"] == "in_progress"
+    assert data["answer_name"] is None
+    assert data["oracle_text"] is None
+    assert data["image_urls"] == []
+    assert data["edhrec_url"] is None
+    assert data["num_decks"] is None
+    assert data["text_clues"] == []
+    assert data["attempts_remaining"] >= 1
+
+
+def test_api_start_guess_game_422_when_no_commanders_match(client):
+    resp = client.post("/api/guess-game", json={"min_decks": 1_000_000})
+    assert resp.status_code == 422
+
+
+def test_api_get_guess_game_returns_same_in_progress_state(client):
+    start = client.post("/api/guess-game", json={"min_decks": 10000}).json()
+    resp = client.get(f"/api/guess-game/{start['id']}")
+    assert resp.status_code == 200
+    assert resp.json()["status"] == "in_progress"
+    assert resp.json()["answer_name"] is None
+
+
+def test_api_get_guess_game_unknown_id_404(client):
+    resp = client.get("/api/guess-game/not-a-real-id")
+    assert resp.status_code == 404
+
+
+def test_api_guess_game_correct_guess_wins_and_reveals(client):
+    # min_decks=20000 leaves only Valgavoth (28969 decks) -- Prosper
+    # (13741) is excluded, so which commander gets picked is deterministic.
+    start = client.post("/api/guess-game", json={"min_decks": 20000}).json()
+    resp = client.post(f"/api/guess-game/{start['id']}/guess", json={"guess": "valgavoth,   harrower OF souls"})
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["status"] == "won"
+    assert data["answer_name"] == "Valgavoth, Harrower of Souls"
+
+
+def test_api_guess_game_wrong_guess_with_no_oracle_text_loses_immediately(client):
+    # No card-meta lookup in this fixture -> no oracle text -> the fact
+    # clue is the only guess this game has.
+    start = client.post("/api/guess-game", json={"min_decks": 20000}).json()
+    assert start["attempts_remaining"] == 1
+    resp = client.post(f"/api/guess-game/{start['id']}/guess", json={"guess": "Definitely Wrong Name"})
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["status"] == "lost"
+    assert data["answer_name"] == "Valgavoth, Harrower of Souls"
+
+
+def test_api_guess_game_guess_on_unknown_id_400(client):
+    resp = client.post("/api/guess-game/not-a-real-id/guess", json={"guess": "Anything"})
+    assert resp.status_code == 400
+
+
+def test_api_guess_game_guess_after_finished_400(client):
+    start = client.post("/api/guess-game", json={"min_decks": 20000}).json()
+    client.post(f"/api/guess-game/{start['id']}/guess", json={"guess": "Valgavoth, Harrower of Souls"})
+    resp = client.post(f"/api/guess-game/{start['id']}/guess", json={"guess": "Anything"})
+    assert resp.status_code == 400

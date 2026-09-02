@@ -13,4 +13,5 @@
   $("home-pod-card").addEventListener("click", () => window.CP.showPodTracker());
   $("home-leaderboard-card").addEventListener("click", () => window.CP.showLeaderboard());
   $("home-sessions-card").addEventListener("click", () => window.CP.showSessions());
+  $("home-guess-game-card").addEventListener("click", () => window.CP.showGuessGame());
 })();

@@ -119,6 +119,7 @@
     "screen-challenge",
     "screen-set-challenge",
     "screen-pod",
+    "screen-guess-game",
   ];
 
   function showScreen(id) {
@@ -135,6 +136,7 @@
       : id === "screen-challenge" ? "32-Deck Challenge"
       : id === "screen-set-challenge" ? "Set Challenge"
       : id === "screen-pod" ? "Pod Tracker"
+      : id === "screen-guess-game" ? "Guess the Commander"
       : "Leaderboard";
   }
 

@@ -61,6 +61,7 @@ class CommanderRecord:
     mana_cost: str | None = None  # populated from Scryfall's bulk data, see build_database's card_meta_lookup
     type_line: str | None = None  # populated from Scryfall's bulk data, see build_database's card_meta_lookup
     power_level: int | None = None  # dominant EDHREC Commander Bracket (1-5), from a cached detail page
+    oracle_text: str | None = None  # rules text, from Scryfall's bulk data -- see guess_game.py
 
 
 def _cardviews_from_page(page_json: dict) -> list[dict]:
@@ -289,6 +290,7 @@ def build_database(
             record.mana_cost = meta.mana_cost
             record.type_line = meta.type_line
             record.price = meta.price_usd
+            record.oracle_text = meta.oracle_text
 
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     if db_path.exists():
@@ -310,7 +312,8 @@ def build_database(
                 rank INTEGER,
                 mana_cost TEXT,
                 type_line TEXT,
-                power_level INTEGER
+                power_level INTEGER,
+                oracle_text TEXT
             );
             CREATE TABLE commander_themes (
                 commander_name TEXT NOT NULL REFERENCES commanders(name),
@@ -341,8 +344,8 @@ def build_database(
             conn.execute(
                 """
                 INSERT INTO commanders
-                    (name, sanitized, color_identity, num_decks, salt, edhrec_url, image_urls, price, rank, mana_cost, type_line, power_level)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    (name, sanitized, color_identity, num_decks, salt, edhrec_url, image_urls, price, rank, mana_cost, type_line, power_level, oracle_text)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     record.name,
@@ -357,6 +360,7 @@ def build_database(
                     record.mana_cost,
                     record.type_line,
                     record.power_level,
+                    record.oracle_text,
                 ),
             )
             conn.executemany(

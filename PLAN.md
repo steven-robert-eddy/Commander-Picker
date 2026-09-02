@@ -398,6 +398,26 @@ dropped, just intentionally after that.
   chip-disclosure all mirror the existing theme filter end-to-end,
   except OR-only semantics (no any/all mode toggle — the expected use
   is picking one or a couple of specific releases).
+- **Guess-the-Commander mini-game** (2026-09-02): a new home-screen
+  entry point, independent of the picker/challenge/pod features. Picks
+  one random commander with at least 10,000 EDHREC decks (popular, the
+  opposite bias from the picker's own underbuilt-by-default pool),
+  shows its type line/mana cost up front, then reveals its oracle text
+  one line at a time as guesses run out (`commander_picker/guess_game.py`,
+  capped at `MAX_TEXT_CLUES` = 5 lines / 6 total attempts). Required
+  adding `oracle_text` to the Scryfall ingestion pipeline
+  (`scryfall_client.CardMeta`/`build_card_meta_lookup`/`resolve_card_meta`,
+  `commanders.oracle_text` column) since nothing before this stored
+  rules text at all, only mana cost/type line/price. A game's row in
+  `sessions.db`'s new `guess_games` table snapshots everything about
+  the picked commander at creation time (name, art, oracle text, ...),
+  same posture as `sessions.py`'s `candidates` table, so a later
+  `update-data` catalog rebuild can't retroactively change or break an
+  in-progress game; `get_game` only returns the answer/full card once
+  the game is won or lost, never while `in_progress`. Web UI only for
+  this first pass (`GET/POST /api/guess-game`, reusing the existing
+  `/api/commanders/search` autocomplete) — no CLI equivalent yet,
+  unlike every other feature's CLI/web parity.
 
 See `README.md` for setup and usage. The sections below cover
 architecture notes and decisions worth knowing if you're extending

@@ -262,6 +262,36 @@ def test_build_database_without_card_meta_lookup_leaves_fields_null(populated_ca
         conn.close()
 
 
+def test_build_database_populates_oracle_text_from_lookup(populated_cache):
+    db_path = populated_cache / "commanders.db"
+    card_meta_lookup = {
+        "Rakdos, Lord of Riots": scryfall_client.CardMeta(
+            mana_cost="{2}{B}{R}", type_line="Legendary Creature — Devil", oracle_text="Rakdos, Lord of Riots costs {2} less to cast..."
+        ),
+    }
+
+    db.build_database(
+        color_slugs=["rakdos"],
+        theme_slugs=["aristocrats"],
+        db_path=db_path,
+        card_meta_lookup=card_meta_lookup,
+    )
+
+    conn = db.connect(db_path=db_path)
+    try:
+        row = conn.execute(
+            "SELECT oracle_text FROM commanders WHERE name = 'Rakdos, Lord of Riots'"
+        ).fetchone()
+        assert row["oracle_text"] == "Rakdos, Lord of Riots costs {2} less to cast..."
+
+        no_meta_row = conn.execute(
+            "SELECT oracle_text FROM commanders WHERE name = 'Valgavoth, Harrower of Souls'"
+        ).fetchone()
+        assert no_meta_row["oracle_text"] is None
+    finally:
+        conn.close()
+
+
 def test_load_commanders_applies_cached_detail_page(populated_cache):
     shutil.copy(
         FIXTURES / "sample_commander_detail_page.json",

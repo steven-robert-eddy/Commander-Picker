@@ -279,6 +279,11 @@ class CardMeta:
     mana_cost: str | None = None
     type_line: str | None = None
     price_usd: float | None = None
+    # Rules text -- used by guess_game.py to build its line-by-line
+    # reveal clues. Same front-face fallback as mana_cost/type_line: a
+    # transform/MDFC card's real text lives on its front face, not the
+    # often-blank top-level field.
+    oracle_text: str | None = None
 
 
 def _card_meta(card: dict) -> CardMeta:
@@ -288,10 +293,16 @@ def _card_meta(card: dict) -> CardMeta:
     # same asymmetry _card_face_image_urls already works around for art.
     mana_cost = card.get("mana_cost") or (faces[0].get("mana_cost") if faces else None)
     type_line = card.get("type_line") or (faces[0].get("type_line") if faces else None)
+    oracle_text = card.get("oracle_text") or (faces[0].get("oracle_text") if faces else None)
     prices = card.get("prices") or {}
     raw_price = prices.get("usd") or prices.get("usd_foil")
     price_usd = float(raw_price) if raw_price else None
-    return CardMeta(mana_cost=mana_cost or None, type_line=type_line or None, price_usd=price_usd)
+    return CardMeta(
+        mana_cost=mana_cost or None,
+        type_line=type_line or None,
+        price_usd=price_usd,
+        oracle_text=oracle_text or None,
+    )
 
 
 def build_card_meta_lookup(oracle_cards_path: Path = ORACLE_CARDS_PATH) -> dict[str, CardMeta]:
@@ -351,6 +362,7 @@ def resolve_card_meta(commander_name: str, lookup: dict[str, "CardMeta"]) -> Car
         b = b or CardMeta()
         mana_cost = " // ".join(m for m in (a.mana_cost, b.mana_cost) if m) or None
         type_line = " // ".join(t for t in (a.type_line, b.type_line) if t) or None
+        oracle_text = "\n".join(t for t in (a.oracle_text, b.oracle_text) if t) or None
         price_usd = a.price_usd + b.price_usd if a.price_usd is not None and b.price_usd is not None else None
-        return CardMeta(mana_cost=mana_cost, type_line=type_line, price_usd=price_usd)
+        return CardMeta(mana_cost=mana_cost, type_line=type_line, price_usd=price_usd, oracle_text=oracle_text)
     return CardMeta()
