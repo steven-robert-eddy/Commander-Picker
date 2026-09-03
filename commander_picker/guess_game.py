@@ -121,6 +121,20 @@ def _text_clues(oracle_text: str | None, commander_name: str) -> list[str]:
     return lines[:MAX_TEXT_CLUES]
 
 
+def _strip_subtypes(type_line: str | None) -> str | None:
+    """Drop everything after the type line's em dash -- e.g. "Legendary
+    Creature -- Elemental Shaman" becomes "Legendary Creature". A rare
+    or flavorful subtype is often close to a giveaway on its own, so
+    the fact clue only ever reveals the supertype/type portion. Each
+    half of a Partner//DFC pair's joined type line is stripped
+    separately, then rejoined the same way it was joined.
+    """
+    if not type_line:
+        return type_line
+    halves = type_line.split(" // ")
+    return " // ".join(half.split(" — ", 1)[0].strip() for half in halves)
+
+
 def _normalize(name: str) -> str:
     return " ".join(name.strip().lower().split())
 
@@ -181,7 +195,7 @@ def create_game(conn: sqlite3.Connection, picked: PickedCommander) -> GameInfo:
             picked.num_decks,
             picked.edhrec_url,
             json.dumps(picked.image_urls),
-            picked.type_line,
+            _strip_subtypes(picked.type_line),
             picked.mana_cost,
             picked.oracle_text,
             json.dumps(clues),
