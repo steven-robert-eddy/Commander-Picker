@@ -125,7 +125,7 @@ def fetch_oracle_cards(force: bool = False, max_age_seconds: int = DEFAULT_MAX_A
     raw = cards_resp.content
     if download_uri.endswith(".gz"):
         raw = gzip.decompress(raw)
-    if download_uri.endswith(".jsonl") or download_uri.endswith(".jsonl.gz"):
+    if download_uri.endswith((".jsonl", ".jsonl.gz")):
         # One JSON object per line -- reassemble into the single JSON array
         # every reader of ORACLE_CARDS_PATH (build_image_lookup etc.) expects.
         cards = [json.loads(line) for line in raw.decode("utf-8").splitlines() if line.strip()]
@@ -341,7 +341,7 @@ def build_card_meta_lookup(oracle_cards_path: Path = ORACLE_CARDS_PATH) -> dict[
     return lookup
 
 
-def resolve_card_meta(commander_name: str, lookup: dict[str, "CardMeta"]) -> CardMeta:
+def resolve_card_meta(commander_name: str, lookup: dict[str, CardMeta]) -> CardMeta:
     """Look up a commander's card details, handling EDHREC's Partner-pair naming.
 
     Mirrors resolve_image_urls's Partner-pair split: an "A // B" pair
