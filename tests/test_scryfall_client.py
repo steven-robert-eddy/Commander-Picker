@@ -430,6 +430,60 @@ def test_build_card_meta_lookup_ignores_art_series_duplicate_name(tmp_path, orde
     assert meta.type_line == "Legendary Creature — God"
 
 
+def test_build_card_meta_lookup_reads_oracle_text(tmp_path):
+    cards = [
+        {
+            "name": "Simple Card",
+            "mana_cost": "{2}{B}{R}",
+            "type_line": "Legendary Creature — Devil",
+            "oracle_text": "Flying, haste\nWhenever this creature attacks, draw a card.",
+            "prices": {"usd": "12.34"},
+        }
+    ]
+    path = tmp_path / "oracle_cards.json"
+    path.write_text(json.dumps(cards))
+
+    lookup = scryfall_client.build_card_meta_lookup(path)
+
+    assert lookup["Simple Card"].oracle_text == "Flying, haste\nWhenever this creature attacks, draw a card."
+
+
+def test_build_card_meta_lookup_transform_card_uses_front_face_oracle_text(tmp_path):
+    cards = [
+        {
+            "name": "Valki, God of Lies // Tibalt, Cosmic Impostor",
+            "type_line": "Legendary Creature — God // Legendary Planeswalker — Tibalt",
+            "card_faces": [
+                {"name": "Valki, God of Lies", "mana_cost": "{1}{B}", "type_line": "Legendary Creature — God", "oracle_text": "Whenever you discard a card, put a +1/+1 counter on Valki."},
+                {"name": "Tibalt, Cosmic Impostor", "mana_cost": "", "type_line": "Legendary Planeswalker — Tibalt", "oracle_text": "Static ability text."},
+            ],
+            "prices": {"usd": "8.00"},
+        }
+    ]
+    path = tmp_path / "oracle_cards.json"
+    path.write_text(json.dumps(cards))
+
+    lookup = scryfall_client.build_card_meta_lookup(path)
+
+    meta = lookup["Valki, God of Lies // Tibalt, Cosmic Impostor"]
+    assert meta.oracle_text == "Whenever you discard a card, put a +1/+1 counter on Valki."
+
+
+def test_resolve_card_meta_partner_pair_combines_oracle_text():
+    lookup = {
+        "Krark, the Thumbless": scryfall_client.CardMeta(mana_cost="{1}{U}{R}", oracle_text="Krark's ability text."),
+        "Vial Smasher the Fierce": scryfall_client.CardMeta(mana_cost="{1}{B}{R}", oracle_text="Vial Smasher's ability text."),
+    }
+    meta = scryfall_client.resolve_card_meta("Krark, the Thumbless // Vial Smasher the Fierce", lookup)
+    assert meta.oracle_text == "Krark's ability text.\nVial Smasher's ability text."
+
+
+def test_resolve_card_meta_partner_pair_one_half_missing_oracle_text():
+    lookup = {"Krark, the Thumbless": scryfall_client.CardMeta(mana_cost="{1}{U}{R}", oracle_text="Krark's ability text.")}
+    meta = scryfall_client.resolve_card_meta("Krark, the Thumbless // Vial Smasher the Fierce", lookup)
+    assert meta.oracle_text == "Krark's ability text."
+
+
 def test_build_card_meta_lookup_missing_file_raises(tmp_path):
     with pytest.raises(scryfall_client.ScryfallFetchError):
         scryfall_client.build_card_meta_lookup(tmp_path / "nope.json")

@@ -223,6 +223,22 @@ def _ensure_schema(conn: sqlite3.Connection) -> None:
             created_at REAL NOT NULL,
             notes TEXT NOT NULL DEFAULT ''
         );
+        CREATE TABLE IF NOT EXISTS guess_games (
+            id TEXT PRIMARY KEY,
+            created_at REAL NOT NULL,
+            status TEXT NOT NULL DEFAULT 'in_progress',
+            answer_name TEXT NOT NULL,
+            color_identity TEXT NOT NULL DEFAULT '',
+            num_decks INTEGER NOT NULL DEFAULT 0,
+            edhrec_url TEXT,
+            image_urls TEXT NOT NULL DEFAULT '[]',
+            type_line TEXT,
+            mana_cost TEXT,
+            oracle_text TEXT,
+            clues TEXT NOT NULL DEFAULT '[]',
+            clues_revealed INTEGER NOT NULL DEFAULT 0,
+            guesses TEXT NOT NULL DEFAULT '[]'
+        );
         CREATE TABLE IF NOT EXISTS pod_game_participants (
             game_id TEXT NOT NULL REFERENCES pod_games(id),
             player_name TEXT NOT NULL,

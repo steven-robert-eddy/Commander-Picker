@@ -19,7 +19,7 @@ from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from commander_picker import challenge, colors, db, elo, favorites, pods, sessions, set_challenge, store
+from commander_picker import challenge, colors, db, elo, favorites, guess_game, pods, sessions, set_challenge, store
 from commander_picker import pool as pool_module
 from commander_picker.store import SessionError
 
@@ -650,6 +650,50 @@ def api_clear_favorite(commander_name: str):
     with _sessions_conn() as conn:
         favorites.clear_favorite(conn, commander_name)
     return {"ok": True}
+
+
+# ---- guess-the-commander mini-game ----
+
+
+class GuessGameBody(BaseModel):
+    min_decks: int = Field(default=guess_game.DEFAULT_MIN_DECKS, ge=0)
+
+
+@app.post("/api/guess-game")
+def api_start_guess_game(body: GuessGameBody):
+    with _catalog_conn() as conn:
+        try:
+            picked = guess_game.pick_commander(conn, min_decks=body.min_decks)
+        except guess_game.GuessGameError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    with _sessions_conn() as session_conn:
+        info = guess_game.create_game(session_conn, picked)
+    return asdict(info)
+
+
+@app.get("/api/guess-game/{game_id}")
+def api_get_guess_game(game_id: str):
+    with _sessions_conn() as conn:
+        try:
+            info = guess_game.get_game(conn, game_id)
+        except guess_game.GuessGameError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return asdict(info)
+
+
+class GuessBody(BaseModel):
+    guess: str
+
+
+@app.post("/api/guess-game/{game_id}/guess")
+def api_submit_guess(game_id: str, body: GuessBody):
+    with _sessions_conn() as conn:
+        try:
+            info = guess_game.submit_guess(conn, game_id, body.guess)
+        except guess_game.GuessGameError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return asdict(info)
 
 
 # ---- pod tracker: real multiplayer games, players, decks ----
