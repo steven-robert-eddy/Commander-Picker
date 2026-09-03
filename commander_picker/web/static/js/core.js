@@ -55,16 +55,20 @@
   // Scryfall's mana-cost shorthand ("{2}{B}{R}") uses the same symbol
   // codes as its symbol-SVG filenames -- reuses MANA_SYMBOL_BASE_URL, no
   // new asset dependency, same trick as pipsHTML above. Hybrid symbols
-  // ("{B/R}") use a hyphen in the filename instead of the slash (e.g.
-  // "B-R.svg") -- best-effort, matches Scryfall's own convention but
-  // unverified live from this sandbox, worth a quick visual check once
-  // deployed on a commander with a hybrid-mana cost.
+  // ("{B/G}") drop the slash entirely in the filename (e.g. "BG.svg",
+  // not "B-G.svg") -- confirmed against the community mana-symbol
+  // notation (mana-font's CSS uses the same "ms-bg"-style concatenated
+  // class names, no hyphen) that Scryfall's own CDN mirrors. The
+  // earlier hyphenated guess was wrong and silently dropped every
+  // hybrid-mana pip (the image 404s and self-removes via onerror),
+  // caught live on a hybrid-mana commander (e.g. Indoraptor, the
+  // Perfect Hybrid's {1}{B/G}{R}) showing only its non-hybrid pips.
   function manaCostHTML(manaCost) {
     const symbols = manaCost.match(/\{([^}]+)\}/g) || [];
     return symbols
       .map((s) => s.slice(1, -1))
       .map((code) => {
-        const filename = code.replace("/", "-");
+        const filename = code.replace("/", "");
         return `<img class="pip" src="${MANA_SYMBOL_BASE_URL}${filename}.svg" alt="${code}" loading="lazy" onerror="this.remove()" />`;
       })
       .join("");
