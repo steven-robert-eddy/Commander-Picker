@@ -111,8 +111,30 @@ def test_create_game_starts_with_no_text_clues_revealed(conn, catalog_conn):
     info = guess_game.create_game(conn, picked)
     assert info.text_clues == []
     assert info.status == "in_progress"
-    assert info.type_line == "Legendary Creature — Human Wizard"
+    # Subtype ("Human Wizard") stripped -- see test_create_game_strips_creature_subtype_from_fact_clue.
+    assert info.type_line == "Legendary Creature"
     assert info.mana_cost == "{1}{R}"
+
+
+def test_create_game_strips_creature_subtype_from_fact_clue(conn, catalog_conn):
+    picked = guess_game.pick_commander(catalog_conn, min_decks=10_000)
+    picked.type_line = "Legendary Creature — Elemental Shaman"
+    info = guess_game.create_game(conn, picked)
+    assert info.type_line == "Legendary Creature"
+
+
+def test_create_game_leaves_subtype_less_type_line_untouched(conn, catalog_conn):
+    picked = guess_game.pick_commander(catalog_conn, min_decks=10_000)
+    picked.type_line = "Legendary Artifact"
+    info = guess_game.create_game(conn, picked)
+    assert info.type_line == "Legendary Artifact"
+
+
+def test_create_game_strips_subtype_from_each_half_of_a_partner_pair_type_line(conn, catalog_conn):
+    picked = guess_game.pick_commander(catalog_conn, min_decks=10_000)
+    picked.type_line = "Legendary Creature — God // Legendary Planeswalker — Tibalt"
+    info = guess_game.create_game(conn, picked)
+    assert info.type_line == "Legendary Creature // Legendary Planeswalker"
 
 
 def test_create_game_redacts_short_self_reference_name_from_text_clues(conn, catalog_conn):
