@@ -115,6 +115,52 @@ def test_create_game_starts_with_no_text_clues_revealed(conn, catalog_conn):
     assert info.mana_cost == "{1}{R}"
 
 
+def test_create_game_redacts_short_self_reference_name_from_text_clues(conn, catalog_conn):
+    picked = guess_game.pick_commander(catalog_conn, min_decks=10_000)
+    picked.name = "Celes, the Rune Knight"
+    picked.oracle_text = "Whenever Celes, the Rune Knight attacks, Celes deals 2 damage to any target."
+    info = guess_game.create_game(conn, picked)
+
+    result = guess_game.submit_guess(conn, info.id, "Wrong Guess")
+    assert result.text_clues == ["Whenever this card attacks, this card deals 2 damage to any target."]
+    assert "Celes" not in result.text_clues[0]
+
+
+def test_create_game_redacts_case_insensitively_and_whole_words_only(conn, catalog_conn):
+    picked = guess_game.pick_commander(catalog_conn, min_decks=10_000)
+    picked.name = "Celes, the Rune Knight"
+    # Lowercase "celes" and a possessive "Celes's" should both redact;
+    # "Celestial" must NOT be touched by a naive substring replace.
+    picked.oracle_text = "celes's ability triggers. A Celestial Being watches."
+    info = guess_game.create_game(conn, picked)
+
+    result = guess_game.submit_guess(conn, info.id, "Wrong Guess")
+    assert result.text_clues == ["this card's ability triggers. A Celestial Being watches."]
+
+
+def test_create_game_redacts_partner_pair_both_halves(conn, catalog_conn):
+    picked = guess_game.pick_commander(catalog_conn, min_decks=10_000)
+    picked.name = "Krark, the Thumbless // Vial Smasher the Fierce"
+    picked.oracle_text = "Whenever Krark deals damage, Vial Smasher the Fierce deals that much damage to each opponent."
+    info = guess_game.create_game(conn, picked)
+
+    result = guess_game.submit_guess(conn, info.id, "Wrong Guess")
+    assert result.text_clues == ["Whenever this card deals damage, this card deals that much damage to each opponent."]
+
+
+def test_get_game_reveal_shows_unredacted_oracle_text(conn, catalog_conn):
+    picked = guess_game.pick_commander(catalog_conn, min_decks=10_000)
+    picked.name = "Celes, the Rune Knight"
+    picked.oracle_text = "Whenever Celes, the Rune Knight attacks, draw a card."
+    info = guess_game.create_game(conn, picked)
+
+    result = guess_game.submit_guess(conn, info.id, "Celes, the Rune Knight")
+    assert result.status == "won"
+    # The final reveal is the real card -- only the progressive clues
+    # (already shown, name-redacted) are meant to hide the answer.
+    assert result.oracle_text == "Whenever Celes, the Rune Knight attacks, draw a card."
+
+
 def test_create_game_and_get_game_never_leak_answer_while_in_progress(conn, catalog_conn):
     picked = guess_game.pick_commander(catalog_conn, min_decks=10_000)
     info = guess_game.create_game(conn, picked)

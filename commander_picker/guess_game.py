@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import json
 import random
+import re
 import sqlite3
 import time
 import uuid
@@ -77,8 +78,46 @@ class GameInfo:
     num_decks: int | None = None
 
 
-def _text_clues(oracle_text: str | None) -> list[str]:
-    lines = [line.strip() for line in (oracle_text or "").split("\n") if line.strip()]
+REDACTED_NAME_PLACEHOLDER = "this card"
+
+
+def _name_variants(full_name: str) -> list[str]:
+    """Every way this commander's own name might appear in its own oracle
+    text: each half of a Partner//DFC pair, plus the short form Magic's
+    templating actually uses for self-reference -- the part before the
+    first comma, e.g. "Celes" for "Celes, the Rune Knight" -- since a
+    card's rules text almost never spells out its full epithet-bearing
+    name. Sorted longest-first so a full name is matched (and redacted)
+    before any short-name substring inside it would be.
+    """
+    variants: set[str] = set()
+    for half in full_name.split(" // "):
+        half = half.strip()
+        if not half:
+            continue
+        variants.add(half)
+        short = half.split(",", 1)[0].strip()
+        if short:
+            variants.add(short)
+    return sorted(variants, key=len, reverse=True)
+
+
+def _redact_name(text: str, full_name: str) -> str:
+    """Replace every self-reference to `full_name` in `text` with a
+    generic placeholder -- a card's own oracle text routinely names
+    itself (e.g. "Celes, the Rune Knight" says just "Celes"), which
+    would otherwise hand the answer away the moment a text clue reveals
+    that line. Only the clue-facing copy is redacted; the stored raw
+    oracle_text (used for the final reveal) is untouched.
+    """
+    for variant in _name_variants(full_name):
+        text = re.sub(r"\b" + re.escape(variant) + r"\b", REDACTED_NAME_PLACEHOLDER, text, flags=re.IGNORECASE)
+    return text
+
+
+def _text_clues(oracle_text: str | None, commander_name: str) -> list[str]:
+    redacted = _redact_name(oracle_text or "", commander_name)
+    lines = [line.strip() for line in redacted.split("\n") if line.strip()]
     return lines[:MAX_TEXT_CLUES]
 
 
@@ -124,7 +163,7 @@ def pick_commander(
 
 
 def create_game(conn: sqlite3.Connection, picked: PickedCommander) -> GameInfo:
-    clues = _text_clues(picked.oracle_text)
+    clues = _text_clues(picked.oracle_text, picked.name)
     game_id = str(uuid.uuid4())
     conn.execute(
         """

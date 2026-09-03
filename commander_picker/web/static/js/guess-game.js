@@ -1,9 +1,9 @@
-// Guess-the-Commander mini-game: a random commander (>=10k decks) is
-// picked server-side (see guess_game.py), which shows its type
-// line/mana cost up front and reveals one more oracle-text line per
-// wrong guess. The server never sends the answer, oracle text, or art
-// until the game is won or lost -- see guess_game.get_game's
-// `finished` gating.
+// Guess-the-Commander mini-game: a random commander (>= the minimum
+// deck count set below) is picked server-side (see guess_game.py),
+// which shows its type line/mana cost up front and reveals one more
+// oracle-text line per wrong guess. The server never sends the
+// answer, oracle text, or art until the game is won or lost -- see
+// guess_game.get_game's `finished` gating.
 (function () {
   "use strict";
 
@@ -11,6 +11,7 @@
 
   let currentGameId = null;
   let searchDebounceTimer = null;
+  let minDecks = 10000;
 
   function renderFact(info) {
     const manaHTML = info.mana_cost ? `<span class="guess-fact-mana">${manaCostHTML(info.mana_cost)}</span>` : "";
@@ -84,7 +85,7 @@
   async function startNewGame() {
     resetScreen();
     try {
-      const info = await api("POST", "/api/guess-game", {});
+      const info = await api("POST", "/api/guess-game", { min_decks: minDecks });
       currentGameId = info.id;
       renderGameState(info);
     } catch (e) {
@@ -160,6 +161,22 @@
     showScreen("screen-guess-game");
     await startNewGame();
   }
+
+  // Same paired slider/number-input sync as the intro screen's own
+  // deck-count filters (see picker.js) -- takes effect on the next
+  // new game (initial load or Play again), not the game in progress.
+  const minDecksSlider = $("guess-min-decks-slider");
+  const minDecksInput = $("guess-min-decks-input");
+  minDecksSlider.addEventListener("input", () => {
+    minDecks = Number(minDecksSlider.value);
+    minDecksInput.value = minDecks;
+  });
+  minDecksInput.addEventListener("change", () => {
+    const value = Math.max(0, Math.floor(Number(minDecksInput.value) || 0));
+    minDecks = value;
+    minDecksInput.value = value;
+    minDecksSlider.value = Math.min(Math.max(value, Number(minDecksSlider.min)), Number(minDecksSlider.max));
+  });
 
   const input = $("guess-input");
   input.addEventListener("input", () => {

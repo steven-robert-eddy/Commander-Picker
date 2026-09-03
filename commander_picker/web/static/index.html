@@ -301,11 +301,17 @@
     <!-- GUESS THE COMMANDER SCREEN -->
     <section id="screen-guess-game" class="hidden">
       <p class="lede">
-        A random commander with at least 10,000 decks on EDHREC. Its
-        type and mana cost are shown up front — guess the name before
-        you run out of attempts, revealing one more line of its rules
-        text after each wrong guess.
+        A random commander from EDHREC's catalog, filtered by how many
+        decks it's in below. Its type and mana cost are shown up front
+        — guess the name before you run out of attempts, revealing one
+        more line of its rules text after each wrong guess.
       </p>
+
+      <div class="filter-label">Minimum decks on EDHREC</div>
+      <div class="deck-range">
+        <input type="range" id="guess-min-decks-slider" min="0" max="60000" step="100" value="10000" />
+        <input type="number" id="guess-min-decks-input" class="num-input" min="0" max="1000000" step="1" value="10000" inputmode="numeric" />
+      </div>
 
       <div class="panel" id="guess-clue-panel">
         <div class="guess-fact-line" id="guess-fact-line"></div>
