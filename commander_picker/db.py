@@ -221,7 +221,7 @@ def load_commanders(
     return commanders
 
 
-def _commander_sets(set_slugs: list[str], commanders: dict[str, "CommanderRecord"]) -> list[tuple[str, str, str, int]]:
+def _commander_sets(set_slugs: list[str], commanders: dict[str, CommanderRecord]) -> list[tuple[str, str, str, int]]:
     """(commander_name, set_slug, set_name, num_decks) rows for the commander_sets table.
 
     Matched against the already-loaded ``commanders`` dict (from color
@@ -248,7 +248,7 @@ def build_database(
     set_slugs: list[str] | None = None,
     db_path: Path = DB_PATH,
     image_lookup: dict[str, list[str]] | None = None,
-    card_meta_lookup: dict[str, "scryfall_client.CardMeta"] | None = None,
+    card_meta_lookup: dict[str, scryfall_client.CardMeta] | None = None,
 ) -> Path:
     """Load cached pages and (re)write `data/commanders.db`.
 
