@@ -1240,6 +1240,7 @@ footer code {
    box doesn't reach far enough down to avoid visually brushing the
    button's top edge otherwise. */
 #screen-guess-game #guess-submit-btn { margin-top: 30px; }
+#screen-guess-game #guess-clue-panel { margin-top: 16px; }
 
 .guess-fact-line {
   display: flex;
