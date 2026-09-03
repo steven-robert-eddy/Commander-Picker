@@ -664,7 +664,7 @@ def test_bracket_full_playthrough_to_champion(conn):
     _seed_ratings_round_robin(conn, ["A", "B", "C", "D"])
     bracket_id = sessions.create_session(conn, [_commander(n) for n in "ABCD"], mode="bracket")
 
-    round_num, slot, seed_a, seed_b = sessions.next_bracket_match(conn, bracket_id)
+    round_num, _slot, seed_a, seed_b = sessions.next_bracket_match(conn, bracket_id)
     assert round_num == 1
     assert {seed_a, seed_b} == {"A", "D"}
     sessions.record_bracket_pick(conn, bracket_id, winner="A", loser="D")
@@ -672,7 +672,7 @@ def test_bracket_full_playthrough_to_champion(conn):
     info = sessions.get_session(conn, bracket_id)
     assert info.rounds_completed == 0  # round 1 isn't fully decided yet
 
-    round_num, slot, seed_a, seed_b = sessions.next_bracket_match(conn, bracket_id)
+    round_num, _slot, seed_a, seed_b = sessions.next_bracket_match(conn, bracket_id)
     assert round_num == 1
     assert {seed_a, seed_b} == {"B", "C"}
     sessions.record_bracket_pick(conn, bracket_id, winner="B", loser="C")
@@ -681,7 +681,7 @@ def test_bracket_full_playthrough_to_champion(conn):
     assert info.status == "active"
     assert info.rounds_completed == 1  # round 1 is now fully decided
 
-    round_num, slot, seed_a, seed_b = sessions.next_bracket_match(conn, bracket_id)
+    round_num, _slot, seed_a, seed_b = sessions.next_bracket_match(conn, bracket_id)
     assert round_num == 2
     assert {seed_a, seed_b} == {"A", "B"}
     sessions.record_bracket_pick(conn, bracket_id, winner="A", loser="B")
